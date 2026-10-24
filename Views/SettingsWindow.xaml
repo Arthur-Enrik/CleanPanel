@@ -1571,7 +1571,106 @@
                             </StackPanel>
                         </Border>
 
-                        <!-- ==================== B. PERSONALIZAÇÃO DE CORES DO OVERLAY ==================== -->
+                        <!-- ==================== B. OPACIDADE E ESCALA DO OVERLAY ==================== -->
+                        <TextBlock Text="Opacidade e Escala do Overlay (Tamanho)"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                   Margin="0,8,0,10" />
+
+                        <!-- Controle de Opacidade do Fundo do Overlay (Movido para Personalização) -->
+                        <Border Style="{StaticResource TelemetryCardBorderStyle}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding OverlayOpacityDisplayText}"
+                                               FontWeight="SemiBold"
+                                               FontSize="14"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                    <TextBlock Text="Ajusta a transparência do card de fundo mantendo os textos e métricas 100% nítidos (10% a 100%)"
+                                               FontSize="12"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                               TextWrapping="Wrap" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="1"
+                                            Orientation="Horizontal"
+                                            VerticalAlignment="Center"
+                                            Margin="16,0,0,0">
+                                    <Slider Minimum="0.10"
+                                            Maximum="1.00"
+                                            SmallChange="0.05"
+                                            LargeChange="0.10"
+                                            TickFrequency="0.05"
+                                            IsSnapToTickEnabled="False"
+                                            Width="180"
+                                            VerticalAlignment="Center"
+                                            Value="{Binding OverlayOpacity, Mode=TwoWay}" />
+                                    <TextBlock Text="{Binding OverlayOpacityPercentText}"
+                                               Width="50"
+                                               TextAlignment="Right"
+                                               VerticalAlignment="Center"
+                                               FontWeight="Bold"
+                                               FontSize="13.5"
+                                               Foreground="#00B8D4"
+                                               Margin="8,0,0,0" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!-- Controle de Tamanho / Escala do Overlay (70% a 200%) -->
+                        <Border Style="{StaticResource TelemetryCardBorderStyle}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                    <TextBlock Text="Tamanho / Escala do Overlay"
+                                               FontWeight="SemiBold"
+                                               FontSize="14"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                    <TextBlock Text="Aumenta ou diminui proporcionalmente o tamanho do card, títulos e valores (70% a 200%)"
+                                               FontSize="12"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                               TextWrapping="Wrap" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="1"
+                                            Orientation="Horizontal"
+                                            VerticalAlignment="Center"
+                                            Margin="16,0,0,0">
+                                    <Slider Minimum="0.70"
+                                            Maximum="2.00"
+                                            SmallChange="0.05"
+                                            LargeChange="0.10"
+                                            TickFrequency="0.05"
+                                            IsSnapToTickEnabled="True"
+                                            Width="160"
+                                            VerticalAlignment="Center"
+                                            Value="{Binding OverlayScale, Mode=TwoWay}" />
+                                    <TextBlock Text="{Binding OverlayScalePercentText}"
+                                               Width="50"
+                                               TextAlignment="Right"
+                                               VerticalAlignment="Center"
+                                               FontWeight="Bold"
+                                               FontSize="13.5"
+                                               Foreground="#00B8D4"
+                                               Margin="8,0,10,0" />
+                                    <ui:Button Content="100% (Padrão)"
+                                               Appearance="Secondary"
+                                               VerticalAlignment="Center"
+                                               Command="{Binding ResetOverlayScaleCommand}" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!-- ==================== C. PERSONALIZAÇÃO DE CORES DO OVERLAY ==================== -->
                         <Grid Margin="0,8,0,10">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
@@ -2030,7 +2129,7 @@
                         </ui:CardControl>
 
                         <!-- Iniciar com o Windows -->
-                        <ui:CardControl Margin="0,0,0,8">
+                        <ui:CardControl Margin="0,0,0,16">
                             <ui:CardControl.Header>
                                 <StackPanel>
                                     <TextBlock Text="Iniciar com o Windows (Administrador)"
@@ -2042,38 +2141,6 @@
                                 </StackPanel>
                             </ui:CardControl.Header>
                             <ui:ToggleSwitch IsChecked="{Binding StartWithWindows, Mode=TwoWay}" />
-                        </ui:CardControl>
-
-                        <!-- Slider de Opacidade (0.1 a 1.0) -->
-                        <ui:CardControl Margin="0,0,0,16">
-                            <ui:CardControl.Header>
-                                <StackPanel>
-                                    <TextBlock Text="Opacidade do Fundo do Overlay"
-                                               FontWeight="SemiBold"
-                                               FontSize="14" />
-                                    <TextBlock Text="Ajusta a transparência do card do Overlay (10% a 100%)"
-                                               FontSize="12"
-                                               Opacity="0.7" />
-                                </StackPanel>
-                            </ui:CardControl.Header>
-                            <StackPanel Orientation="Horizontal"
-                                        VerticalAlignment="Center">
-                                <Slider Minimum="0.1"
-                                        Maximum="1.0"
-                                        SmallChange="0.05"
-                                        LargeChange="0.1"
-                                        TickFrequency="0.05"
-                                        IsSnapToTickEnabled="False"
-                                        Width="140"
-                                        VerticalAlignment="Center"
-                                        Value="{Binding OverlayOpacity, Mode=TwoWay}" />
-                                <TextBlock Text="{Binding OverlayOpacityPercentText}"
-                                           Width="46"
-                                           TextAlignment="Right"
-                                           VerticalAlignment="Center"
-                                           FontWeight="SemiBold"
-                                           Margin="8,0,0,0" />
-                            </StackPanel>
                         </ui:CardControl>
 
                         <!-- ==================== LAYOUT E ALINHAMENTO NA TELA ==================== -->

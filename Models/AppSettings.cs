@@ -5,6 +5,7 @@ public class AppSettings
     public bool IsOverlayVisible { get; set; } = true;
     public bool IsOverlayLocked { get; set; } = false;
     public double OverlayOpacity { get; set; } = 0.85;
+    public double OverlayScale { get; set; } = 1.0;
     public double OverlayLeft { get; set; } = 50.0;
     public double OverlayTop { get; set; } = 50.0;
     public bool StartWithWindows { get; set; } = false;

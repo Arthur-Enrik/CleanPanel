@@ -249,7 +249,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(OverlayOpacityPercentText))]
-    private double _overlayOpacity;
+    [NotifyPropertyChangedFor(nameof(OverlayOpacityDisplayText))]
+    private double _overlayOpacity = 0.85;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(OverlayScalePercentText))]
+    private double _overlayScale = 1.0;
 
     [ObservableProperty]
     private double _overlayLeft;
@@ -375,6 +380,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private bool _showRam;
 
     public string OverlayOpacityPercentText => $"{Math.Round(OverlayOpacity * 100.0):0}%";
+
+    public string OverlayOpacityDisplayText => $"Opacidade do Fundo: {Math.Round(OverlayOpacity * 100.0):0}%";
+
+    public string OverlayScalePercentText => $"{Math.Round(OverlayScale * 100.0):0}%";
 
     public bool EffectiveOverlayVisible => IsOverlayVisible && (!SmartFullscreenOnly || IsForegroundFullScreen);
 
@@ -502,9 +511,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         return false;
     }
 
-    private static SolidColorBrush CreateFrozenBrush(string? hexColor, Color fallbackColor)
+    private static Color ParseHexColor(string? hexColor, Color fallbackColor)
     {
-        Color parsedColor = fallbackColor;
         if (!string.IsNullOrWhiteSpace(hexColor))
         {
             try
@@ -517,7 +525,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
                 if (ColorConverter.ConvertFromString(normalized) is Color c)
                 {
-                    parsedColor = c;
+                    return c;
                 }
             }
             catch
@@ -526,9 +534,35 @@ public partial class MainViewModel : ObservableObject, IDisposable
             }
         }
 
+        return fallbackColor;
+    }
+
+    private static SolidColorBrush CreateFrozenBrush(string? hexColor, Color fallbackColor)
+    {
+        Color parsedColor = ParseHexColor(hexColor, fallbackColor);
         var brush = new SolidColorBrush(parsedColor);
         brush.Freeze();
         return brush;
+    }
+
+    private void UpdateOverlayBackgroundAndBorderBrushes()
+    {
+        Color baseColor = ParseHexColor(OverlayBackgroundColorHex, Color.FromRgb(20, 20, 24));
+        byte alpha = (byte)Math.Clamp(OverlayOpacity * 255.0, 20, 255);
+        Color finalBgColor = Color.FromArgb(alpha, baseColor.R, baseColor.G, baseColor.B);
+
+        var bgBrush = new SolidColorBrush(finalBgColor);
+        bgBrush.Freeze();
+        OverlayBackgroundBrush = bgBrush;
+
+        Color baseBorderColor = ParseHexColor(OverlayBorderColorHex, Color.FromArgb(51, 255, 255, 255));
+        double borderRatio = baseBorderColor.A >= 250 ? 0.35 : (baseBorderColor.A / 255.0);
+        byte borderAlpha = (byte)Math.Clamp(alpha * Math.Max(0.18, borderRatio), 15, 255);
+        Color finalBorderColor = Color.FromArgb(borderAlpha, baseBorderColor.R, baseBorderColor.G, baseBorderColor.B);
+
+        var borderBrush = new SolidColorBrush(finalBorderColor);
+        borderBrush.Freeze();
+        OverlayBorderBrush = borderBrush;
     }
 
     private void OnHardwareSpecsInitialized(HardwareSpecs specs)
@@ -578,6 +612,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         IsOverlayVisible = settings.IsOverlayVisible;
         IsOverlayLocked = settings.IsOverlayLocked;
         OverlayOpacity = Math.Clamp(Math.Round(settings.OverlayOpacity, 2), 0.1, 1.0);
+        OverlayScale = Math.Clamp(Math.Round(settings.OverlayScale <= 0 ? 1.0 : settings.OverlayScale, 2), 0.70, 2.00);
         OverlayLeft = Math.Round(settings.OverlayLeft);
         OverlayTop = Math.Round(settings.OverlayTop);
         StartWithWindows = settings.StartWithWindows;
@@ -622,8 +657,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     private void RefreshFrozenColorBrushes()
     {
-        OverlayBackgroundBrush = CreateFrozenBrush(OverlayBackgroundColorHex, Color.FromRgb(20, 20, 24));
-        OverlayBorderBrush = CreateFrozenBrush(OverlayBorderColorHex, Color.FromArgb(51, 255, 255, 255));
+        UpdateOverlayBackgroundAndBorderBrushes();
         OverlayHeaderBrush = CreateFrozenBrush(OverlayHeaderColorHex, Color.FromRgb(0, 229, 255));
         OverlayValueTextBrush = CreateFrozenBrush(OverlayValueTextColorHex, Colors.White);
     }
@@ -708,6 +742,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
         OverlaySections.Move(index, index + 1);
         UpdateSectionBoundaryFlags();
         SaveSettings();
+    }
+
+    [RelayCommand]
+    private void ResetOverlayScale()
+    {
+        OverlayScale = 1.0;
     }
 
     [RelayCommand]
@@ -863,7 +903,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             FpsText = $"{metrics.CurrentFps} FPS";
 
             // CPU
-            CpuTemperatureText = roundedCpuTemp > 0 ? $"{roundedCpuTemp}°C" : "N/D";
+            CpuTemperatureText = roundedCpuTemp > 0 ? $"{roundedCpuTemp} °C" : "N/D";
             CpuLoadText = $"{roundedCpuLoad:0}%";
             CpuLoadBarValue = roundedCpuLoad;
 
@@ -885,7 +925,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 : "N/D";
 
             // GPU Primária do Overlay
-            GpuTemperatureText = roundedGpuTemp > 0 ? $"{roundedGpuTemp}°C" : "N/D";
+            GpuTemperatureText = roundedGpuTemp > 0 ? $"{roundedGpuTemp} °C" : "N/D";
             GpuLoadText = $"{roundedGpuLoad}%";
             GpuClockText = roundedGpuClock > 0 ? $"{roundedGpuClock} MHz" : "N/D";
             GpuPowerText = roundedGpuPower > 0.0
@@ -1116,6 +1156,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             IsOverlayVisible = IsOverlayVisible,
             IsOverlayLocked = IsOverlayLocked,
             OverlayOpacity = Math.Clamp(Math.Round(OverlayOpacity, 2), 0.1, 1.0),
+            OverlayScale = Math.Clamp(Math.Round(OverlayScale, 2), 0.70, 2.00),
             OverlayLeft = OverlayLeft,
             OverlayTop = OverlayTop,
             StartWithWindows = StartWithWindows,
@@ -1155,13 +1196,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     partial void OnOverlayBackgroundColorHexChanged(string value)
     {
-        OverlayBackgroundBrush = CreateFrozenBrush(value, Color.FromRgb(20, 20, 24));
+        UpdateOverlayBackgroundAndBorderBrushes();
         SaveSettings();
     }
 
     partial void OnOverlayBorderColorHexChanged(string value)
     {
-        OverlayBorderBrush = CreateFrozenBrush(value, Color.FromArgb(51, 255, 255, 255));
+        UpdateOverlayBackgroundAndBorderBrushes();
         SaveSettings();
     }
 
@@ -1184,7 +1225,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     partial void OnIsOverlayLockedChanged(bool value) => SaveSettings();
-    partial void OnOverlayOpacityChanged(double value) => SaveSettings();
+
+    partial void OnOverlayOpacityChanged(double value)
+    {
+        UpdateOverlayBackgroundAndBorderBrushes();
+        SaveSettings();
+    }
+
+    partial void OnOverlayScaleChanged(double value) => SaveSettings();
 
     partial void OnStartWithWindowsChanged(bool value)
     {
