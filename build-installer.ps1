@@ -2,10 +2,11 @@
 .SYNOPSIS
     Script automatizado de Build, Publish (.NET 8 Self-Contained) e Empacotamento do Instalador (.exe) do CleanPanel via Inno Setup.
 .DESCRIPTION
-    1. Localiza o compilador do Inno Setup (ISCC.exe).
-    2. Limpa os diretorios temporarios de publicacao (./Publish) e saida (./Output).
-    3. Executa o dotnet publish (Release, win-x64, self-contained=true, PublishSingleFile=false) para CleanPanel.csproj.
-    4. Compila o script installer.iss gerando Output\CleanPanel_Setup.exe.
+    1. Localiza o compilador do Inno Setup (ISCC.exe) garantindo retorno de string unica.
+    2. Valida o cabecalho binario Win32 ICO (00 00 01 00) de Assets\app.ico para evitar corrupcao PE (0x800700C1).
+    3. Limpa os diretorios temporarios de publicacao (./Publish) e saida (./Output).
+    4. Executa o dotnet publish (Release, win-x64, self-contained=true, PublishSingleFile=false) para CleanPanel.csproj.
+    5. Compila o script installer.iss via ISCC.exe gerando Output\CleanPanel_Setup.exe.
 #>
 
 $ErrorActionPreference = "Stop"
@@ -16,6 +17,7 @@ Set-Location $ProjectRoot
 
 $CsprojPath = Join-Path $ProjectRoot "CleanPanel.csproj"
 $IssPath    = Join-Path $ProjectRoot "installer.iss"
+$IcoPath    = Join-Path $ProjectRoot "Assets\app.ico"
 $PublishDir = Join-Path $ProjectRoot "Publish"
 $OutputDir  = Join-Path $ProjectRoot "Output"
 
@@ -23,38 +25,33 @@ Write-Host "====================================================================
 Write-Host " CleanPanel - Automacao de Build e Instalador (.exe)" -ForegroundColor Cyan
 Write-Host "====================================================================" -ForegroundColor Cyan
 
-# 1. Verificar se o Inno Setup (ISCC.exe) esta instalado
-Write-Host "`n[1/4] Verificando instalacao do Inno Setup (ISCC.exe)..." -ForegroundColor Yellow
+# 1. Localizar ISCC.exe garantindo APENAS UMA string (Select-Object -First 1)
+Write-Host "`n[1/5] Verificando instalacao do Inno Setup (ISCC.exe)..." -ForegroundColor Yellow
 
-$IsccPath = $null
-$CommandCheck = Get-Command "ISCC.exe" -ErrorAction SilentlyContinue
+$isccPaths = @(
+    "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+    "${env:ProgramFiles}\Inno Setup 6\ISCC.exe",
+    "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe"
+)
 
-if ($CommandCheck) {
-    $IsccPath = $CommandCheck.Source
-}
-else {
-    $CandidatePaths = @(
-        "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
-        "C:\Program Files\Inno Setup 6\ISCC.exe",
-        "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe"
-    )
+$iscc = $isccPaths | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
 
-    foreach ($Candidate in $CandidatePaths) {
-        if (Test-Path $Candidate) {
-            $IsccPath = $Candidate
-            break
-        }
+if (-not $iscc) {
+    $cmdIscc = Get-Command "ISCC.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($cmdIscc -and $cmdIscc.Source -and (Test-Path $cmdIscc.Source)) {
+        $iscc = [string]$cmdIscc.Source
     }
 }
 
-if (-not $IsccPath) {
+if (-not $iscc) {
     Write-Host "`n[ERRO] O compilador do Inno Setup (ISCC.exe) nao foi encontrado no sistema!" -ForegroundColor Red
     Write-Host "Para instalar o Inno Setup 6 rapidamente via terminal, execute:" -ForegroundColor Yellow
     Write-Host "    winget install JRSoftware.InnoSetup" -ForegroundColor Green
     exit 1
 }
 
-Write-Host "      ISCC.exe encontrado em: $IsccPath" -ForegroundColor Green
+$iscc = [string]$iscc
+Write-Host "      ISCC.exe encontrado em: $iscc" -ForegroundColor Green
 
 # Ler versao do CleanPanel.csproj (padrao 1.1.0)
 $AppVersion = "1.1.0"
@@ -63,16 +60,48 @@ if (Test-Path $CsprojPath) {
     $InfoVersionNode = $CsprojXml.Project.PropertyGroup.InformationalVersion | Where-Object { $_ } | Select-Object -First 1
     $VersionNode = $CsprojXml.Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
     if ($InfoVersionNode) {
-        $AppVersion = $InfoVersionNode.Trim()
+        $AppVersion = ([string]$InfoVersionNode).Trim()
     }
     elseif ($VersionNode) {
-        $AppVersion = $VersionNode.Trim()
+        $AppVersion = ([string]$VersionNode).Trim()
     }
 }
 Write-Host "      Versao detectada: $AppVersion" -ForegroundColor Gray
 
-# 2. Limpar pastas temporarias de publicacao e saida anteriores
-Write-Host "`n[2/4] Limpando pastas temporarias (Publish e Output)..." -ForegroundColor Yellow
+# 2. Validar cabecalho binario de Assets\app.ico (evita erro Win32 PE 0x800700C1)
+Write-Host "`n[2/5] Validando cabecalho binario ICO em Assets\app.ico..." -ForegroundColor Yellow
+
+$NeedRegenIco = $false
+if (-not (Test-Path $IcoPath)) {
+    $NeedRegenIco = $true
+}
+else {
+    $HeaderBytes = [System.IO.File]::ReadAllBytes($IcoPath)
+    if ($HeaderBytes.Length -lt 22 -or $HeaderBytes[0] -ne 0 -or $HeaderBytes[1] -ne 0 -or $HeaderBytes[2] -ne 1 -or $HeaderBytes[3] -ne 0) {
+        $NeedRegenIco = $true
+    }
+}
+
+if ($NeedRegenIco) {
+    Write-Host "      Regerando Assets\app.ico com cabecalho ICONDIR/ICONDIRENTRY valido..." -ForegroundColor Yellow
+    & dotnet build "$CsprojPath" -c Release
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "`n[ERRO] Falha ao compilar projeto para regenerar o icone!" -ForegroundColor Red
+        exit $LASTEXITCODE
+    }
+    $BuiltDll = Join-Path $ProjectRoot "bin\Release\net8.0-windows\CleanPanel.dll"
+    if (Test-Path $BuiltDll) {
+        & dotnet exec "$BuiltDll" --generate-icon
+    }
+}
+
+$VerifiedBytes = [System.IO.File]::ReadAllBytes($IcoPath)
+$IcoCount = [BitConverter]::ToInt16($VerifiedBytes, 4)
+$IcoOffset = [BitConverter]::ToInt32($VerifiedBytes, 18)
+Write-Host "      Assets\app.ico validado (Tamanho: $($VerifiedBytes.Length) bytes | Count: $IcoCount | Offset: $IcoOffset)." -ForegroundColor Green
+
+# 3. Limpar pastas temporarias de publicacao e saida anteriores
+Write-Host "`n[3/5] Limpando pastas temporarias (Publish e Output)..." -ForegroundColor Yellow
 
 if (Test-Path $PublishDir) {
     Remove-Item -Path $PublishDir -Recurse -Force
@@ -85,15 +114,15 @@ New-Item -ItemType Directory -Path $PublishDir -Force | Out-Null
 New-Item -ItemType Directory -Path $OutputDir -Force | Out-Null
 Write-Host "      Diretorios limpos com sucesso." -ForegroundColor Green
 
-# 3. Executar dotnet publish (Release, win-x64, Self-Contained=true, SingleFile=false)
-Write-Host "`n[3/4] Publicando CleanPanel .NET 8 (win-x64, Self-Contained)..." -ForegroundColor Yellow
+# 4. Executar dotnet publish (Release, win-x64, Self-Contained=true, SingleFile=false)
+Write-Host "`n[4/5] Publicando CleanPanel .NET 8 (win-x64, Self-Contained)..." -ForegroundColor Yellow
 
-& dotnet publish $CsprojPath `
+& dotnet publish "$CsprojPath" `
     -c Release `
     -r win-x64 `
     --self-contained true `
     -p:PublishSingleFile=false `
-    -o $PublishDir
+    -o "$PublishDir"
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "`n[ERRO] Falha durante a execucao do dotnet publish!" -ForegroundColor Red
@@ -101,10 +130,10 @@ if ($LASTEXITCODE -ne 0) {
 }
 Write-Host "      Publicacao concluida em: $PublishDir" -ForegroundColor Green
 
-# 4. Invocar ISCC.exe apontando para installer.iss
-Write-Host "`n[4/4] Compilando instalador CleanPanel_Setup.exe com Inno Setup..." -ForegroundColor Yellow
+# 5. Invocar ISCC.exe apontando para installer.iss
+Write-Host "`n[5/5] Compilando instalador CleanPanel_Setup.exe com Inno Setup..." -ForegroundColor Yellow
 
-& $IsccPath "/DMyAppVersion=$AppVersion" $IssPath
+& "$iscc" "/DMyAppVersion=$AppVersion" "$IssPath"
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "`n[ERRO] Falha ao compilar o instalador no Inno Setup!" -ForegroundColor Red

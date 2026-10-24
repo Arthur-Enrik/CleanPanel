@@ -27,7 +27,7 @@ public static class IconGeneratorHelper
                 Directory.CreateDirectory(directory);
             }
 
-            SaveMultiResolutionIco(targetPath, [256, 64, 32, 16]);
+            SaveValidSingle256PngIco(targetPath);
         }
         catch
         {
@@ -231,48 +231,38 @@ public static class IconGeneratorHelper
         return bitmap;
     }
 
-    private static void SaveMultiResolutionIco(string filePath, int[] sizes)
+    /// <summary>
+    /// Escreve um arquivo .ico binário padrão do Windows (cabeçalho ICONDIR de 6 bytes + ICONDIRENTRY de 16 bytes + payload PNG 256x256 no offset 22).
+    /// Evita corrupção do cabeçalho PE Win32 durante o dotnet publish e compilação do Inno Setup (erro 0x800700C1).
+    /// </summary>
+    public static void SaveValidSingle256PngIco(string filePath)
     {
-        var frames = new List<(int Size, byte[] PngBytes)>(sizes.Length);
+        using System.Drawing.Bitmap bmp = RenderCleanPanelLogoBitmap(256);
+        using var ms = new MemoryStream();
+        bmp.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+        byte[] pngBytes = ms.ToArray();
 
-        foreach (int sz in sizes)
-        {
-            using System.Drawing.Bitmap bmp = RenderCleanPanelLogoBitmap(sz);
-            using var ms = new MemoryStream();
-            bmp.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
-            frames.Add((sz, ms.ToArray()));
-        }
-
-        using var fs = new FileStream(filePath, FileMode.Create, FileAccess.Write);
+        using var fs = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.None);
         using var bw = new BinaryWriter(fs);
 
-        // ICONDIR Header (6 bytes)
-        bw.Write((short)0);
-        bw.Write((short)1);
-        bw.Write((short)frames.Count);
+        // Cabeçalho ICONDIR (6 bytes)
+        bw.Write((short)0); // Reserved = 0
+        bw.Write((short)1); // Type = 1 (Icon)
+        bw.Write((short)1); // Count = 1 imagem
 
-        int dataOffset = 6 + (16 * frames.Count);
+        // Entrada ICONDIRENTRY (16 bytes)
+        bw.Write((byte)0);          // Width = 0 (256px)
+        bw.Write((byte)0);          // Height = 0 (256px)
+        bw.Write((byte)0);          // ColorCount = 0
+        bw.Write((byte)0);          // Reserved = 0
+        bw.Write((short)1);         // Planes = 1
+        bw.Write((short)32);        // BitCount = 32 bpp
+        bw.Write(pngBytes.Length);  // BytesInRes = tamanho exato do array PNG
+        bw.Write(22);               // ImageOffset = 22 (6 + 16 bytes)
 
-        // ICONDIRENTRY (16 bytes por resolução)
-        foreach (var (sz, pngBytes) in frames)
-        {
-            bw.Write((byte)(sz >= 256 ? 0 : sz));
-            bw.Write((byte)(sz >= 256 ? 0 : sz));
-            bw.Write((byte)0);
-            bw.Write((byte)0);
-            bw.Write((short)1);
-            bw.Write((short)32);
-            bw.Write(pngBytes.Length);
-            bw.Write(dataOffset);
-
-            dataOffset += pngBytes.Length;
-        }
-
-        // Payloads PNG
-        foreach (var (_, pngBytes) in frames)
-        {
-            bw.Write(pngBytes);
-        }
+        // Payload PNG iniciando exatamente no byte 22
+        bw.Write(pngBytes);
+        bw.Flush();
     }
 
     private static System.Drawing.Drawing2D.GraphicsPath CreateRoundedRectangle(
