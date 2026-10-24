@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IO;
 using System.Text.RegularExpressions;
 using HardwareOverlayApp.Helpers;
@@ -9,7 +10,6 @@ namespace HardwareOverlayApp.Services;
 public class HardwareMonitorService : IDisposable
 {
     private readonly Computer _computer;
-    private readonly UpdateVisitor _updateVisitor;
     private readonly CancellationTokenSource _cts = new();
     private readonly object _hardwareLock = new();
     private Task? _monitoringTask;
@@ -18,6 +18,38 @@ public class HardwareMonitorService : IDisposable
     private volatile bool _isPollingSuspended;
     private volatile bool _isMainWindowVisible;
     private HardwareSpecs _staticSpecs = new();
+
+    // ==================== CACHE DE HARDWARE E REFERÊNCIAS DIRETAS DE SENSORES (ZERO LINQ NO LOOP DE 1S) ====================
+    private IHardware? _cpuHardware;
+    private readonly List<IHardware> _gpuHardwares = [];
+    private readonly List<IHardware> _memoryHardwares = [];
+    private readonly List<IHardware> _motherboardHardwares = [];
+    private readonly List<IHardware> _storageHardwares = [];
+
+    // Referências diretas de sensores de CPU
+    private ISensor? _cpuTempSensor;
+    private ISensor? _cpuMotherboardTempFallbackSensor;
+    private ISensor? _cpuLoadSensor;
+    private ISensor? _cpuPowerSensor;
+    private ISensor? _cpuVoltageSensor;
+    private ISensor? _cpuMotherboardVcoreFallbackSensor;
+    private readonly List<ISensor> _cpuCoreClockSensors = [];
+    private readonly List<CachedCpuCoreSensors> _cachedCpuCores = [];
+
+    // Referências diretas da GPU Primária (Overlay) e lista Multi-GPU cacheada
+    private ISensor? _gpuTempSensor;
+    private ISensor? _gpuLoadSensor;
+    private ISensor? _gpuClockSensor;
+    private ISensor? _gpuPowerSensor;
+    private readonly List<CachedGpuSensors> _cachedGpus = [];
+
+    // Referências diretas de sensores de RAM
+    private ISensor? _ramLoadSensor;
+    private ISensor? _ramUsedSensor;
+    private ISensor? _ramAvailableSensor;
+
+    // Referências diretas de sensores de Armazenamento Físico (SSD/HDD)
+    private readonly List<CachedStorageSensors> _cachedStorages = [];
 
     public event Action<HardwareMetrics>? MetricsUpdated;
     public event Action<HardwareSpecs>? SpecsInitialized;
@@ -33,18 +65,13 @@ public class HardwareMonitorService : IDisposable
             bool wasSuspended = _isPollingSuspended;
             _isPollingSuspended = value;
 
-            // Ao retomar do modo suspenso, realiza uma leitura imediata em background
-            if (wasSuspended && !value && !_isDisposed)
+            if (wasSuspended && !value && !_isDisposed && _isComputerOpened)
             {
                 _ = Task.Run(ReadAndPublishMetrics);
             }
         }
     }
 
-    /// <summary>
-    /// Indica se a janela principal estilo Task Manager está aberta e visível na tela.
-    /// Quando false (fechada/minimizada na bandeja), sensores pesados (núcleos individuais, tensões SuperIO, SMART/discos) são poupados.
-    /// </summary>
     public bool IsMainWindowVisible
     {
         get => _isMainWindowVisible;
@@ -53,7 +80,7 @@ public class HardwareMonitorService : IDisposable
             bool wasVisible = _isMainWindowVisible;
             _isMainWindowVisible = value;
 
-            if (!wasVisible && value && !_isDisposed)
+            if (!wasVisible && value && !_isDisposed && _isComputerOpened)
             {
                 _ = Task.Run(ReadAndPublishMetrics);
             }
@@ -62,8 +89,6 @@ public class HardwareMonitorService : IDisposable
 
     public HardwareMonitorService()
     {
-        _updateVisitor = new UpdateVisitor();
-
         _computer = new Computer
         {
             IsCpuEnabled = true,
@@ -83,7 +108,7 @@ public class HardwareMonitorService : IDisposable
     }
 
     /// <summary>
-    /// Método auxiliar de leitura segura exigido pela blindagem contra sensores nulos, NaN, Infinito ou zerados.
+    /// Método auxiliar de leitura segura contra valores nulos, NaN, Infinito ou zerados.
     /// </summary>
     public static bool IsValidSensorValue(ISensor? sensor, out float value)
     {
@@ -100,9 +125,6 @@ public class HardwareMonitorService : IDisposable
         return false;
     }
 
-    /// <summary>
-    /// Leitura segura para sensores de carga (Load %) onde 0% em repouso também é um valor numérico válido se o sensor existir.
-    /// </summary>
     private static bool IsValidLoadSensorValue(ISensor? sensor, out float value)
     {
         if (IsValidSensorValue(sensor, out value))
@@ -136,18 +158,34 @@ public class HardwareMonitorService : IDisposable
                     // Mantém o serviço ativo mesmo se um driver específico falhar na abertura
                 }
 
-                // Carrega especificações estáticas APENAS UMA VEZ na inicialização e faz cache em memória
+                // Atualiza os componentes uma única vez para popular a árvore de sensores e mapear referências diretas
                 try
                 {
-                    _staticSpecs = HardwareSpecs.LoadStaticSpecs(_computer);
-                    SpecsInitialized?.Invoke(_staticSpecs);
+                    foreach (IHardware hw in _computer.Hardware)
+                    {
+                        UpdateHardwareTree(hw);
+                    }
                 }
                 catch
                 {
-                    // Fallback seguro caso ocorra erro inesperado
+                    // Ignora falhas individuais na primeira varredura
                 }
 
+                // Carrega especificações estáticas apenas uma vez
+                try
+                {
+                    _staticSpecs = HardwareSpecs.LoadStaticSpecs(_computer);
+                }
+                catch
+                {
+                    // Fallback seguro
+                }
+
+                // Mapeia todas as referências diretas de ISensor para eliminar LINQ no loop de 1s
+                BuildDirectSensorReferencesCache();
+
                 _isComputerOpened = true;
+                SpecsInitialized?.Invoke(_staticSpecs);
             }
         }
 
@@ -161,7 +199,6 @@ public class HardwareMonitorService : IDisposable
             {
                 HeartbeatTick?.Invoke();
 
-                // Se a janela principal não estiver visível e o Overlay estiver suspenso, poupa 100% de CPU
                 if (_isPollingSuspended && !_isMainWindowVisible)
                     continue;
 
@@ -171,6 +208,442 @@ public class HardwareMonitorService : IDisposable
         catch (OperationCanceledException)
         {
             // Cancelamento limpo via CancellationTokenSource
+        }
+    }
+
+    /// <summary>
+    /// Executa apenas na inicialização para mapear e guardar as referências diretas dos objetos ISensor.
+    /// </summary>
+    private void BuildDirectSensorReferencesCache()
+    {
+        _cpuHardware = null;
+        _gpuHardwares.Clear();
+        _memoryHardwares.Clear();
+        _motherboardHardwares.Clear();
+        _storageHardwares.Clear();
+
+        foreach (IHardware hw in _computer.Hardware)
+        {
+            switch (hw.HardwareType)
+            {
+                case HardwareType.Cpu:
+                    _cpuHardware ??= hw;
+                    break;
+                case HardwareType.GpuNvidia:
+                case HardwareType.GpuAmd:
+                case HardwareType.GpuIntel:
+                    _gpuHardwares.Add(hw);
+                    break;
+                case HardwareType.Memory:
+                    if (!hw.Name.Contains("Virtual", StringComparison.OrdinalIgnoreCase))
+                    {
+                        _memoryHardwares.Add(hw);
+                    }
+                    break;
+                case HardwareType.Motherboard:
+                    _motherboardHardwares.Add(hw);
+                    break;
+                case HardwareType.Storage:
+                    _storageHardwares.Add(hw);
+                    break;
+            }
+        }
+
+        // Ordena GPUs priorizando dedicadas (NVIDIA / AMD) antes de integradas
+        _gpuHardwares.Sort( static (a, b) => GetGpuPriority(a.HardwareType).CompareTo(GetGpuPriority(b.HardwareType)));
+
+        CacheCpuSensorReferences();
+        CacheMotherboardFallbackSensorReferences();
+        CacheGpuSensorReferences();
+        CacheRamSensorReferences();
+        CacheStorageSensorReferences();
+    }
+
+    private static int GetGpuPriority(HardwareType type) => type switch
+    {
+        HardwareType.GpuNvidia => 0,
+        HardwareType.GpuAmd => 1,
+        HardwareType.GpuIntel => 2,
+        _ => 3
+    };
+
+    private void CacheCpuSensorReferences()
+    {
+        _cpuCoreClockSensors.Clear();
+        _cachedCpuCores.Clear();
+
+        if (_cpuHardware is null)
+            return;
+
+        IReadOnlyList<ISensor> sensors = _cpuHardware.Sensors;
+
+        // Temperatura de CPU: "Core (Tctl/Tdie)", "CPU Package", "Package", "Core Average", "Core Max" ou 1º disponível
+        _cpuTempSensor = ResolveSensorReferenceByAliases(
+            sensors,
+            SensorType.Temperature,
+            "Core (Tctl/Tdie)",
+            "CPU Package",
+            "Package",
+            "Core Average",
+            "Core Max")
+            ?? sensors.FirstOrDefault(s => s.SensorType == SensorType.Temperature);
+
+        // Uso Total da CPU
+        _cpuLoadSensor = ResolveSensorReferenceByAliases(
+            sensors,
+            SensorType.Load,
+            "CPU Total",
+            "Total");
+
+        // Consumo de CPU (Watts): "Package", "CPU Package", "Cores (SMU)", "CPU Power"
+        _cpuPowerSensor = ResolveSensorReferenceByAliases(
+            sensors,
+            SensorType.Power,
+            "Package",
+            "CPU Package",
+            "Cores (SMU)",
+            "CPU Power");
+
+        // Tensão de CPU (VCore): "Core (SVI2 TFN)", "Vcore", "CPU Core", "VID"
+        _cpuVoltageSensor = ResolveSensorReferenceByAliases(
+            sensors,
+            SensorType.Voltage,
+            "Core (SVI2 TFN)",
+            "Vcore",
+            "CPU Core",
+            "VID")
+            ?? sensors.FirstOrDefault(s => s.SensorType == SensorType.Voltage);
+
+        // Clocks dos núcleos (excluindo Bus Clock)
+        var nonEffectiveClocks = new List<ISensor>();
+        var allNonBusClocks = new List<ISensor>();
+        var clockByCoreNumber = new Dictionary<int, ISensor>();
+
+        foreach (ISensor s in sensors)
+        {
+            if (s.SensorType != SensorType.Clock ||
+                s.Name.Contains("Bus", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            allNonBusClocks.Add(s);
+
+            if (!s.Name.Contains("Effective", StringComparison.OrdinalIgnoreCase))
+            {
+                nonEffectiveClocks.Add(s);
+                int cNum = ExtractCoreNumber(s.Name);
+                if (cNum > 0 && !clockByCoreNumber.ContainsKey(cNum))
+                {
+                    clockByCoreNumber[cNum] = s;
+                }
+            }
+        }
+
+        List<ISensor> chosenClocks = nonEffectiveClocks.Count > 0 ? nonEffectiveClocks : allNonBusClocks;
+        foreach (ISensor clkSensor in chosenClocks)
+        {
+            _cpuCoreClockSensors.Add(clkSensor);
+            int cNum = ExtractCoreNumber(clkSensor.Name);
+            if (cNum > 0 && !clockByCoreNumber.ContainsKey(cNum))
+            {
+                clockByCoreNumber[cNum] = clkSensor;
+            }
+        }
+
+        // Mapeia os pares de sensores (Load + Clock) de cada núcleo individualmente
+        var loadSensors = sensors
+            .Where(s => s.SensorType == SensorType.Load &&
+                        !s.Name.Contains("Total", StringComparison.OrdinalIgnoreCase) &&
+                        !s.Name.Contains("Max", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        for (int i = 0; i < loadSensors.Count; i++)
+        {
+            ISensor loadSensor = loadSensors[i];
+            int coreNum = ExtractCoreNumber(loadSensor.Name);
+
+            ISensor? matchedClock = null;
+            if (coreNum > 0 && clockByCoreNumber.TryGetValue(coreNum, out ISensor? byCoreNum))
+            {
+                matchedClock = byCoreNum;
+            }
+            else if (i < _cpuCoreClockSensors.Count)
+            {
+                matchedClock = _cpuCoreClockSensors[i];
+            }
+
+            _cachedCpuCores.Add(new CachedCpuCoreSensors
+            {
+                CoreIndex = i + 1,
+                DisplayName = FormatCoreDisplayName(loadSensor.Name, i + 1),
+                LoadSensor = loadSensor,
+                ClockSensor = matchedClock
+            });
+        }
+
+        if (_cachedCpuCores.Count == 0 && _cpuCoreClockSensors.Count > 0)
+        {
+            for (int i = 0; i < _cpuCoreClockSensors.Count; i++)
+            {
+                _cachedCpuCores.Add(new CachedCpuCoreSensors
+                {
+                    CoreIndex = i + 1,
+                    DisplayName = $"Núcleo #{i + 1}",
+                    LoadSensor = _cpuLoadSensor,
+                    ClockSensor = _cpuCoreClockSensors[i]
+                });
+            }
+        }
+    }
+
+    private void CacheMotherboardFallbackSensorReferences()
+    {
+        _cpuMotherboardTempFallbackSensor = null;
+        _cpuMotherboardVcoreFallbackSensor = null;
+
+        foreach (IHardware mb in _motherboardHardwares)
+        {
+            _cpuMotherboardTempFallbackSensor ??= FindMotherboardTempSensorRecursive(mb);
+            _cpuMotherboardVcoreFallbackSensor ??= FindMotherboardVcoreSensorRecursive(mb);
+        }
+    }
+
+    private static ISensor? FindMotherboardTempSensorRecursive(IHardware hw)
+    {
+        foreach (ISensor s in hw.Sensors)
+        {
+            if (s.SensorType == SensorType.Temperature &&
+                s.Name.Contains("CPU", StringComparison.OrdinalIgnoreCase))
+            {
+                return s;
+            }
+        }
+
+        foreach (IHardware sub in hw.SubHardware)
+        {
+            ISensor? found = FindMotherboardTempSensorRecursive(sub);
+            if (found is not null)
+                return found;
+        }
+
+        return null;
+    }
+
+    private static ISensor? FindMotherboardVcoreSensorRecursive(IHardware hw)
+    {
+        ISensor? direct = ResolveSensorReferenceByAliases(
+            hw.Sensors,
+            SensorType.Voltage,
+            "Vcore",
+            "CPU VCore",
+            "CPU Core",
+            "VDDCR CPU");
+
+        if (direct is not null)
+            return direct;
+
+        foreach (IHardware sub in hw.SubHardware)
+        {
+            ISensor? subFound = FindMotherboardVcoreSensorRecursive(sub);
+            if (subFound is not null)
+                return subFound;
+        }
+
+        return null;
+    }
+
+    private void CacheGpuSensorReferences()
+    {
+        _cachedGpus.Clear();
+        _gpuTempSensor = null;
+        _gpuLoadSensor = null;
+        _gpuClockSensor = null;
+        _gpuPowerSensor = null;
+
+        for (int i = 0; i < _gpuHardwares.Count; i++)
+        {
+            IHardware gpu = _gpuHardwares[i];
+            IReadOnlyList<ISensor> sensors = gpu.Sensors;
+
+            string gpuId = gpu.Identifier?.ToString() ?? $"gpu_{i}";
+            GpuSpecInfo? spec = _staticSpecs.Gpus.FirstOrDefault(g =>
+                g.Id.Equals(gpuId, StringComparison.OrdinalIgnoreCase) ||
+                g.Name.Equals(gpu.Name, StringComparison.OrdinalIgnoreCase));
+
+            string vendor = gpu.HardwareType switch
+            {
+                HardwareType.GpuNvidia => "NVIDIA",
+                HardwareType.GpuAmd => "AMD",
+                HardwareType.GpuIntel => "Intel",
+                _ => spec?.Vendor ?? "GPU"
+            };
+
+            ISensor? coreTemp = ResolveSensorReferenceByAliases(
+                sensors,
+                SensorType.Temperature,
+                "GPU Core",
+                "GPU",
+                "Hot Spot")
+                ?? sensors.FirstOrDefault(s => s.SensorType == SensorType.Temperature);
+
+            ISensor? hotSpotTemp = ResolveSensorReferenceByAliases(
+                sensors,
+                SensorType.Temperature,
+                "Hot Spot",
+                "GPU Hot Spot",
+                "Memory Junction");
+
+            ISensor? coreLoad = ResolveSensorReferenceByAliases(
+                sensors,
+                SensorType.Load,
+                "GPU Core",
+                "D3D 3D",
+                "GPU");
+
+            ISensor? coreClock = ResolveSensorReferenceByAliases(
+                sensors,
+                SensorType.Clock,
+                "GPU Core",
+                "Core",
+                "Graphics");
+
+            ISensor? memClock = ResolveSensorReferenceByAliases(
+                sensors,
+                SensorType.Clock,
+                "GPU Memory",
+                "Memory",
+                "VRAM");
+
+            ISensor? power = ResolveSensorReferenceByAliases(
+                sensors,
+                SensorType.Power,
+                "GPU Package",
+                "GPU Power",
+                "GPU Core",
+                "Board Power",
+                "Total Board Power");
+
+            ISensor? vramTotalSmall = ResolveSensorReferenceByAliases(
+                sensors,
+                SensorType.SmallData,
+                "GPU Memory Total",
+                "D3D Dedicated Memory Total");
+
+            ISensor? vramUsedSmall = ResolveSensorReferenceByAliases(
+                sensors,
+                SensorType.SmallData,
+                "GPU Memory Used",
+                "D3D Dedicated Memory Used");
+
+            bool vramUsedIsMb = true;
+            ISensor? vramUsedSensor = vramUsedSmall;
+            if (vramUsedSensor is null)
+            {
+                vramUsedSensor = ResolveSensorReferenceByAliases(
+                    sensors,
+                    SensorType.Data,
+                    "GPU Memory Used",
+                    "D3D Dedicated Memory Used");
+                vramUsedIsMb = false;
+            }
+
+            ISensor? fanRpm = ResolveSensorReferenceByAliases(sensors, SensorType.Fan, "GPU Fan", "Fan")
+                              ?? sensors.FirstOrDefault(s => s.SensorType == SensorType.Fan);
+
+            ISensor? fanPct = ResolveSensorReferenceByAliases(sensors, SensorType.Control, "GPU Fan", "Fan");
+
+            var cachedGpu = new CachedGpuSensors
+            {
+                Hardware = gpu,
+                Id = gpuId,
+                Name = !string.IsNullOrWhiteSpace(gpu.Name) ? gpu.Name.Trim() : spec?.Name ?? $"GPU #{i + 1}",
+                Vendor = vendor,
+                TotalVramGb = spec?.TotalVramGb,
+                IsIntegratedOrSharedVram = spec?.IsIntegratedOrSharedVram ?? true,
+                TotalVramDisplay = spec?.TotalVramDisplay ?? "Compartilhada / Integrada",
+                CoreTempSensor = coreTemp,
+                HotSpotTempSensor = hotSpotTemp,
+                CoreLoadSensor = coreLoad,
+                CoreClockSensor = coreClock,
+                MemoryClockSensor = memClock,
+                PowerSensor = power,
+                VramTotalSmallDataSensor = vramTotalSmall,
+                VramUsedSensor = vramUsedSensor,
+                VramUsedIsSmallDataMb = vramUsedIsMb,
+                FanRpmSensor = fanRpm,
+                FanPercentSensor = fanPct
+            };
+
+            _cachedGpus.Add(cachedGpu);
+
+            // Define referências diretas da GPU Primária para leitura ultrarrápida do Overlay
+            if (i == 0)
+            {
+                _gpuTempSensor = coreTemp;
+                _gpuLoadSensor = coreLoad;
+                _gpuClockSensor = coreClock;
+                _gpuPowerSensor = power;
+            }
+        }
+    }
+
+    private void CacheRamSensorReferences()
+    {
+        _ramLoadSensor = null;
+        _ramUsedSensor = null;
+        _ramAvailableSensor = null;
+
+        foreach (IHardware mem in _memoryHardwares)
+        {
+            foreach (ISensor s in mem.Sensors)
+            {
+                if (s.SensorType == SensorType.Load &&
+                    s.Name.Equals("Memory", StringComparison.OrdinalIgnoreCase))
+                {
+                    _ramLoadSensor ??= s;
+                }
+                else if (s.SensorType == SensorType.Data &&
+                         s.Name.Equals("Memory Used", StringComparison.OrdinalIgnoreCase))
+                {
+                    _ramUsedSensor ??= s;
+                }
+                else if (s.SensorType == SensorType.Data &&
+                         s.Name.Equals("Memory Available", StringComparison.OrdinalIgnoreCase))
+                {
+                    _ramAvailableSensor ??= s;
+                }
+            }
+        }
+    }
+
+    private void CacheStorageSensorReferences()
+    {
+        _cachedStorages.Clear();
+
+        foreach (IHardware storage in _storageHardwares)
+        {
+            ISensor? tempSensor = ResolveSensorReferenceByAliases(
+                storage.Sensors,
+                SensorType.Temperature,
+                "Temperature",
+                "Composite",
+                "Drive Temperature",
+                "Airflow Temperature")
+                ?? storage.Sensors.FirstOrDefault(s => s.SensorType == SensorType.Temperature);
+
+            ISensor? usedSpaceSensor = ResolveSensorReferenceByAliases(
+                storage.Sensors,
+                SensorType.Load,
+                "Used Space");
+
+            _cachedStorages.Add(new CachedStorageSensors
+            {
+                Hardware = storage,
+                ModelName = !string.IsNullOrWhiteSpace(storage.Name) ? storage.Name.Trim() : "Unidade Física SSD/HDD",
+                TempSensor = tempSensor,
+                UsedSpaceSensor = usedSpaceSensor
+            });
         }
     }
 
@@ -196,89 +669,49 @@ public class HardwareMonitorService : IDisposable
                 RamTotalGb = _staticSpecs.TotalRamGb
             };
 
-            // Atualização seletiva de hardware (Zero desperdício de CPU quando na bandeja)
-            UpdateHardwareSelectively(readDetailed);
+            // 1. Atualiza apenas os hardwares necessários neste ciclo
+            UpdateRequiredHardwares(readDetailed);
 
-            // 1. Leitura de CPU (Try/Catch isolado)
+            // 2. Leitura direta de CPU via referências cacheadas (Try/Catch isolado)
             try
             {
-                IHardware? cpu = _computer.Hardware.FirstOrDefault(h => h.HardwareType == HardwareType.Cpu);
-                if (cpu is not null)
-                {
-                    ReadCpuMetrics(cpu, metrics, readDetailed);
-                }
+                ReadCpuMetricsFromCache(metrics, readDetailed);
             }
             catch
             {
-                // Isola falhas de leitura da CPU
+                // Isola falha de leitura da CPU
             }
 
-            // 2. Fallback de Temperatura e VCore na Placa-Mãe / SuperIO (Try/Catch isolado)
+            // 3. Leitura direta de GPU(s) via referências cacheadas (Try/Catch isolado)
             try
             {
-                bool needsTempFallback = metrics.CpuTemperature <= 0f;
-                bool needsVcoreFallback = readDetailed && (metrics.CpuVoltageVcore is null || metrics.CpuVoltageVcore <= 0f);
-
-                if (needsTempFallback || needsVcoreFallback)
-                {
-                    foreach (IHardware motherboard in _computer.Hardware.Where(h => h.HardwareType == HardwareType.Motherboard))
-                    {
-                        if (!readDetailed)
-                        {
-                            // Em modo leve, atualiza a placa-mãe apenas se precisar de fallback de temperatura da CPU
-                            UpdateHardwareTree(motherboard);
-                        }
-
-                        if (needsTempFallback && metrics.CpuTemperature <= 0f)
-                        {
-                            ReadMotherboardCpuTempFallback(motherboard, metrics);
-                        }
-
-                        if (needsVcoreFallback && (metrics.CpuVoltageVcore is null || metrics.CpuVoltageVcore <= 0f))
-                        {
-                            metrics.CpuVoltageVcore = ReadMotherboardVcoreFallback(motherboard);
-                        }
-                    }
-                }
+                ReadGpuMetricsFromCache(metrics, readDetailed);
             }
             catch
             {
-                // Isola falhas de leitura da Placa-Mãe / SuperIO
+                // Isola falha de leitura da GPU
             }
 
-            // 3. Leitura de GPUs - Multi-GPU e GPU Primária do Overlay (Try/Catch isolado)
+            // 4. Leitura direta de Memória RAM via referências cacheadas (Try/Catch isolado)
             try
             {
-                ReadAllGpusMetrics(metrics, readDetailed);
+                ReadRamMetricsFromCache(metrics);
             }
             catch
             {
-                // Isola falhas de leitura de GPU
+                // Isola falha de leitura da RAM
             }
 
-            // 4. Leitura de Memória RAM (Try/Catch isolado)
-            try
-            {
-                foreach (IHardware memory in _computer.Hardware.Where(h => h.HardwareType == HardwareType.Memory))
-                {
-                    ReadRamMetrics(memory, metrics);
-                }
-            }
-            catch
-            {
-                // Isola falhas de leitura de RAM
-            }
-
-            // 5. Leitura de Armazenamento: Partições DriveInfo + Temperatura Física SSD/HDD (Apenas com janela principal visível)
+            // 5. Leitura de Armazenamento apenas quando a janela principal está aberta
             if (readDetailed)
             {
                 try
                 {
-                    ReadStorageMetrics(metrics);
+                    ReadStorageMetricsFromCache(metrics);
                 }
                 catch
                 {
-                    // Isola falhas de leitura de discos
+                    // Isola falha de leitura de discos
                 }
             }
 
@@ -294,36 +727,39 @@ public class HardwareMonitorService : IDisposable
         }
     }
 
-    private void UpdateHardwareSelectively(bool readDetailed)
+    private void UpdateRequiredHardwares(bool readDetailed)
     {
-        foreach (IHardware hardware in _computer.Hardware)
+        if (_cpuHardware is not null)
         {
-            try
-            {
-                switch (hardware.HardwareType)
-                {
-                    case HardwareType.Cpu:
-                    case HardwareType.GpuNvidia:
-                    case HardwareType.GpuAmd:
-                    case HardwareType.GpuIntel:
-                    case HardwareType.Memory:
-                        UpdateHardwareTree(hardware);
-                        break;
+            UpdateHardwareTree(_cpuHardware);
+        }
 
-                    case HardwareType.Motherboard:
-                    case HardwareType.Storage:
-                        // Sensores pesados (SuperIO da placa-mãe e SMART/temperatura de discos) só são atualizados se a janela principal estiver aberta
-                        if (readDetailed)
-                        {
-                            UpdateHardwareTree(hardware);
-                        }
-                        break;
-                }
-            }
-            catch
+        if (readDetailed)
+        {
+            for (int i = 0; i < _gpuHardwares.Count; i++)
             {
-                // Continua atualizando os demais componentes se um driver falhar
+                UpdateHardwareTree(_gpuHardwares[i]);
             }
+
+            for (int i = 0; i < _motherboardHardwares.Count; i++)
+            {
+                UpdateHardwareTree(_motherboardHardwares[i]);
+            }
+
+            for (int i = 0; i < _storageHardwares.Count; i++)
+            {
+                UpdateHardwareTree(_storageHardwares[i]);
+            }
+        }
+        else if (_gpuHardwares.Count > 0)
+        {
+            // Em modo Overlay leve, atualiza apenas a GPU primária
+            UpdateHardwareTree(_gpuHardwares[0]);
+        }
+
+        for (int i = 0; i < _memoryHardwares.Count; i++)
+        {
+            UpdateHardwareTree(_memoryHardwares[i]);
         }
     }
 
@@ -335,81 +771,68 @@ public class HardwareMonitorService : IDisposable
         }
         catch
         {
-            // Ignora erro no componente pai e tenta sub-hardwares
+            // Ignora erro no componente pai
         }
 
-        foreach (IHardware sub in hardware.SubHardware)
+        IReadOnlyList<IHardware> subHardwares = hardware.SubHardware;
+        for (int i = 0; i < subHardwares.Count; i++)
         {
             try
             {
-                sub.Update();
+                subHardwares[i].Update();
             }
             catch
             {
-                // Ignora falha em sub-hardware específico (ex: SuperIO)
+                // Ignora falha em sub-hardware específico
             }
         }
     }
 
-    private void ReadCpuMetrics(IHardware cpu, HardwareMetrics metrics, bool readDetailed)
+    private void ReadCpuMetricsFromCache(HardwareMetrics metrics, bool readDetailed)
     {
-        IReadOnlyList<ISensor> sensors = cpu.Sensors;
-
-        // 1. Temperatura de CPU na ordem estrita de prioridade:
-        // "Core (Tctl/Tdie)" -> "CPU Package" -> "Package" -> "Core Average" -> "Core Max" -> primeiro SensorType.Temperature disponível
-        float? cpuTemp = FindSensorByAliases(
-            sensors,
-            SensorType.Temperature,
-            "Core (Tctl/Tdie)",
-            "CPU Package",
-            "Package",
-            "Core Average",
-            "Core Max");
-
-        if (cpuTemp is null)
+        if (IsValidSensorValue(_cpuTempSensor, out float cpuTemp))
         {
-            foreach (ISensor s in sensors)
+            metrics.CpuTemperature = cpuTemp;
+        }
+        else if (_cpuMotherboardTempFallbackSensor is not null)
+        {
+            if (!readDetailed)
             {
-                if (s.SensorType == SensorType.Temperature && IsValidSensorValue(s, out float firstTemp))
+                for (int i = 0; i < _motherboardHardwares.Count; i++)
                 {
-                    cpuTemp = firstTemp;
-                    break;
+                    UpdateHardwareTree(_motherboardHardwares[i]);
                 }
+            }
+
+            if (IsValidSensorValue(_cpuMotherboardTempFallbackSensor, out float mbTemp))
+            {
+                metrics.CpuTemperature = mbTemp;
             }
         }
 
-        metrics.CpuTemperature = cpuTemp ?? 0f;
+        if (IsValidLoadSensorValue(_cpuLoadSensor, out float cpuLoad))
+        {
+            metrics.CpuLoad = cpuLoad;
+        }
 
-        // 2. Uso Total da CPU (%)
-        float? totalLoad = FindLoadSensorByAliases(sensors, "CPU Total", "Total");
-        metrics.CpuLoad = totalLoad ?? 0f;
+        if (IsValidSensorValue(_cpuPowerSensor, out float cpuPower))
+        {
+            metrics.CpuPower = cpuPower;
+        }
 
-        // 3. Consumo de CPU (Watts) na ordem: "Package", "CPU Package", "Cores (SMU)", "CPU Power"
-        float? cpuPower = FindSensorByAliases(
-            sensors,
-            SensorType.Power,
-            "Package",
-            "CPU Package",
-            "Cores (SMU)",
-            "CPU Power");
-        metrics.CpuPower = cpuPower ?? 0f;
-
-        // 4. Clocks da CPU (Médio e Máximo)
         float clockSum = 0f;
         float maxClock = 0f;
         int clockCount = 0;
 
-        foreach (ISensor sensor in sensors)
+        for (int i = 0; i < _cpuCoreClockSensors.Count; i++)
         {
-            if (sensor.SensorType == SensorType.Clock &&
-                !sensor.Name.Contains("Bus", StringComparison.OrdinalIgnoreCase) &&
-                IsValidSensorValue(sensor, out float clockVal))
+            if (IsValidSensorValue(_cpuCoreClockSensors[i], out float clk))
             {
-                clockSum += clockVal;
+                clockSum += clk;
                 clockCount++;
-                if (clockVal > maxClock)
+                if (clk > maxClock)
                 {
-                    maxClock = clockVal;
+                    maxClock = clk;
                 }
             }
         }
@@ -423,392 +846,105 @@ public class HardwareMonitorService : IDisposable
         if (!readDetailed)
             return;
 
-        // 5. Tensão VCore (Apenas com janela principal aberta):
-        // Tenta na CPU: "Core (SVI2 TFN)", "Vcore", "CPU Core", "VID"
-        float? vcore = FindSensorByAliases(
-            sensors,
-            SensorType.Voltage,
-            "Core (SVI2 TFN)",
-            "Vcore",
-            "CPU Core",
-            "VID");
-
-        if (vcore is null)
+        // VCore direto do sensor cacheado (CPU ou fallback SuperIO da placa-mãe)
+        if (IsValidSensorValue(_cpuVoltageSensor, out float vcore) && vcore is > 0.15f and < 2.6f)
         {
-            foreach (ISensor s in sensors)
-            {
-                if (s.SensorType == SensorType.Voltage &&
-                    IsValidSensorValue(s, out float v) &&
-                    v is > 0.2f and < 2.5f)
-                {
-                    vcore = v;
-                    break;
-                }
-            }
+            metrics.CpuVoltageVcore = vcore;
+        }
+        else if (IsValidSensorValue(_cpuMotherboardVcoreFallbackSensor, out float mbVcore) && mbVcore is > 0.15f and < 2.6f)
+        {
+            metrics.CpuVoltageVcore = mbVcore;
         }
 
-        metrics.CpuVoltageVcore = vcore;
-
-        // 6. Grade de Núcleos (Per-Core Telemetry)
-        ReadCpuPerCoreTelemetry(sensors, metrics);
-    }
-
-    private void ReadCpuPerCoreTelemetry(IReadOnlyList<ISensor> sensors, HardwareMetrics metrics)
-    {
-        var clockByCoreNumber = new Dictionary<int, float>();
-        var allCoreClocks = new List<float>();
-
-        foreach (ISensor sensor in sensors)
+        // Telemetria por núcleo direta sem LINQ e sem Regex
+        for (int i = 0; i < _cachedCpuCores.Count; i++)
         {
-            if (sensor.SensorType == SensorType.Clock &&
-                !sensor.Name.Contains("Bus", StringComparison.OrdinalIgnoreCase) &&
-                !sensor.Name.Contains("Effective", StringComparison.OrdinalIgnoreCase) &&
-                IsValidSensorValue(sensor, out float clk))
-            {
-                allCoreClocks.Add(clk);
-                int coreNum = ExtractCoreNumber(sensor.Name);
-                if (coreNum > 0 && !clockByCoreNumber.ContainsKey(coreNum))
-                {
-                    clockByCoreNumber[coreNum] = clk;
-                }
-            }
-        }
-
-        // Fallback para clocks "Effective" caso o processador exponha apenas clocks efetivos
-        if (allCoreClocks.Count == 0)
-        {
-            foreach (ISensor sensor in sensors)
-            {
-                if (sensor.SensorType == SensorType.Clock &&
-                    !sensor.Name.Contains("Bus", StringComparison.OrdinalIgnoreCase) &&
-                    IsValidSensorValue(sensor, out float clk))
-                {
-                    allCoreClocks.Add(clk);
-                    int coreNum = ExtractCoreNumber(sensor.Name);
-                    if (coreNum > 0 && !clockByCoreNumber.ContainsKey(coreNum))
-                    {
-                        clockByCoreNumber[coreNum] = clk;
-                    }
-                }
-            }
-        }
-
-        var loadSensors = sensors
-            .Where(s => s.SensorType == SensorType.Load &&
-                        !s.Name.Contains("Total", StringComparison.OrdinalIgnoreCase) &&
-                        !s.Name.Contains("Max", StringComparison.OrdinalIgnoreCase))
-            .ToList();
-
-        int idx = 0;
-        foreach (ISensor loadSensor in loadSensors)
-        {
-            float? loadVal = IsValidLoadSensorValue(loadSensor, out float lv) ? lv : null;
-            int coreNum = ExtractCoreNumber(loadSensor.Name);
-
-            float? coreClock = null;
-            if (coreNum > 0 && clockByCoreNumber.TryGetValue(coreNum, out float matchedClock))
-            {
-                coreClock = matchedClock;
-            }
-            else if (idx < allCoreClocks.Count)
-            {
-                coreClock = allCoreClocks[idx];
-            }
-            else if (metrics.CpuClock > 0f)
-            {
-                coreClock = metrics.CpuClock;
-            }
-
-            string cleanName = FormatCoreDisplayName(loadSensor.Name, idx + 1);
+            CachedCpuCoreSensors core = _cachedCpuCores[i];
+            float? coreLoadVal = IsValidLoadSensorValue(core.LoadSensor, out float cl) ? cl : null;
+            float? coreClockVal = IsValidSensorValue(core.ClockSensor, out float cc)
+                ? cc
+                : (metrics.CpuClock > 0f ? metrics.CpuClock : null);
 
             metrics.CpuCores.Add(new CpuCoreMetric
             {
-                CoreIndex = idx + 1,
-                CoreName = cleanName,
-                LoadPercent = loadVal,
-                ClockMhz = coreClock
+                CoreIndex = core.CoreIndex,
+                CoreName = core.DisplayName,
+                LoadPercent = coreLoadVal,
+                ClockMhz = coreClockVal
             });
-
-            idx++;
-        }
-
-        // Caso a CPU exponha sensores de Clock por núcleo mas não exponha Load por núcleo
-        if (metrics.CpuCores.Count == 0 && allCoreClocks.Count > 0)
-        {
-            for (int i = 0; i < allCoreClocks.Count; i++)
-            {
-                metrics.CpuCores.Add(new CpuCoreMetric
-                {
-                    CoreIndex = i + 1,
-                    CoreName = $"Núcleo #{i + 1}",
-                    LoadPercent = metrics.CpuLoad,
-                    ClockMhz = allCoreClocks[i]
-                });
-            }
         }
     }
 
-    private static int ExtractCoreNumber(string sensorName)
+    private void ReadGpuMetricsFromCache(HardwareMetrics metrics, bool readDetailed)
     {
-        Match match = Regex.Match(sensorName, @"Core\s*#?(\d+)", RegexOptions.IgnoreCase);
-        if (match.Success && int.TryParse(match.Groups[1].Value, out int num))
-            return num;
+        if (IsValidSensorValue(_gpuTempSensor, out float primaryTemp))
+            metrics.GpuTemperature = primaryTemp;
 
-        return -1;
-    }
+        if (IsValidLoadSensorValue(_gpuLoadSensor, out float primaryLoad))
+            metrics.GpuLoad = primaryLoad;
 
-    private static string FormatCoreDisplayName(string rawName, int fallbackIndex)
-    {
-        if (string.IsNullOrWhiteSpace(rawName))
-            return $"Núcleo #{fallbackIndex}";
+        if (IsValidSensorValue(_gpuClockSensor, out float primaryClock))
+            metrics.GpuClock = primaryClock;
 
-        string formatted = rawName
-            .Replace("CPU Core", "Núcleo", StringComparison.OrdinalIgnoreCase)
-            .Replace("Core", "Núcleo", StringComparison.OrdinalIgnoreCase)
-            .Trim();
+        if (IsValidSensorValue(_gpuPowerSensor, out float primaryPower))
+            metrics.GpuPower = primaryPower;
 
-        return formatted;
-    }
+        if (!readDetailed)
+            return;
 
-    private static void ReadMotherboardCpuTempFallback(IHardware hardware, HardwareMetrics metrics)
-    {
-        foreach (ISensor sensor in hardware.Sensors)
+        for (int i = 0; i < _cachedGpus.Count; i++)
         {
-            if (sensor.SensorType == SensorType.Temperature &&
-                sensor.Name.Contains("CPU", StringComparison.OrdinalIgnoreCase) &&
-                IsValidSensorValue(sensor, out float value))
+            CachedGpuSensors g = _cachedGpus[i];
+
+            float? coreTemp = IsValidSensorValue(g.CoreTempSensor, out float ct) ? ct : null;
+            float? hotSpotTemp = IsValidSensorValue(g.HotSpotTempSensor, out float hst) ? hst : null;
+            float? coreLoad = IsValidLoadSensorValue(g.CoreLoadSensor, out float cl) ? cl : null;
+            float? coreClock = IsValidSensorValue(g.CoreClockSensor, out float cc) ? cc : null;
+            float? memClock = IsValidSensorValue(g.MemoryClockSensor, out float mc) ? mc : null;
+            float? power = IsValidSensorValue(g.PowerSensor, out float pw) ? pw : null;
+            float? fanRpm = IsValidSensorValue(g.FanRpmSensor, out float rpm) ? rpm : null;
+            float? fanPct = IsValidSensorValue(g.FanPercentSensor, out float fp) ? fp : null;
+
+            if (IsValidSensorValue(g.VramTotalSmallDataSensor, out float totalVramMb) && totalVramMb > 640f)
             {
-                metrics.CpuTemperature = value;
-                return;
-            }
-        }
-
-        foreach (IHardware subHardware in hardware.SubHardware)
-        {
-            ReadMotherboardCpuTempFallback(subHardware, metrics);
-            if (metrics.CpuTemperature > 0f)
-                return;
-        }
-    }
-
-    private static float? ReadMotherboardVcoreFallback(IHardware hardware)
-    {
-        float? vcore = FindSensorByAliases(
-            hardware.Sensors,
-            SensorType.Voltage,
-            "Vcore",
-            "CPU VCore",
-            "CPU Core",
-            "VDDCR CPU");
-
-        if (vcore is > 0f)
-            return vcore;
-
-        foreach (IHardware sub in hardware.SubHardware)
-        {
-            float? subVcore = ReadMotherboardVcoreFallback(sub);
-            if (subVcore is > 0f)
-                return subVcore;
-        }
-
-        return null;
-    }
-
-    private void ReadAllGpusMetrics(HardwareMetrics metrics, bool readDetailed)
-    {
-        var gpuHardwares = _computer.Hardware
-            .Where(h => h.HardwareType is HardwareType.GpuNvidia or HardwareType.GpuAmd or HardwareType.GpuIntel)
-            .ToList();
-
-        // Ordena priorizando GPUs dedicadas (NVIDIA / AMD) antes de integradas para alimentar o Overlay primário
-        var orderedGpus = gpuHardwares
-            .OrderBy(h => h.HardwareType switch
-            {
-                HardwareType.GpuNvidia => 0,
-                HardwareType.GpuAmd => 1,
-                HardwareType.GpuIntel => 2,
-                _ => 3
-            })
-            .ToList();
-
-        bool primaryOverlayGpuSet = false;
-        int index = 0;
-
-        foreach (IHardware gpu in orderedGpus)
-        {
-            IReadOnlyList<ISensor> sensors = gpu.Sensors;
-
-            // Temperatura Core: "GPU Core", "GPU", "Hot Spot"
-            float? coreTemp = FindSensorByAliases(
-                sensors,
-                SensorType.Temperature,
-                "GPU Core",
-                "GPU",
-                "Hot Spot");
-
-            if (coreTemp is null)
-            {
-                foreach (ISensor s in sensors)
-                {
-                    if (s.SensorType == SensorType.Temperature && IsValidSensorValue(s, out float ft))
-                    {
-                        coreTemp = ft;
-                        break;
-                    }
-                }
+                g.TotalVramGb = totalVramMb / 1024f;
+                g.IsIntegratedOrSharedVram = false;
+                g.TotalVramDisplay = string.Create(CultureInfo.InvariantCulture, $"{g.TotalVramGb.Value:0.#} GB");
             }
 
-            // Uso do Core (%)
-            float? coreLoad = FindLoadSensorByAliases(sensors, "GPU Core", "D3D 3D", "GPU");
-
-            // Clock do Core (MHz)
-            float? coreClock = FindSensorByAliases(
-                sensors,
-                SensorType.Clock,
-                "GPU Core",
-                "Core",
-                "Graphics");
-
-            // Consumo da GPU (Watts): "GPU Package", "GPU Power", "GPU Core", "Board Power"
-            float? gpuPower = FindSensorByAliases(
-                sensors,
-                SensorType.Power,
-                "GPU Package",
-                "GPU Power",
-                "GPU Core",
-                "Board Power",
-                "Total Board Power");
-
-            // Define as métricas da GPU principal para o Overlay flutuante
-            if (!primaryOverlayGpuSet || (metrics.GpuTemperature <= 0f && coreTemp is > 0f))
+            float? vramUsedGb = null;
+            if (IsValidSensorValue(g.VramUsedSensor, out float rawVramUsed))
             {
-                metrics.GpuTemperature = coreTemp ?? 0f;
-                metrics.GpuLoad = coreLoad ?? 0f;
-                metrics.GpuClock = coreClock ?? 0f;
-                metrics.GpuPower = gpuPower ?? 0f;
-                primaryOverlayGpuSet = true;
+                vramUsedGb = g.VramUsedIsSmallDataMb || rawVramUsed > 128f
+                    ? rawVramUsed / 1024f
+                    : rawVramUsed;
             }
-
-            if (!readDetailed)
-            {
-                index++;
-                continue;
-            }
-
-            // Telemetria avançada da GPU para as abas Visão Geral e Placa de Vídeo (GPU)
-            string gpuId = gpu.Identifier?.ToString() ?? $"gpu_{index}";
-            GpuSpecInfo? cachedSpec = _staticSpecs.Gpus.FirstOrDefault(g =>
-                g.Id.Equals(gpuId, StringComparison.OrdinalIgnoreCase) ||
-                g.Name.Equals(gpu.Name, StringComparison.OrdinalIgnoreCase));
-
-            // Verifica se o sensor de VRAM Total do LHM ficou disponível após a atualização
-            float? totalVramGb = cachedSpec?.TotalVramGb;
-            bool isSharedVram = cachedSpec?.IsIntegratedOrSharedVram ?? true;
-            string totalVramDisplay = cachedSpec?.TotalVramDisplay ?? "Compartilhada / Integrada";
-
-            float? lhmTotalVramMb = FindSensorByAliases(
-                sensors,
-                SensorType.SmallData,
-                "GPU Memory Total",
-                "D3D Dedicated Memory Total");
-
-            if (lhmTotalVramMb is > 640f) // > 0.625 GB dedicado
-            {
-                totalVramGb = lhmTotalVramMb.Value / 1024f;
-                isSharedVram = false;
-                totalVramDisplay = string.Create(
-                    System.Globalization.CultureInfo.InvariantCulture,
-                    $"{totalVramGb.Value:0.#} GB");
-            }
-
-            // Temperatura Hot Spot (°C)
-            float? hotSpotTemp = FindSensorByAliases(
-                sensors,
-                SensorType.Temperature,
-                "Hot Spot",
-                "GPU Hot Spot",
-                "Memory Junction");
-
-            // Clock da Memória (MHz)
-            float? memClock = FindSensorByAliases(
-                sensors,
-                SensorType.Clock,
-                "GPU Memory",
-                "Memory",
-                "VRAM");
-
-            // VRAM Usada: SensorType.SmallData com "GPU Memory Used" ou "D3D Dedicated Memory Used" (divide por 1024 para converter MB em GB)
-            float? vramUsedMb = FindSensorByAliases(
-                sensors,
-                SensorType.SmallData,
-                "GPU Memory Used",
-                "D3D Dedicated Memory Used");
-
-            float? vramUsedGb = vramUsedMb is > 0f ? vramUsedMb.Value / 1024f : null;
-            if (vramUsedGb is null)
-            {
-                float? vramDataGb = FindSensorByAliases(
-                    sensors,
-                    SensorType.Data,
-                    "GPU Memory Used",
-                    "D3D Dedicated Memory Used");
-                if (vramDataGb is > 0f)
-                {
-                    vramUsedGb = vramDataGb.Value > 128f ? vramDataGb.Value / 1024f : vramDataGb.Value;
-                }
-            }
-
-            // Velocidade dos Fans (RPM e %)
-            float? fanRpm = FindSensorByAliases(sensors, SensorType.Fan, "GPU Fan", "Fan");
-            if (fanRpm is null)
-            {
-                foreach (ISensor s in sensors)
-                {
-                    if (s.SensorType == SensorType.Fan && IsValidSensorValue(s, out float rpmVal))
-                    {
-                        fanRpm = rpmVal;
-                        break;
-                    }
-                }
-            }
-
-            float? fanPercent = FindSensorByAliases(sensors, SensorType.Control, "GPU Fan", "Fan");
-
-            string vendor = gpu.HardwareType switch
-            {
-                HardwareType.GpuNvidia => "NVIDIA",
-                HardwareType.GpuAmd => "AMD",
-                HardwareType.GpuIntel => "Intel",
-                _ => cachedSpec?.Vendor ?? "GPU"
-            };
 
             metrics.Gpus.Add(new GpuDetailedMetrics
             {
-                Id = gpuId,
-                Name = !string.IsNullOrWhiteSpace(gpu.Name) ? gpu.Name.Trim() : cachedSpec?.Name ?? $"GPU #{index + 1}",
-                Vendor = vendor,
-                TotalVramGb = totalVramGb,
-                IsIntegratedOrSharedVram = isSharedVram,
-                TotalVramDisplay = totalVramDisplay,
+                Id = g.Id,
+                Name = g.Name,
+                Vendor = g.Vendor,
+                TotalVramGb = g.TotalVramGb,
+                IsIntegratedOrSharedVram = g.IsIntegratedOrSharedVram,
+                TotalVramDisplay = g.TotalVramDisplay,
                 CoreLoadPercent = coreLoad,
                 CoreTemperatureC = coreTemp,
                 HotSpotTemperatureC = hotSpotTemp,
                 CoreClockMhz = coreClock,
                 MemoryClockMhz = memClock,
                 VramUsedGb = vramUsedGb,
-                PowerWatts = gpuPower,
+                PowerWatts = power,
                 FanRpm = fanRpm,
-                FanPercent = fanPercent
+                FanPercent = fanPct
             });
-
-            index++;
         }
 
-        // Se nenhuma GPU foi exposta pelos sensores do LHM, mas há GPUs cacheadas no WMI/Registro
-        if (readDetailed && metrics.Gpus.Count == 0 && _staticSpecs.Gpus.Count > 0)
+        if (metrics.Gpus.Count == 0 && _staticSpecs.Gpus.Count > 0)
         {
-            foreach (GpuSpecInfo spec in _staticSpecs.Gpus)
+            for (int i = 0; i < _staticSpecs.Gpus.Count; i++)
             {
+                GpuSpecInfo spec = _staticSpecs.Gpus[i];
                 metrics.Gpus.Add(new GpuDetailedMetrics
                 {
                     Id = spec.Id,
@@ -822,36 +958,11 @@ public class HardwareMonitorService : IDisposable
         }
     }
 
-    private void ReadRamMetrics(IHardware memory, HardwareMetrics metrics)
+    private void ReadRamMetricsFromCache(HardwareMetrics metrics)
     {
-        if (memory.Name.Contains("Virtual", StringComparison.OrdinalIgnoreCase))
-            return;
-
-        float usedGb = 0f;
-        float freeGb = 0f;
-        float loadPct = 0f;
-
-        foreach (ISensor sensor in memory.Sensors)
-        {
-            if (sensor.SensorType == SensorType.Load &&
-                sensor.Name.Equals("Memory", StringComparison.OrdinalIgnoreCase) &&
-                IsValidSensorValue(sensor, out float loadVal))
-            {
-                loadPct = loadVal;
-            }
-            else if (sensor.SensorType == SensorType.Data &&
-                     sensor.Name.Equals("Memory Used", StringComparison.OrdinalIgnoreCase) &&
-                     IsValidSensorValue(sensor, out float usedVal))
-            {
-                usedGb = usedVal;
-            }
-            else if (sensor.SensorType == SensorType.Data &&
-                     sensor.Name.Equals("Memory Available", StringComparison.OrdinalIgnoreCase) &&
-                     IsValidSensorValue(sensor, out float availVal))
-            {
-                freeGb = availVal;
-            }
-        }
+        float usedGb = IsValidSensorValue(_ramUsedSensor, out float u) ? u : 0f;
+        float freeGb = IsValidSensorValue(_ramAvailableSensor, out float a) ? a : 0f;
+        float loadPct = IsValidSensorValue(_ramLoadSensor, out float l) ? l : 0f;
 
         if (usedGb > 0f)
             metrics.RamUsedGb = usedGb;
@@ -876,62 +987,38 @@ public class HardwareMonitorService : IDisposable
         }
     }
 
-    private void ReadStorageMetrics(HardwareMetrics metrics)
+    private void ReadStorageMetricsFromCache(HardwareMetrics metrics)
     {
-        // 1. Lê discos físicos e temperaturas via LibreHardwareMonitor (HardwareType.Storage)
-        var physicalDisks = new List<PhysicalStorageMetrics>();
+        var physicalDisks = new List<PhysicalStorageMetrics>(_cachedStorages.Count);
 
-        foreach (IHardware storage in _computer.Hardware.Where(h => h.HardwareType == HardwareType.Storage))
+        for (int i = 0; i < _cachedStorages.Count; i++)
         {
-            try
+            CachedStorageSensors cs = _cachedStorages[i];
+            float? temp = IsValidSensorValue(cs.TempSensor, out float tVal) ? tVal : null;
+            float? usedPct = IsValidSensorValue(cs.UsedSpaceSensor, out float uVal) ? uVal : null;
+
+            physicalDisks.Add(new PhysicalStorageMetrics
             {
-                float? temp = FindSensorByAliases(
-                    storage.Sensors,
-                    SensorType.Temperature,
-                    "Temperature",
-                    "Composite",
-                    "Drive Temperature",
-                    "Airflow Temperature");
-
-                if (temp is null)
-                {
-                    foreach (ISensor s in storage.Sensors)
-                    {
-                        if (s.SensorType == SensorType.Temperature && IsValidSensorValue(s, out float tVal))
-                        {
-                            temp = tVal;
-                            break;
-                        }
-                    }
-                }
-
-                float? usedPct = FindSensorByAliases(storage.Sensors, SensorType.Load, "Used Space");
-
-                physicalDisks.Add(new PhysicalStorageMetrics
-                {
-                    ModelName = !string.IsNullOrWhiteSpace(storage.Name) ? storage.Name.Trim() : "Unidade Física SSD/HDD",
-                    TemperatureC = temp,
-                    UsedSpacePercent = usedPct
-                });
-            }
-            catch
-            {
-                // Ignora falha em um disco físico específico
-            }
+                ModelName = cs.ModelName,
+                TemperatureC = temp,
+                UsedSpacePercent = usedPct
+            });
         }
 
         metrics.PhysicalDisks = physicalDisks;
 
-        // 2. Lê partições lógicas fixas via System.IO.DriveInfo.GetDrives() (IsReady == true && DriveType.Fixed)
+        DriveInfo[] drives = DriveInfo.GetDrives();
         int driveIndex = 0;
-        foreach (DriveInfo drive in DriveInfo.GetDrives())
+
+        for (int i = 0; i < drives.Length; i++)
         {
+            DriveInfo drive = drives[i];
             try
             {
                 if (!drive.IsReady || drive.DriveType != DriveType.Fixed)
                     continue;
 
-                string driveKey = drive.Name.TrimEnd('\\'); // Ex: "C:"
+                string driveKey = drive.Name.TrimEnd('\\');
                 double totalGb = _staticSpecs.PartitionStaticTotalGb.TryGetValue(driveKey, out double cachedTotal) && cachedTotal > 0
                     ? cachedTotal
                     : drive.TotalSize / (1024.0 * 1024.0 * 1024.0);
@@ -949,10 +1036,9 @@ public class HardwareMonitorService : IDisposable
                 }
                 catch
                 {
-                    // Ignora se metadados secundários de volume falharem
+                    // Ignora falha de leitura de rótulo secundário
                 }
 
-                // Associa o disco físico e sua temperatura atual (com fallback para "Sem sensor")
                 var (physicalModel, tempC) = ResolvePhysicalDiskForDrive(driveKey, driveIndex, physicalDisks);
 
                 metrics.StorageDrives.Add(new StorageDriveMetrics
@@ -972,7 +1058,7 @@ public class HardwareMonitorService : IDisposable
             }
             catch
             {
-                // Isola erro em partição específica
+                // Isola falha em partição individual
             }
         }
     }
@@ -985,16 +1071,16 @@ public class HardwareMonitorService : IDisposable
         if (_staticSpecs.LogicalDriveToPhysicalModel.TryGetValue(driveKey, out string? mappedModel) &&
             !string.IsNullOrWhiteSpace(mappedModel))
         {
-            PhysicalStorageMetrics? matched = physicalDisks.FirstOrDefault(p =>
-                p.ModelName.Contains(mappedModel, StringComparison.OrdinalIgnoreCase) ||
-                mappedModel.Contains(p.ModelName, StringComparison.OrdinalIgnoreCase));
-
-            if (matched is not null)
+            for (int i = 0; i < physicalDisks.Count; i++)
             {
-                return (matched.ModelName, matched.TemperatureC);
+                PhysicalStorageMetrics p = physicalDisks[i];
+                if (p.ModelName.Contains(mappedModel, StringComparison.OrdinalIgnoreCase) ||
+                    mappedModel.Contains(p.ModelName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return (p.ModelName, p.TemperatureC);
+                }
             }
 
-            // Se o WMI encontrou o modelo mas o LHM tem apenas 1 disco físico, usa a temperatura dele
             if (physicalDisks.Count == 1)
             {
                 return (mappedModel, physicalDisks[0].TemperatureC);
@@ -1016,37 +1102,35 @@ public class HardwareMonitorService : IDisposable
         return ("Disco Local Fixo", null);
     }
 
-    private static float? FindSensorByAliases(
-        IEnumerable<ISensor> sensors,
+    private static ISensor? ResolveSensorReferenceByAliases(
+        IReadOnlyList<ISensor> sensors,
         SensorType sensorType,
         params string[] aliases)
     {
-        var candidates = sensors.Where(s => s.SensorType == sensorType).ToList();
-        if (candidates.Count == 0)
-            return null;
-
-        // 1. Prioriza correspondência exata na ordem dos aliases
-        foreach (string alias in aliases)
+        for (int a = 0; a < aliases.Length; a++)
         {
-            foreach (ISensor sensor in candidates)
+            string alias = aliases[a];
+            for (int s = 0; s < sensors.Count; s++)
             {
-                if (sensor.Name.Equals(alias, StringComparison.OrdinalIgnoreCase) &&
-                    IsValidSensorValue(sensor, out float exactValue))
+                ISensor sensor = sensors[s];
+                if (sensor.SensorType == sensorType &&
+                    sensor.Name.Equals(alias, StringComparison.OrdinalIgnoreCase))
                 {
-                    return exactValue;
+                    return sensor;
                 }
             }
         }
 
-        // 2. Correspondência parcial (Contains) na ordem dos aliases
-        foreach (string alias in aliases)
+        for (int a = 0; a < aliases.Length; a++)
         {
-            foreach (ISensor sensor in candidates)
+            string alias = aliases[a];
+            for (int s = 0; s < sensors.Count; s++)
             {
-                if (sensor.Name.Contains(alias, StringComparison.OrdinalIgnoreCase) &&
-                    IsValidSensorValue(sensor, out float partialValue))
+                ISensor sensor = sensors[s];
+                if (sensor.SensorType == sensorType &&
+                    sensor.Name.Contains(alias, StringComparison.OrdinalIgnoreCase))
                 {
-                    return partialValue;
+                    return sensor;
                 }
             }
         }
@@ -1054,39 +1138,24 @@ public class HardwareMonitorService : IDisposable
         return null;
     }
 
-    private static float? FindLoadSensorByAliases(
-        IEnumerable<ISensor> sensors,
-        params string[] aliases)
+    private static int ExtractCoreNumber(string sensorName)
     {
-        var candidates = sensors.Where(s => s.SensorType == SensorType.Load).ToList();
-        if (candidates.Count == 0)
-            return null;
+        Match match = Regex.Match(sensorName, @"Core\s*#?(\d+)", RegexOptions.IgnoreCase);
+        if (match.Success && int.TryParse(match.Groups[1].Value, out int num))
+            return num;
 
-        foreach (string alias in aliases)
-        {
-            foreach (ISensor sensor in candidates)
-            {
-                if (sensor.Name.Equals(alias, StringComparison.OrdinalIgnoreCase) &&
-                    IsValidLoadSensorValue(sensor, out float exactValue))
-                {
-                    return exactValue;
-                }
-            }
-        }
+        return -1;
+    }
 
-        foreach (string alias in aliases)
-        {
-            foreach (ISensor sensor in candidates)
-            {
-                if (sensor.Name.Contains(alias, StringComparison.OrdinalIgnoreCase) &&
-                    IsValidLoadSensorValue(sensor, out float partialValue))
-                {
-                    return partialValue;
-                }
-            }
-        }
+    private static string FormatCoreDisplayName(string rawName, int fallbackIndex)
+    {
+        if (string.IsNullOrWhiteSpace(rawName))
+            return $"Núcleo #{fallbackIndex}";
 
-        return null;
+        return rawName
+            .Replace("CPU Core", "Núcleo", StringComparison.OrdinalIgnoreCase)
+            .Replace("Core", "Núcleo", StringComparison.OrdinalIgnoreCase)
+            .Trim();
     }
 
     public void Dispose()
@@ -1119,5 +1188,43 @@ public class HardwareMonitorService : IDisposable
         }
 
         _cts.Dispose();
+    }
+
+    private sealed class CachedCpuCoreSensors
+    {
+        public int CoreIndex { get; init; }
+        public string DisplayName { get; init; } = string.Empty;
+        public ISensor? LoadSensor { get; init; }
+        public ISensor? ClockSensor { get; init; }
+    }
+
+    private sealed class CachedGpuSensors
+    {
+        public required IHardware Hardware { get; init; }
+        public string Id { get; init; } = string.Empty;
+        public string Name { get; init; } = string.Empty;
+        public string Vendor { get; init; } = string.Empty;
+        public float? TotalVramGb { get; set; }
+        public bool IsIntegratedOrSharedVram { get; set; }
+        public string TotalVramDisplay { get; set; } = "Compartilhada / Integrada";
+        public ISensor? CoreTempSensor { get; init; }
+        public ISensor? HotSpotTempSensor { get; init; }
+        public ISensor? CoreLoadSensor { get; init; }
+        public ISensor? CoreClockSensor { get; init; }
+        public ISensor? MemoryClockSensor { get; init; }
+        public ISensor? PowerSensor { get; init; }
+        public ISensor? VramTotalSmallDataSensor { get; init; }
+        public ISensor? VramUsedSensor { get; init; }
+        public bool VramUsedIsSmallDataMb { get; init; }
+        public ISensor? FanRpmSensor { get; init; }
+        public ISensor? FanPercentSensor { get; init; }
+    }
+
+    private sealed class CachedStorageSensors
+    {
+        public required IHardware Hardware { get; init; }
+        public string ModelName { get; init; } = string.Empty;
+        public ISensor? TempSensor { get; init; }
+        public ISensor? UsedSpaceSensor { get; init; }
     }
 }

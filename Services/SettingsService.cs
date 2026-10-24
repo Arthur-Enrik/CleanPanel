@@ -4,9 +4,15 @@ using HardwareOverlayApp.Models;
 
 namespace HardwareOverlayApp.Services;
 
-public class SettingsService
+public class SettingsService : IDisposable
 {
+    private const int DebounceDelayMs = 300;
+
     private readonly string _settingsFilePath;
+    private readonly object _debounceLock = new();
+    private CancellationTokenSource? _debounceCts;
+    private AppSettings? _pendingSettings;
+    private bool _isDisposed;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -25,7 +31,7 @@ public class SettingsService
             if (!File.Exists(_settingsFilePath))
             {
                 var defaultSettings = new AppSettings();
-                Save(defaultSettings);
+                WriteToDiskImmediate(defaultSettings);
                 return defaultSettings;
             }
 
@@ -47,7 +53,77 @@ public class SettingsService
         }
     }
 
+    /// <summary>
+    /// Agenda a gravação de settings.json com Debounce assíncrono de 300ms, evitando escritas excessivas
+    /// no disco ao arrastar o Slider de Opacidade ou mover o Overlay.
+    /// </summary>
     public void Save(AppSettings settings)
+    {
+        if (_isDisposed)
+            return;
+
+        CancellationToken token;
+
+        lock (_debounceLock)
+        {
+            _pendingSettings = settings;
+            _debounceCts?.Cancel();
+            _debounceCts?.Dispose();
+            _debounceCts = new CancellationTokenSource();
+            token = _debounceCts.Token;
+        }
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(DebounceDelayMs, token).ConfigureAwait(false);
+
+                AppSettings? toWrite;
+                lock (_debounceLock)
+                {
+                    if (token.IsCancellationRequested)
+                        return;
+
+                    toWrite = _pendingSettings;
+                    _pendingSettings = null;
+                }
+
+                if (toWrite is not null)
+                {
+                    WriteToDiskImmediate(toWrite);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // Novo evento de alteração substituiu este ciclo de debounce
+            }
+            catch
+            {
+                // Ignora falhas transitórias de I/O
+            }
+        }, token);
+    }
+
+    public void FlushImmediate()
+    {
+        AppSettings? pending;
+        lock (_debounceLock)
+        {
+            _debounceCts?.Cancel();
+            _debounceCts?.Dispose();
+            _debounceCts = null;
+            pending = _pendingSettings;
+            _pendingSettings = null;
+        }
+
+        if (pending is not null)
+        {
+            WriteToDiskImmediate(pending);
+        }
+    }
+
+    private void WriteToDiskImmediate(AppSettings settings)
     {
         try
         {
@@ -59,5 +135,14 @@ public class SettingsService
         {
             // Ignora falhas transitórias de escrita em disco
         }
+    }
+
+    public void Dispose()
+    {
+        if (_isDisposed)
+            return;
+
+        _isDisposed = true;
+        FlushImmediate();
     }
 }

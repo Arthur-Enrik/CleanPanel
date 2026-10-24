@@ -1,17 +1,17 @@
 ; =====================================================================
-; Script Inno Setup - Hardware Overlay Monitor (Windows 11 x64)
+; Script Inno Setup - CleanPanel (Windows 11 x64)
 ; =====================================================================
 
 #ifndef MyAppName
-  #define MyAppName "Hardware Overlay Monitor"
+  #define MyAppName "CleanPanel"
 #endif
 
 #ifndef MyAppVersion
   #define MyAppVersion "0.1v"
 #endif
 
-#define MyAppPublisher "HardwareOverlayApp Contributors"
-#define MyAppExeName "HardwareOverlayApp.exe"
+#define MyAppPublisher "CleanPanel Contributors"
+#define MyAppExeName "CleanPanel.exe"
 #define MyPublishDir "Publish"
 #define MyOutputDir "Output"
 
@@ -28,7 +28,7 @@ PrivilegesRequired=admin
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir={#MyOutputDir}
-OutputBaseFilename=HardwareOverlayApp_Setup
+OutputBaseFilename=CleanPanel_Setup
 SetupIconFile=Assets\app.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 UninstallDisplayName={#MyAppName}
@@ -66,7 +66,8 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilen
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchAppNow}"; WorkingDir: "{app}"; Flags: nowait postinstall skipifsilent shellexec runascurrentuser
 
 [UninstallRun]
-Filename: "schtasks.exe"; Parameters: "/Delete /TN ""HardwareOverlayMonitorApp"" /F"; Flags: runhidden; RunOnceId: "RemoveStartupTask"
+Filename: "schtasks.exe"; Parameters: "/Delete /TN ""CleanPanelAutoStart"" /F"; Flags: runhidden; RunOnceId: "RemoveCleanPanelStartupTask"
+Filename: "schtasks.exe"; Parameters: "/Delete /TN ""HardwareOverlayMonitorApp"" /F"; Flags: runhidden; RunOnceId: "RemoveLegacyStartupTask"
 
 [UninstallDelete]
 Type: files; Name: "{app}\settings.json"

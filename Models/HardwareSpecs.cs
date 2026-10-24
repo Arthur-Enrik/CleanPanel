@@ -617,9 +617,15 @@ public class CpuCoreMetric : ObservableObject
 
     public void UpdateFrom(CpuCoreMetric other)
     {
+        float? newLoad = other.LoadPercent is not null ? MathF.Round(other.LoadPercent.Value, 0) : null;
+        float? newClock = other.ClockMhz is not null ? MathF.Round(other.ClockMhz.Value, 0) : null;
+
+        if (LoadPercent == newLoad && ClockMhz == newClock && CoreName == other.CoreName)
+            return;
+
         CoreName = other.CoreName;
-        LoadPercent = other.LoadPercent;
-        ClockMhz = other.ClockMhz;
+        LoadPercent = newLoad;
+        ClockMhz = newClock;
         OnPropertyChanged(string.Empty);
     }
 }
@@ -722,20 +728,44 @@ public class GpuDetailedMetrics : ObservableObject
 
     public void UpdateFrom(GpuDetailedMetrics other)
     {
+        float? newLoad = other.CoreLoadPercent is not null ? MathF.Round(other.CoreLoadPercent.Value, 0) : null;
+        float? newTemp = other.CoreTemperatureC is not null ? MathF.Round(other.CoreTemperatureC.Value, 0) : null;
+        float? newHotSpot = other.HotSpotTemperatureC is not null ? MathF.Round(other.HotSpotTemperatureC.Value, 0) : null;
+        float? newClock = other.CoreClockMhz is not null ? MathF.Round(other.CoreClockMhz.Value, 0) : null;
+        float? newMemClock = other.MemoryClockMhz is not null ? MathF.Round(other.MemoryClockMhz.Value, 0) : null;
+        float? newVramUsed = other.VramUsedGb is not null ? MathF.Round(other.VramUsedGb.Value, 2) : null;
+        float? newPower = other.PowerWatts is not null ? MathF.Round(other.PowerWatts.Value, 1) : null;
+        float? newFanRpm = other.FanRpm is not null ? MathF.Round(other.FanRpm.Value, 0) : null;
+        float? newFanPct = other.FanPercent is not null ? MathF.Round(other.FanPercent.Value, 0) : null;
+
+        if (CoreLoadPercent == newLoad &&
+            CoreTemperatureC == newTemp &&
+            HotSpotTemperatureC == newHotSpot &&
+            CoreClockMhz == newClock &&
+            MemoryClockMhz == newMemClock &&
+            VramUsedGb == newVramUsed &&
+            PowerWatts == newPower &&
+            FanRpm == newFanRpm &&
+            FanPercent == newFanPct &&
+            TotalVramDisplay == other.TotalVramDisplay)
+        {
+            return;
+        }
+
         Name = other.Name;
         Vendor = other.Vendor;
         TotalVramGb = other.TotalVramGb;
         IsIntegratedOrSharedVram = other.IsIntegratedOrSharedVram;
         TotalVramDisplay = other.TotalVramDisplay;
-        CoreLoadPercent = other.CoreLoadPercent;
-        CoreTemperatureC = other.CoreTemperatureC;
-        HotSpotTemperatureC = other.HotSpotTemperatureC;
-        CoreClockMhz = other.CoreClockMhz;
-        MemoryClockMhz = other.MemoryClockMhz;
-        VramUsedGb = other.VramUsedGb;
-        PowerWatts = other.PowerWatts;
-        FanRpm = other.FanRpm;
-        FanPercent = other.FanPercent;
+        CoreLoadPercent = newLoad;
+        CoreTemperatureC = newTemp;
+        HotSpotTemperatureC = newHotSpot;
+        CoreClockMhz = newClock;
+        MemoryClockMhz = newMemClock;
+        VramUsedGb = newVramUsed;
+        PowerWatts = newPower;
+        FanRpm = newFanRpm;
+        FanPercent = newFanPct;
         OnPropertyChanged(string.Empty);
     }
 }
@@ -779,14 +809,30 @@ public class StorageDriveMetrics : ObservableObject
 
     public void UpdateFrom(StorageDriveMetrics other)
     {
+        double newTotal = Math.Round(other.TotalSizeGb, 1);
+        double newUsed = Math.Round(other.UsedSizeGb, 1);
+        double newFree = Math.Round(other.FreeSizeGb, 1);
+        double newPct = Math.Round(other.UsagePercent, 0);
+        float? newTemp = other.TemperatureC is not null ? MathF.Round(other.TemperatureC.Value, 0) : null;
+
+        if (TotalSizeGb == newTotal &&
+            UsedSizeGb == newUsed &&
+            FreeSizeGb == newFree &&
+            UsagePercent == newPct &&
+            TemperatureC == newTemp &&
+            PhysicalDiskModel == other.PhysicalDiskModel)
+        {
+            return;
+        }
+
         VolumeLabel = other.VolumeLabel;
         FileSystem = other.FileSystem;
         PhysicalDiskModel = other.PhysicalDiskModel;
-        TotalSizeGb = other.TotalSizeGb;
-        UsedSizeGb = other.UsedSizeGb;
-        FreeSizeGb = other.FreeSizeGb;
-        UsagePercent = other.UsagePercent;
-        TemperatureC = other.TemperatureC;
+        TotalSizeGb = newTotal;
+        UsedSizeGb = newUsed;
+        FreeSizeGb = newFree;
+        UsagePercent = newPct;
+        TemperatureC = newTemp;
         OnPropertyChanged(string.Empty);
     }
 }
@@ -808,9 +854,15 @@ public class PhysicalStorageMetrics : ObservableObject
 
     public void UpdateFrom(PhysicalStorageMetrics other)
     {
+        float? newTemp = other.TemperatureC is not null ? MathF.Round(other.TemperatureC.Value, 0) : null;
+        float? newUsed = other.UsedSpacePercent is not null ? MathF.Round(other.UsedSpacePercent.Value, 0) : null;
+
+        if (TemperatureC == newTemp && UsedSpacePercent == newUsed && ModelName == other.ModelName)
+            return;
+
         ModelName = other.ModelName;
-        TemperatureC = other.TemperatureC;
-        UsedSpacePercent = other.UsedSpacePercent;
+        TemperatureC = newTemp;
+        UsedSpacePercent = newUsed;
         OnPropertyChanged(string.Empty);
     }
 }

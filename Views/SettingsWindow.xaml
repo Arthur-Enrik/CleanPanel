@@ -7,7 +7,7 @@
                  xmlns:vm="clr-namespace:HardwareOverlayApp.ViewModels"
                  mc:Ignorable="d"
                  d:DataContext="{d:DesignInstance Type=vm:MainViewModel}"
-                 Title="Hardware Overlay &amp; System Monitor"
+                 Title="CleanPanel"
                  Width="1080"
                  Height="760"
                  MinWidth="860"
@@ -91,7 +91,7 @@
 
         <!-- Barra de título nativa Windows 11 -->
         <ui:TitleBar Grid.Row="0"
-                     Title="Hardware Overlay — Monitoramento e Diagnóstico de Hardware" />
+                     Title="CleanPanel" />
 
         <!-- Estrutura Principal com Menu de Navegação Lateral + Área de Conteúdo -->
         <Grid Grid.Row="1">

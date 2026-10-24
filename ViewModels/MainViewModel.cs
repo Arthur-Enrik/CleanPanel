@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Windows;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using HardwareOverlayApp.Helpers;
@@ -9,7 +10,7 @@ using HardwareOverlayApp.Services;
 
 namespace HardwareOverlayApp.ViewModels;
 
-public partial class MainViewModel : ObservableObject
+public partial class MainViewModel : ObservableObject, IDisposable
 {
     private readonly SettingsService _settingsService;
     private readonly HardwareMonitorService _hardwareMonitorService;
@@ -17,6 +18,7 @@ public partial class MainViewModel : ObservableObject
     private readonly StartupService _startupService;
     private readonly Action _exitApplicationAction;
     private readonly bool _isInitializing;
+    private bool _isDisposed;
 
     public Func<(double Width, double Height)>? OverlaySizeProvider { get; set; }
 
@@ -253,7 +255,7 @@ public partial class MainViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(EffectiveShowRam))]
     private bool _showRam;
 
-    public string OverlayOpacityPercentText => $"{OverlayOpacity * 100.0:0}%";
+    public string OverlayOpacityPercentText => $"{Math.Round(OverlayOpacity * 100.0):0}%";
 
     public bool EffectiveOverlayVisible => IsOverlayVisible && (!SmartFullscreenOnly || IsForegroundFullScreen);
 
@@ -325,7 +327,8 @@ public partial class MainViewModel : ObservableObject
 
             if (specs.TotalRamGb > 0f)
             {
-                RamTotalText = string.Create(CultureInfo.InvariantCulture, $"{specs.TotalRamGb:0.0} GB");
+                double roundedTotalRam = Math.Round(specs.TotalRamGb, 1);
+                RamTotalText = string.Create(CultureInfo.InvariantCulture, $"{roundedTotalRam:0.0} GB");
             }
 
             if (Gpus.Count == 0 && specs.Gpus.Count > 0)
@@ -346,16 +349,16 @@ public partial class MainViewModel : ObservableObject
                 SelectedGpu ??= Gpus.FirstOrDefault();
                 UpdateGpuCountBadge();
             }
-        });
+        }, DispatcherPriority.Background);
     }
 
     private void ApplySettings(AppSettings settings)
     {
         IsOverlayVisible = settings.IsOverlayVisible;
         IsOverlayLocked = settings.IsOverlayLocked;
-        OverlayOpacity = Math.Clamp(settings.OverlayOpacity, 0.1, 1.0);
-        OverlayLeft = settings.OverlayLeft;
-        OverlayTop = settings.OverlayTop;
+        OverlayOpacity = Math.Clamp(Math.Round(settings.OverlayOpacity, 2), 0.1, 1.0);
+        OverlayLeft = Math.Round(settings.OverlayLeft);
+        OverlayTop = Math.Round(settings.OverlayTop);
         StartWithWindows = settings.StartWithWindows;
 
         IsCompactMode = settings.IsCompactMode;
@@ -391,12 +394,18 @@ public partial class MainViewModel : ObservableObject
         _hardwareMonitorService.IsPollingSuspended = !shouldOverlayBeVisible && !isMainWindowOpen;
         _fpsMonitorService.IsSuspended = (!shouldOverlayBeVisible || !EffectiveShowFps) && !isMainWindowOpen;
 
+        // Atualiza o PID em foco apenas 1 vez por segundo (fora do callback ETW)
+        if (!_fpsMonitorService.IsSuspended)
+        {
+            _fpsMonitorService.RefreshActiveForegroundProcess();
+        }
+
         if (IsForegroundFullScreen != isFullscreen)
         {
             Application.Current?.Dispatcher.InvokeAsync(() =>
             {
                 IsForegroundFullScreen = isFullscreen;
-            });
+            }, DispatcherPriority.Background);
         }
     }
 
@@ -405,82 +414,87 @@ public partial class MainViewModel : ObservableObject
         int currentFps = _fpsMonitorService.CurrentFps;
         metrics.CurrentFps = currentFps;
 
+        // Pré-arredondamento fora da UI Thread para evitar notificações inúteis de redesenho no WPF
+        int roundedCpuTemp = (int)Math.Round(metrics.CpuTemperature);
+        double roundedCpuLoad = Math.Clamp(Math.Round(metrics.CpuLoad), 0.0, 100.0);
+        int roundedCpuClock = (int)Math.Round(metrics.CpuClock);
+        int roundedCpuMaxClock = (int)Math.Round(metrics.CpuMaxClock);
+        double roundedCpuPower = Math.Round(metrics.CpuPower, 1);
+        double? roundedCpuVcore = metrics.CpuVoltageVcore is > 0f ? Math.Round(metrics.CpuVoltageVcore.Value, 3) : null;
+
+        int roundedGpuTemp = (int)Math.Round(metrics.GpuTemperature);
+        int roundedGpuLoad = (int)Math.Clamp(Math.Round(metrics.GpuLoad), 0.0, 100.0);
+        int roundedGpuClock = (int)Math.Round(metrics.GpuClock);
+        double roundedGpuPower = Math.Round(metrics.GpuPower, 1);
+
+        double roundedRamUsed = Math.Round(metrics.RamUsedGb, 1);
+        double roundedRamTotal = Math.Round(metrics.RamTotalGb, 1);
+        double roundedRamFree = Math.Round(metrics.RamFreeGb, 1);
+        double roundedRamPct = Math.Clamp(Math.Round(metrics.RamUsagePercent), 0.0, 100.0);
+
         Application.Current?.Dispatcher.InvokeAsync(() =>
         {
+            if (_isDisposed)
+                return;
+
             // FPS
             FpsText = $"{metrics.CurrentFps} FPS";
 
-            // CPU (Com blindagem contra zeros falsos -> "N/D")
-            CpuTemperatureText = metrics.CpuTemperature > 0f
-                ? $"{metrics.CpuTemperature:0} °C"
+            // CPU
+            CpuTemperatureText = roundedCpuTemp > 0 ? $"{roundedCpuTemp} °C" : "N/D";
+            CpuLoadText = $"{roundedCpuLoad:0} %";
+            CpuLoadBarValue = roundedCpuLoad;
+
+            CpuClockText = roundedCpuClock > 0 ? $"{roundedCpuClock} MHz" : "N/D";
+            CpuMaxClockText = roundedCpuMaxClock > 0 ? $"{roundedCpuMaxClock} MHz" : "N/D";
+
+            CpuClockAvgMaxText = roundedCpuClock > 0
+                ? (roundedCpuMaxClock > 0
+                    ? $"{roundedCpuClock} MHz (Máx: {roundedCpuMaxClock} MHz)"
+                    : $"{roundedCpuClock} MHz")
                 : "N/D";
 
-            CpuLoadText = $"{metrics.CpuLoad:0} %";
-            CpuLoadBarValue = Math.Clamp(metrics.CpuLoad, 0f, 100f);
-
-            CpuClockText = metrics.CpuClock > 0f
-                ? $"{metrics.CpuClock:0} MHz"
+            CpuPowerText = roundedCpuPower > 0.0
+                ? string.Create(CultureInfo.InvariantCulture, $"{roundedCpuPower:0.0} W")
                 : "N/D";
 
-            CpuMaxClockText = metrics.CpuMaxClock > 0f
-                ? $"{metrics.CpuMaxClock:0} MHz"
+            CpuVoltageText = roundedCpuVcore is > 0.0
+                ? string.Create(CultureInfo.InvariantCulture, $"{roundedCpuVcore.Value:0.000} V")
                 : "N/D";
 
-            CpuClockAvgMaxText = metrics.CpuClock > 0f
-                ? (metrics.CpuMaxClock > 0f
-                    ? $"{metrics.CpuClock:0} MHz (Máx: {metrics.CpuMaxClock:0} MHz)"
-                    : $"{metrics.CpuClock:0} MHz")
-                : "N/D";
-
-            CpuPowerText = metrics.CpuPower > 0f
-                ? string.Create(CultureInfo.InvariantCulture, $"{metrics.CpuPower:0.0} W")
-                : "N/D";
-
-            CpuVoltageText = metrics.CpuVoltageVcore is > 0f
-                ? string.Create(CultureInfo.InvariantCulture, $"{metrics.CpuVoltageVcore.Value:0.000} V")
-                : "N/D";
-
-            // GPU Primária do Overlay (Com blindagem contra zeros falsos -> "N/D")
-            GpuTemperatureText = metrics.GpuTemperature > 0f
-                ? $"{metrics.GpuTemperature:0} °C"
-                : "N/D";
-
-            GpuLoadText = $"{metrics.GpuLoad:0} %";
-
-            GpuClockText = metrics.GpuClock > 0f
-                ? $"{metrics.GpuClock:0} MHz"
-                : "N/D";
-
-            GpuPowerText = metrics.GpuPower > 0f
-                ? string.Create(CultureInfo.InvariantCulture, $"{metrics.GpuPower:0.0} W")
+            // GPU Primária do Overlay
+            GpuTemperatureText = roundedGpuTemp > 0 ? $"{roundedGpuTemp} °C" : "N/D";
+            GpuLoadText = $"{roundedGpuLoad} %";
+            GpuClockText = roundedGpuClock > 0 ? $"{roundedGpuClock} MHz" : "N/D";
+            GpuPowerText = roundedGpuPower > 0.0
+                ? string.Create(CultureInfo.InvariantCulture, $"{roundedGpuPower:0.0} W")
                 : "N/D";
 
             // Memória RAM
             RamUsageText = string.Create(
                 CultureInfo.InvariantCulture,
-                $"{metrics.RamUsedGb:0.0} GB ({metrics.RamUsagePercent:0}%)");
+                $"{roundedRamUsed:0.0} GB ({roundedRamPct:0}%)");
 
-            RamUsedText = string.Create(CultureInfo.InvariantCulture, $"{metrics.RamUsedGb:0.0} GB");
-            RamPercentText = $"{metrics.RamUsagePercent:0} %";
-            RamUsageBarValue = Math.Clamp(metrics.RamUsagePercent, 0f, 100f);
+            RamUsedText = string.Create(CultureInfo.InvariantCulture, $"{roundedRamUsed:0.0} GB");
+            RamPercentText = $"{roundedRamPct:0} %";
+            RamUsageBarValue = roundedRamPct;
 
-            if (metrics.RamTotalGb > 0f)
+            if (roundedRamTotal > 0.0)
             {
-                RamTotalText = string.Create(CultureInfo.InvariantCulture, $"{metrics.RamTotalGb:0.0} GB");
-                RamFreeText = string.Create(CultureInfo.InvariantCulture, $"{metrics.RamFreeGb:0.0} GB");
+                RamTotalText = string.Create(CultureInfo.InvariantCulture, $"{roundedRamTotal:0.0} GB");
+                RamFreeText = string.Create(CultureInfo.InvariantCulture, $"{roundedRamFree:0.0} GB");
                 RamDetailedSummaryText = string.Create(
                     CultureInfo.InvariantCulture,
-                    $"{metrics.RamUsedGb:0.0} GB usados de {metrics.RamTotalGb:0.0} GB ({metrics.RamFreeGb:0.0} GB livres)");
+                    $"{roundedRamUsed:0.0} GB usados de {roundedRamTotal:0.0} GB ({roundedRamFree:0.0} GB livres)");
             }
 
-            // Telemetria detalhada (só atualiza as coleções da UI quando a janela principal está aberta)
             if (metrics.IsDetailedSnapshot)
             {
                 SyncCpuCoresCollection(metrics.CpuCores);
                 SyncGpusCollection(metrics.Gpus);
                 SyncStorageCollections(metrics.StorageDrives, metrics.PhysicalDisks);
             }
-        });
+        }, DispatcherPriority.Background);
     }
 
     private void SyncCpuCoresCollection(List<CpuCoreMetric> incoming)
@@ -655,7 +669,7 @@ public partial class MainViewModel : ObservableObject
 
     private void SaveSettings()
     {
-        if (_isInitializing)
+        if (_isInitializing || _isDisposed)
             return;
 
         var settings = new AppSettings
@@ -731,4 +745,15 @@ public partial class MainViewModel : ObservableObject
     partial void OnShowGpuClockChanged(bool value) => SaveSettings();
     partial void OnShowGpuPowerChanged(bool value) => SaveSettings();
     partial void OnShowRamChanged(bool value) => SaveSettings();
+
+    public void Dispose()
+    {
+        if (_isDisposed)
+            return;
+
+        _isDisposed = true;
+        _hardwareMonitorService.SpecsInitialized -= OnHardwareSpecsInitialized;
+        _hardwareMonitorService.HeartbeatTick -= OnHeartbeatTick;
+        _hardwareMonitorService.MetricsUpdated -= OnHardwareMetricsUpdated;
+    }
 }

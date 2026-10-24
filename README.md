@@ -1,13 +1,13 @@
-# HardwareOverlayApp — Monitor de Hardware, Diagnóstico e FPS para Windows 11
+# CleanPanel — Monitor de Hardware, Diagnóstico e FPS para Windows 11
 
-**HardwareOverlayApp** é um software completo de monitoramento, diagnóstico de hardware e telemetria de jogos em tempo real desenvolvido em **C# 12**, **.NET 8** e **WPF (WPF-UI)**. Combina um **Painel Principal estilo Gerenciador de Tarefas do Windows 11 / HWiNFO moderno** com um **Overlay flutuante** ultraleve para jogos.
+**CleanPanel** é um software completo de monitoramento, diagnóstico de hardware e telemetria de jogos em tempo real desenvolvido em **C# 12**, **.NET 8** e **WPF (WPF-UI)**. Combina um **Painel Principal estilo Gerenciador de Tarefas do Windows 11 / HWiNFO moderno** com um **Overlay flutuante** ultraleve e de baixíssimo impacto para jogos.
 
 ---
 
 ## Principais Funcionalidades
 
 ### 1. Interface Principal Estilo Task Manager (Windows 11 Fluent Design + Mica)
-A janela principal conta com navegação lateral moderna dividida em **4 seções de telemetria no topo** e um **ícone de engrenagem no rodapé para Configurações**:
+A janela principal do **CleanPanel** conta com navegação lateral moderna dividida em **4 seções de telemetria no topo** e um **ícone de engrenagem no rodapé para Configurações**:
 
 - **Aba "Visão Geral" (Resumo do Sistema)**:
   - **Card do Sistema Operacional**: Nome corrigido para Windows 11 (detecção via `CurrentBuild >= 22000` no Registro), Edição/DisplayVersion e Build completa.
@@ -26,38 +26,33 @@ A janela principal conta com navegação lateral moderna dividida em **4 seçõe
   - Uso detalhado de Memória RAM com barra visual de ocupação.
   - Lista de Unidades de Armazenamento combinando partições lógicas (`System.IO.DriveInfo`) e sensores térmicos físicos (`HardwareType.Storage` do LibreHardwareMonitor), exibindo Espaço Ocupado vs. Total e a Temperatura física atual de cada SSD/HDD (com fallback automático para `"Sem sensor"`).
 - **Rodapé com Ícone de Engrenagem — "Configurações"**:
-  - Reúne todas as configurações do aplicativo e do Overlay flutuante: Mostrar/Ocultar Overlay, Modo Compacto, Exibição Inteligente em Tela Cheia, Atalho Global (`Ctrl + Shift + O`), Modo Travado (Click-Through), Iniciar com o Windows como Administrador, Opacidade, Orientação Horizontal/Vertical, Alinhamento Rápido em 6 posições e seleção individual de sensores do Overlay.
+  - Reúne todas as configurações do aplicativo e do Overlay flutuante: Mostrar/Ocultar Overlay, Modo Compacto, Exibição Inteligente em Tela Cheia, Atalho Global (`Ctrl + Shift + O`), Modo Travado (Click-Through), Iniciar com o Windows como Administrador (`CleanPanelAutoStart`), Opacidade, Orientação Horizontal/Vertical, Alinhamento Rápido em 6 posições e seleção individual de sensores do Overlay.
 
 ---
 
-### 2. Blindagem Total e Tolerância a Falhas (Fault Tolerance & Sensor Fallback)
-Projetado para funcionar com estabilidade em qualquer combinação de hardware (CPUs Intel vs. AMD, desktops vs. notebooks, GPUs dedicadas vs. integradas, SSDs NVMe com sensor térmico vs. SSDs SATA sem sensor):
+### 2. Engenharia de Performance e Baixo Consumo de CPU/Memória (Deep Optimization)
+O **CleanPanel** foi arquitetado para ter impacto virtualmente zero durante sessões de jogos competitivos:
 
-- **Validação Estrita de Sensores**:
-  - Todo valor `float?` lido do `LibreHardwareMonitor` passa pelo validador `IsValidSensorValue`, descartando leituras nulas, `NaN`, `Infinity` ou valores inválidos (`<= 0`).
-- **Busca por Múltiplos Aliases com Ordem de Prioridade**:
-  - **CPU Temperatura**: `"Core (Tctl/Tdie)"` → `"CPU Package"` → `"Package"` → `"Core Average"` → `"Core Max"` → primeiro sensor térmico da CPU → fallback no chip SuperIO da Placa-Mãe.
-  - **CPU VCore (Tensão)**: `"Core (SVI2 TFN)"` → `"Vcore"` → `"CPU Core"` → `"VID"` → fallback nos subHardwares (`SuperIO`) da Placa-Mãe.
-  - **CPU Consumo (Watts)**: `"Package"` → `"CPU Package"` → `"Cores (SMU)"` → `"CPU Power"`.
-  - **GPU Temperatura e Consumo**: `"GPU Core"`, `"GPU"`, `"Hot Spot"` para temperatura; `"GPU Package"`, `"GPU Power"`, `"GPU Core"`, `"Board Power"` para consumo.
-  - **GPU VRAM Total e Usada**: Sensores `SmallData` (`"GPU Memory Total"`, `"D3D Dedicated Memory Total"`, `"GPU Memory Used"`, `"D3D Dedicated Memory Used"`) convertidos de MB para GB, com fallback para Registro do Windows (`HardwareInformation.qwMemorySize`), WMI (`Win32_VideoController`) ou `"Compartilhada / Integrada"`.
-- **Exibição Graciosa na UI (Sem Zeros Falsos)**:
-  - Quando um sensor não é suportado pelo hardware do usuário (ex: placa-mãe sem leitura de VCore, iGPU sem Fan RPM ou Watts, SSD sem sensor térmico), a interface exibe `"N/D"` ou `"Sem sensor"` em vez de exibir valores falsos como `0 W`, `0.00 V` ou `0 °C`.
-- **Isolamento de Exceções (`try/catch` Independentes)**:
-  - A leitura de cada subsistema (`CPU`, `GPU`, `RAM`, `Storage`, `Motherboard`, `WMI`, `Registry`) é encapsulada em blocos `try/catch` isolados.
-
----
-
-### 3. Otimização Inteligente de Leitura (Zero Desperdício de CPU)
-- **Cache Estático na Inicialização**: Especificações fixas (Nome da CPU, Núcleos/Threads via WMI, Versão/Build do Windows via Registro, Capacidade Total das Partições e Mapeamento Físico de Discos) são lidas **apenas uma vez** na abertura do aplicativo e mantidas em cache (`HardwareSpecs`).
-- **Polling Dinâmico Sob Demanda**:
-  - Sensores pesados (uso/clock individual por núcleo da CPU, tensões SuperIO da placa-mãe e SMART/temperatura dos SSDs/HDDs) **só são atualizados quando a janela principal está aberta e visível na tela**.
-  - Quando a janela principal está fechada/minimizada na bandeja do sistema (*System Tray*), o loop atualiza exclusivamente os sensores leves necessários para o Overlay flutuante (ou suspende 100% do polling se o Overlay também estiver oculto).
+- **Cache de Referências Diretas de Sensores (Zero LINQ no Loop de 1s)**:
+  - Na inicialização do `HardwareMonitorService`, todas as referências diretas dos objetos `ISensor` (`_cpuTempSensor`, `_cpuLoadSensor`, `_gpuTempSensor`, `_cpuCoreClockSensors`, pares de núcleos `_cachedCpuCores`, GPUs `_cachedGpus` e discos `_cachedStorages`) são mapeadas uma única vez e armazenadas em memória.
+  - No loop de 1 segundo do `PeriodicTimer`, o serviço executa apenas `hardware.Update()` nos componentes necessários e lê diretamente a propriedade `.Value` dos ponteiros `ISensor` cacheados — eliminando buscas de strings, Regex e alocações de LINQ (`.FirstOrDefault`, `.Where`, `.Contains`) que gerariam pressão no *Garbage Collector* (GC).
+- **Otimização Extrema no Capturador de FPS (`CleanPanelFpsSession`)**:
+  - Eventos ETW (`Present_Start`) disparam centenas de vezes por segundo. Para evitar chamadas P/Invoke (`GetForegroundProcessId()`) a cada quadro renderizado, o PID da janela ativa é atualizado apenas **1 vez por segundo** no loop principal e armazenado em uma variável `volatile int _activeForegroundPid`.
+  - A primeira instrução do callback `OnEtwEvent` é uma comparação inteira direta em `O(1)` (`if (data.ProcessID != _activeForegroundPid) return;`), com zero alocações de memória no caminho crítico.
+- **Debounce Assíncrono na Persistência (`SettingsService`)**:
+  - Alterações contínuas (como arrastar o Slider de Opacidade ou reposicionar o Overlay) passam por um *Debounce* assíncrono de **300 ms** com `CancellationTokenSource`, consolidando dezenas de eventos de UI em uma única gravação em disco (`settings.json`), além de `FlushImmediate()` garantido no encerramento.
+- **Redução de Redesenho na UI Thread (`DispatcherPriority.Background`)**:
+  - Todas as métricas numéricas são pré-arredondadas (`Math.Round`) em background antes de serem atribuídas às propriedades observáveis. Quando o valor arredondado permanece igual ao segundo anterior, o `CommunityToolkit.Mvvm` ignora notificações redundantes de `PropertyChanged`, poupando ciclos de layout e renderização do WPF.
+  - As atualizações da interface utilizam `Dispatcher.InvokeAsync(..., DispatcherPriority.Background)` para nunca interferir na fluidez do mouse ou animações da janela.
+- **Polling Seletivo Sob Demanda**:
+  - Quando a janela principal está fechada ou minimizada na bandeja do sistema (*System Tray*), os sensores pesados (núcleos individuais da CPU, tensões SuperIO da placa-mãe e SMART/temperatura dos SSDs/HDDs) ficam suspensos, atualizando apenas os sensores leves exigidos pelo Overlay flutuante.
 
 ---
 
-### 4. Captura de FPS via ETW (Seguro contra Anti-Cheat)
-- Medição oficial de quadros por segundo (FPS) escutando eventos do subsistema gráfico do Windows (`Microsoft-Windows-DXGI` e `Microsoft-Windows-D3D9`) via **Event Tracing for Windows (ETW)** sem injeção de DLLs (*No Hooking*).
+### 3. Blindagem Total e Tolerância a Falhas (Fault Tolerance & Sensor Fallback)
+- **Validação Estrita de Sensores**: Todo valor `float?` passa pelo validador `IsValidSensorValue`, descartando leituras nulas, `NaN`, `Infinity` ou `<= 0`.
+- **Exibição Graciosa na UI (Sem Zeros Falsos)**: Sensores não suportados pelo hardware (ex: placa-mãe sem VCore, iGPU sem Fan RPM/Watts, SSD SATA sem sensor térmico) exibem `"N/D"` ou `"Sem sensor"` em vez de zeros falsos (`0 W`, `0.00 V` ou `0 °C`).
+- **Isolamento de Exceções (`try/catch` Independentes)**: Leituras de `CPU`, `GPU`, `RAM`, `Storage`, `Motherboard`, `WMI` e `Registry` são isoladas individualmente.
 
 ---
 
@@ -91,7 +86,7 @@ HardwareOverlayApp/
 ├── App.xaml
 ├── App.xaml.cs
 ├── app.manifest
-├── HardwareOverlayApp.csproj
+├── CleanPanel.csproj
 ├── installer.iss
 ├── build-installer.ps1
 ├── .gitignore
@@ -112,16 +107,26 @@ HardwareOverlayApp/
 
 ```powershell
 cd HardwareOverlayApp
-dotnet restore
+dotnet clean
 dotnet build -c Release
 dotnet run -c Release
 ```
 
-### Como gerar o instalador (.exe)
+### Como gerar o instalador (`CleanPanel_Setup.exe`)
 
 ```powershell
 powershell ./build-installer.ps1
 ```
+
+---
+
+## Roadmap Futuro
+
+- **Arquitetura de Plugins para a Comunidade (`CleanPanel Plugin SDK`)**:
+  - Suporte nativo ao carregamento dinâmico de módulos e extensões via arquivos `.dll` externos em uma pasta `Plugins/`.
+  - Permitirá que desenvolvedores da comunidade criem **novas abas customizadas**, **widgets para o Overlay** e **integrações diretas com ecossistemas externos**, incluindo:
+    - Controle e sincronização de iluminação RGB por temperatura/carga via **OpenRGB SDK**.
+    - Integração com controladoras de ventoinhas/watercoolers customizados, **HWiNFO Shared Memory**, **MSI Afterburner / RTSS**, **Elgato Stream Deck** e webhooks/telemetria remota.
 
 ---
 

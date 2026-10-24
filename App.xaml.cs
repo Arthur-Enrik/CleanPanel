@@ -10,9 +10,11 @@ namespace HardwareOverlayApp;
 
 public partial class App : Application
 {
+    private SettingsService? _settingsService;
     private HardwareMonitorService? _hardwareMonitorService;
     private FpsMonitorService? _fpsMonitorService;
     private TrayIconService? _trayIconService;
+    private MainViewModel? _mainViewModel;
     private OverlayWindow? _overlayWindow;
     private SettingsWindow? _settingsWindow;
     private bool _isShuttingDown;
@@ -31,23 +33,23 @@ public partial class App : Application
 
         IconGeneratorHelper.EnsureIconFileExists();
 
-        var settingsService = new SettingsService();
+        _settingsService = new SettingsService();
         var startupService = new StartupService();
         _hardwareMonitorService = new HardwareMonitorService();
         _fpsMonitorService = new FpsMonitorService();
 
-        var mainViewModel = new MainViewModel(
-            settingsService,
+        _mainViewModel = new MainViewModel(
+            _settingsService,
             _hardwareMonitorService,
             _fpsMonitorService,
             startupService,
             ExitApplicationCompletely);
 
-        _overlayWindow = new OverlayWindow(mainViewModel);
-        _settingsWindow = new SettingsWindow(mainViewModel);
+        _overlayWindow = new OverlayWindow(_mainViewModel);
+        _settingsWindow = new SettingsWindow(_mainViewModel);
 
         _trayIconService = new TrayIconService(
-            mainViewModel,
+            _mainViewModel,
             OpenSettingsWindow,
             ExitApplicationCompletely);
 
@@ -96,7 +98,7 @@ public partial class App : Application
         catch
         {
             MessageBox.Show(
-                "O Hardware Overlay Monitor exige privilégios de Administrador para acessar os sensores físicos de hardware e o monitor de FPS.",
+                "O CleanPanel exige privilégios de Administrador para acessar os sensores físicos de hardware e o monitor de FPS.",
                 "Execução como Administrador Obrigatória",
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
@@ -124,19 +126,23 @@ public partial class App : Application
             _settingsWindow?.Close();
             _overlayWindow?.Close();
 
-            _trayIconService?.Dispose();
-            _fpsMonitorService?.Dispose();
-            _hardwareMonitorService?.Dispose();
-
+            DisposeAllResources();
             Shutdown();
         });
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
+        DisposeAllResources();
+        base.OnExit(e);
+    }
+
+    private void DisposeAllResources()
+    {
+        _mainViewModel?.Dispose();
+        _settingsService?.Dispose();
         _trayIconService?.Dispose();
         _fpsMonitorService?.Dispose();
         _hardwareMonitorService?.Dispose();
-        base.OnExit(e);
     }
 }

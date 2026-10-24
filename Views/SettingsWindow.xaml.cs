@@ -17,10 +17,16 @@ public partial class SettingsWindow : FluentWindow
         _viewModel = viewModel;
         DataContext = _viewModel;
 
-        IsVisibleChanged += (_, _) => SyncVisibilityWithMonitorService();
-        StateChanged += (_, _) => SyncVisibilityWithMonitorService();
-        Loaded += (_, _) => SyncVisibilityWithMonitorService();
+        IsVisibleChanged += OnWindowVisibilityChanged;
+        StateChanged += OnWindowStateChanged;
+        Loaded += OnWindowLoaded;
     }
+
+    private void OnWindowVisibilityChanged(object sender, DependencyPropertyChangedEventArgs e) => SyncVisibilityWithMonitorService();
+
+    private void OnWindowStateChanged(object? sender, EventArgs e) => SyncVisibilityWithMonitorService();
+
+    private void OnWindowLoaded(object sender, RoutedEventArgs e) => SyncVisibilityWithMonitorService();
 
     private void SyncVisibilityWithMonitorService()
     {
@@ -63,5 +69,13 @@ public partial class SettingsWindow : FluentWindow
         }
 
         base.OnClosing(e);
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        IsVisibleChanged -= OnWindowVisibilityChanged;
+        StateChanged -= OnWindowStateChanged;
+        Loaded -= OnWindowLoaded;
+        base.OnClosed(e);
     }
 }
