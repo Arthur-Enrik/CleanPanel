@@ -72,6 +72,8 @@ HardwareOverlayApp/
 ├── App.xaml.cs
 ├── app.manifest
 ├── HardwareOverlayApp.csproj
+├── installer.iss
+├── build-installer.ps1
 ├── .gitignore
 ├── LICENSE
 └── README.md
@@ -95,11 +97,20 @@ dotnet build -c Release
 dotnet run -c Release
 ```
 
-### Publicação de Executável Único (Release)
+### Como gerar o instalador (.exe)
+
+O projeto conta com empacotamento automatizado via **Inno Setup 6** (publicação *Self-Contained* `win-x64`, sem exigir .NET instalado na máquina do usuário final).
+
+Para compilar a aplicação e gerar o instalador `Output\HardwareOverlayApp_Setup.exe` com um único comando, basta rodar no terminal:
 
 ```powershell
-dotnet publish -c Release -r win-x64 --self-contained false -o ./Publish
+powershell ./build-installer.ps1
 ```
+
+> Caso o Inno Setup ainda não esteja instalado na máquina de build, instale-o rapidamente com:
+> ```powershell
+> winget install JRSoftware.InnoSetup
+> ```
 
 ---
 

@@ -10,6 +10,9 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <LangVersion>12.0</LangVersion>
+    <Version>0.1.0</Version>
+    <InformationalVersion>0.1v</InformationalVersion>
+    <Product>Hardware Overlay Monitor</Product>
   </PropertyGroup>
 
   <!-- Remove usings globais implícitos do Windows Forms e System.Drawing para evitar conflitos com tipos do WPF -->

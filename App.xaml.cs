@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Security.Principal;
 using System.Windows;
 using HardwareOverlayApp.Helpers;
 using HardwareOverlayApp.Services;
@@ -17,6 +19,14 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        // Garante que o executável só possa ser aberto como Administrador
+        if (!IsRunningAsAdministrator())
+        {
+            RelaunchAsAdministrator(e.Args);
+            Shutdown();
+            return;
+        }
+
         base.OnStartup(e);
 
         IconGeneratorHelper.EnsureIconFileExists();
@@ -53,6 +63,44 @@ public partial class App : Application
 
         _fpsMonitorService.Start();
         _hardwareMonitorService.Start();
+    }
+
+    private static bool IsRunningAsAdministrator()
+    {
+        using WindowsIdentity identity = WindowsIdentity.GetCurrent();
+        var principal = new WindowsPrincipal(identity);
+        return principal.IsInRole(WindowsBuiltInRole.Administrator);
+    }
+
+    private static void RelaunchAsAdministrator(string[] args)
+    {
+        try
+        {
+            string? exePath = Environment.ProcessPath;
+            if (string.IsNullOrWhiteSpace(exePath))
+                return;
+
+            string arguments = string.Join(" ", args.Select(a => $"\"{a}\""));
+
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = exePath,
+                Arguments = arguments,
+                UseShellExecute = true,
+                Verb = "runas",
+                WorkingDirectory = AppDomain.CurrentDomain.BaseDirectory
+            };
+
+            Process.Start(startInfo);
+        }
+        catch
+        {
+            MessageBox.Show(
+                "O Hardware Overlay Monitor exige privilégios de Administrador para acessar os sensores físicos de hardware e o monitor de FPS.",
+                "Execução como Administrador Obrigatória",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
     }
 
     private void OpenSettingsWindow()
