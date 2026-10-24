@@ -1,0 +1,32 @@
+## Visual Studio / .NET Build Artifacts
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+[Pp]ublish/
+out/
+
+## Visual Studio Cache and User Files
+.vs/
+*.user
+*.rsuser
+*.suo
+*.userosscache
+*.sln.docstates
+*.VC.db
+*.VC.VC.opendb
+
+## JetBrains Rider / VS Code
+.idea/
+.vscode/
+
+## Local Runtime Configuration
+settings.json
+
+## NuGet Packages & Crash Dumps
+*.nupkg
+*.snupkg
+*.dmp
+project.lock.json
+project.fragment.lock.json
+artifacts/

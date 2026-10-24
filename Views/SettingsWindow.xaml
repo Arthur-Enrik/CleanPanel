@@ -1,0 +1,299 @@
+<ui:FluentWindow x:Class="HardwareOverlayApp.Views.SettingsWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 xmlns:vm="clr-namespace:HardwareOverlayApp.ViewModels"
+                 mc:Ignorable="d"
+                 d:DataContext="{d:DesignInstance Type=vm:MainViewModel}"
+                 Title="Hardware Overlay - Configurações"
+                 Width="580"
+                 Height="780"
+                 MinWidth="500"
+                 MinHeight="600"
+                 WindowStartupLocation="CenterScreen"
+                 ExtendsContentIntoTitleBar="True"
+                 WindowBackdropType="Mica"
+                 WindowCornerPreference="Round">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Barra de título nativa Windows 11 -->
+        <ui:TitleBar Grid.Row="0"
+                     Title="Hardware Overlay - Configurações" />
+
+        <!-- Painel de Configurações -->
+        <ScrollViewer Grid.Row="1"
+                      VerticalScrollBarVisibility="Auto"
+                      Padding="24,8,24,24">
+            <StackPanel>
+
+                <!-- ==================== CONTROLE GERAL ==================== -->
+                <TextBlock Text="Controle Geral"
+                           FontSize="16"
+                           FontWeight="SemiBold"
+                           Foreground="#FFFFFF"
+                           Margin="0,8,0,10" />
+
+                <!-- Mostrar / Ocultar Overlay -->
+                <ui:CardControl Margin="0,0,0,8">
+                    <ui:CardControl.Header>
+                        <StackPanel>
+                            <TextBlock Text="Mostrar / Ocultar Overlay"
+                                       FontWeight="SemiBold"
+                                       FontSize="14" />
+                            <TextBlock Text="Alterna a visibilidade do overlay flutuante na tela"
+                                       FontSize="12"
+                                       Opacity="0.7" />
+                        </StackPanel>
+                    </ui:CardControl.Header>
+                    <ui:ToggleSwitch IsChecked="{Binding IsOverlayVisible, Mode=TwoWay}" />
+                </ui:CardControl>
+
+                <!-- Aviso visual do Atalho Global Ctrl + Shift + O -->
+                <ui:CardControl Margin="0,0,0,8">
+                    <ui:CardControl.Header>
+                        <StackPanel>
+                            <TextBlock Text="Atalho Global em Jogos"
+                                       FontWeight="SemiBold"
+                                       FontSize="14" />
+                            <TextBlock Text="Use o atalho a qualquer momento dentro do jogo para mostrar ou ocultar o overlay"
+                                       FontSize="12"
+                                       Opacity="0.7" />
+                        </StackPanel>
+                    </ui:CardControl.Header>
+                    <Border Background="#2600E5FF"
+                            BorderBrush="#6600E5FF"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Padding="10,4">
+                        <TextBlock Text="Ctrl + Shift + O"
+                                   FontFamily="Consolas"
+                                   FontWeight="Bold"
+                                   Foreground="#00E5FF"
+                                   FontSize="13" />
+                    </Border>
+                </ui:CardControl>
+
+                <!-- Travar Overlay (Click-Through) -->
+                <ui:CardControl Margin="0,0,0,8">
+                    <ui:CardControl.Header>
+                        <StackPanel>
+                            <TextBlock Text="Travar Overlay (Modo Click-Through)"
+                                       FontWeight="SemiBold"
+                                       FontSize="14" />
+                            <TextBlock Text="Faz os cliques do mouse atravessarem o overlay direto para o jogo"
+                                       FontSize="12"
+                                       Opacity="0.7" />
+                        </StackPanel>
+                    </ui:CardControl.Header>
+                    <ui:ToggleSwitch IsChecked="{Binding IsOverlayLocked, Mode=TwoWay}" />
+                </ui:CardControl>
+
+                <!-- Iniciar com o Windows -->
+                <ui:CardControl Margin="0,0,0,8">
+                    <ui:CardControl.Header>
+                        <StackPanel>
+                            <TextBlock Text="Iniciar com o Windows (Administrador)"
+                                       FontWeight="SemiBold"
+                                       FontSize="14" />
+                            <TextBlock Text="Inicia minimizado na bandeja do sistema ao fazer logon via Agendador de Tarefas"
+                                       FontSize="12"
+                                       Opacity="0.7" />
+                        </StackPanel>
+                    </ui:CardControl.Header>
+                    <ui:ToggleSwitch IsChecked="{Binding StartWithWindows, Mode=TwoWay}" />
+                </ui:CardControl>
+
+                <!-- Slider de Opacidade (0.1 a 1.0) -->
+                <ui:CardControl Margin="0,0,0,8">
+                    <ui:CardControl.Header>
+                        <StackPanel>
+                            <TextBlock Text="Opacidade do Fundo do Overlay"
+                                       FontWeight="SemiBold"
+                                       FontSize="14" />
+                            <TextBlock Text="Ajusta a transparência do card escuro (10% a 100%)"
+                                       FontSize="12"
+                                       Opacity="0.7" />
+                        </StackPanel>
+                    </ui:CardControl.Header>
+                    <StackPanel Orientation="Horizontal"
+                                VerticalAlignment="Center">
+                        <Slider Minimum="0.1"
+                                Maximum="1.0"
+                                SmallChange="0.05"
+                                LargeChange="0.1"
+                                TickFrequency="0.05"
+                                IsSnapToTickEnabled="False"
+                                Width="140"
+                                VerticalAlignment="Center"
+                                Value="{Binding OverlayOpacity, Mode=TwoWay}" />
+                        <TextBlock Text="{Binding OverlayOpacityPercentText}"
+                                   Width="46"
+                                   TextAlignment="Right"
+                                   VerticalAlignment="Center"
+                                   FontWeight="SemiBold"
+                                   Margin="8,0,0,0" />
+                    </StackPanel>
+                </ui:CardControl>
+
+                <!-- Ações Rápidas: Resetar Posição e Encerrar Aplicativo -->
+                <ui:CardControl Margin="0,0,0,16">
+                    <ui:CardControl.Header>
+                        <StackPanel>
+                            <TextBlock Text="Ações do Aplicativo"
+                                       FontWeight="SemiBold"
+                                       FontSize="14" />
+                            <TextBlock Text="Fechar no 'X' minimiza para a bandeja. Use 'Encerrar Aplicativo' para sair."
+                                       FontSize="12"
+                                       Opacity="0.7" />
+                        </StackPanel>
+                    </ui:CardControl.Header>
+                    <StackPanel Orientation="Horizontal">
+                        <ui:Button Content="Resetar Posição do Overlay"
+                                   Appearance="Secondary"
+                                   Margin="0,0,8,0"
+                                   Command="{Binding ResetPositionCommand}" />
+                        <ui:Button Content="Encerrar Aplicativo"
+                                   Appearance="Danger"
+                                   Command="{Binding ExitApplicationCommand}" />
+                    </StackPanel>
+                </ui:CardControl>
+
+                <!-- ==================== FPS EM JOGOS ==================== -->
+                <TextBlock Text="Desempenho em Jogos (ETW)"
+                           FontSize="16"
+                           FontWeight="SemiBold"
+                           Foreground="#FFFFFF"
+                           Margin="0,8,0,10" />
+
+                <ui:CardControl Margin="0,0,0,16">
+                    <ui:CardControl.Header>
+                        <StackPanel>
+                            <TextBlock Text="Exibir FPS (Quadros por Segundo)"
+                                       FontWeight="Medium"
+                                       FontSize="14" />
+                            <TextBlock Text="Captura oficial via eventos DXGI/D3D9 do Windows (seguro contra Anti-Cheat)"
+                                       FontSize="12"
+                                       Opacity="0.7" />
+                        </StackPanel>
+                    </ui:CardControl.Header>
+                    <ui:ToggleSwitch IsChecked="{Binding ShowFps, Mode=TwoWay}" />
+                </ui:CardControl>
+
+                <!-- ==================== MÉTRICAS DE CPU ==================== -->
+                <TextBlock Text="Métricas de CPU"
+                           FontSize="16"
+                           FontWeight="SemiBold"
+                           Foreground="#FFFFFF"
+                           Margin="0,8,0,10" />
+
+                <ui:CardControl Margin="0,0,0,8">
+                    <ui:CardControl.Header>
+                        <TextBlock Text="CPU Temperatura (°C)"
+                                   FontWeight="Medium"
+                                   FontSize="14" />
+                    </ui:CardControl.Header>
+                    <ui:ToggleSwitch IsChecked="{Binding ShowCpuTemp, Mode=TwoWay}" />
+                </ui:CardControl>
+
+                <ui:CardControl Margin="0,0,0,8">
+                    <ui:CardControl.Header>
+                        <TextBlock Text="CPU Uso Total (%)"
+                                   FontWeight="Medium"
+                                   FontSize="14" />
+                    </ui:CardControl.Header>
+                    <ui:ToggleSwitch IsChecked="{Binding ShowCpuLoad, Mode=TwoWay}" />
+                </ui:CardControl>
+
+                <ui:CardControl Margin="0,0,0,8">
+                    <ui:CardControl.Header>
+                        <TextBlock Text="CPU Clock (MHz)"
+                                   FontWeight="Medium"
+                                   FontSize="14" />
+                    </ui:CardControl.Header>
+                    <ui:ToggleSwitch IsChecked="{Binding ShowCpuClock, Mode=TwoWay}" />
+                </ui:CardControl>
+
+                <ui:CardControl Margin="0,0,0,16">
+                    <ui:CardControl.Header>
+                        <TextBlock Text="CPU Consumo (Watts)"
+                                   FontWeight="Medium"
+                                   FontSize="14" />
+                    </ui:CardControl.Header>
+                    <ui:ToggleSwitch IsChecked="{Binding ShowCpuPower, Mode=TwoWay}" />
+                </ui:CardControl>
+
+                <!-- ==================== MÉTRICAS DE GPU ==================== -->
+                <TextBlock Text="Métricas de GPU (NVIDIA / AMD / Intel)"
+                           FontSize="16"
+                           FontWeight="SemiBold"
+                           Foreground="#FFFFFF"
+                           Margin="0,8,0,10" />
+
+                <ui:CardControl Margin="0,0,0,8">
+                    <ui:CardControl.Header>
+                        <TextBlock Text="GPU Temperatura (°C)"
+                                   FontWeight="Medium"
+                                   FontSize="14" />
+                    </ui:CardControl.Header>
+                    <ui:ToggleSwitch IsChecked="{Binding ShowGpuTemp, Mode=TwoWay}" />
+                </ui:CardControl>
+
+                <ui:CardControl Margin="0,0,0,8">
+                    <ui:CardControl.Header>
+                        <TextBlock Text="GPU Uso (%)"
+                                   FontWeight="Medium"
+                                   FontSize="14" />
+                    </ui:CardControl.Header>
+                    <ui:ToggleSwitch IsChecked="{Binding ShowGpuLoad, Mode=TwoWay}" />
+                </ui:CardControl>
+
+                <ui:CardControl Margin="0,0,0,8">
+                    <ui:CardControl.Header>
+                        <TextBlock Text="GPU Clock (MHz)"
+                                   FontWeight="Medium"
+                                   FontSize="14" />
+                    </ui:CardControl.Header>
+                    <ui:ToggleSwitch IsChecked="{Binding ShowGpuClock, Mode=TwoWay}" />
+                </ui:CardControl>
+
+                <ui:CardControl Margin="0,0,0,16">
+                    <ui:CardControl.Header>
+                        <TextBlock Text="GPU Consumo (Watts)"
+                                   FontWeight="Medium"
+                                   FontSize="14" />
+                    </ui:CardControl.Header>
+                    <ui:ToggleSwitch IsChecked="{Binding ShowGpuPower, Mode=TwoWay}" />
+                </ui:CardControl>
+
+                <!-- ==================== MÉTRICAS DE RAM ==================== -->
+                <TextBlock Text="Memória RAM"
+                           FontSize="16"
+                           FontWeight="SemiBold"
+                           Foreground="#FFFFFF"
+                           Margin="0,8,0,10" />
+
+                <ui:CardControl Margin="0,0,0,8">
+                    <ui:CardControl.Header>
+                        <StackPanel>
+                            <TextBlock Text="Uso de Memória RAM (GB e %)"
+                                       FontWeight="Medium"
+                                       FontSize="14" />
+                            <TextBlock Text="Exibe a quantidade de RAM física em uso e a porcentagem ocupada"
+                                       FontSize="12"
+                                       Opacity="0.7" />
+                        </StackPanel>
+                    </ui:CardControl.Header>
+                    <ui:ToggleSwitch IsChecked="{Binding ShowRam, Mode=TwoWay}" />
+                </ui:CardControl>
+
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</ui:FluentWindow>
