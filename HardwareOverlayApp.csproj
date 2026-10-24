@@ -25,6 +25,7 @@
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
     <PackageReference Include="LibreHardwareMonitorLib" Version="0.9.3" />
     <PackageReference Include="Microsoft.Diagnostics.Tracing.TraceEvent" Version="3.1.8" />
+    <PackageReference Include="System.Management" Version="8.0.0" />
     <PackageReference Include="WPF-UI" Version="3.0.5" />
   </ItemGroup>
 

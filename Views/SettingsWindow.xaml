@@ -7,15 +7,81 @@
                  xmlns:vm="clr-namespace:HardwareOverlayApp.ViewModels"
                  mc:Ignorable="d"
                  d:DataContext="{d:DesignInstance Type=vm:MainViewModel}"
-                 Title="Hardware Overlay - Configurações (0.1v)"
-                 Width="600"
-                 Height="820"
-                 MinWidth="520"
-                 MinHeight="620"
+                 Title="Hardware Overlay &amp; System Monitor"
+                 Width="1080"
+                 Height="760"
+                 MinWidth="860"
+                 MinHeight="580"
                  WindowStartupLocation="CenterScreen"
                  ExtendsContentIntoTitleBar="True"
                  WindowBackdropType="Mica"
                  WindowCornerPreference="Round">
+
+    <ui:FluentWindow.Resources>
+        <!-- Estilo moderno de item do Menu Lateral (Estilo Task Manager do Windows 11 / WPF-UI NavigationView) -->
+        <Style x:Key="SideNavRadioButtonStyle" TargetType="RadioButton">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="#D0D4DC" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Margin" Value="0,2" />
+            <Setter Property="Padding" Value="12,10" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="RootBorder"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="4" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Barra indicadora lateral de seleção (Estilo Windows 11) -->
+                                <Border x:Name="ActiveIndicator"
+                                        Grid.Column="0"
+                                        Width="3"
+                                        Height="18"
+                                        CornerRadius="1.5"
+                                        Background="#00E5FF"
+                                        Visibility="Hidden"
+                                        HorizontalAlignment="Left"
+                                        VerticalAlignment="Center" />
+
+                                <ContentPresenter Grid.Column="1"
+                                                  Margin="8,0,0,0"
+                                                  VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="RootBorder" Property="Background" Value="#12FFFFFF" />
+                                <Setter Property="Foreground" Value="#FFFFFF" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="RootBorder" Property="Background" Value="#1E00E5FF" />
+                                <Setter TargetName="ActiveIndicator" Property="Visibility" Value="Visible" />
+                                <Setter Property="Foreground" Value="#FFFFFF" />
+                                <Setter Property="FontWeight" Value="SemiBold" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Estilo de Card de Painel de Telemetria -->
+        <Style x:Key="TelemetryCardBorderStyle" TargetType="Border">
+            <Setter Property="Background" Value="#14FFFFFF" />
+            <Setter Property="BorderBrush" Value="#22FFFFFF" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="16" />
+            <Setter Property="Margin" Value="0,0,0,12" />
+        </Style>
+    </ui:FluentWindow.Resources>
 
     <Grid>
         <Grid.RowDefinitions>
@@ -25,389 +91,1740 @@
 
         <!-- Barra de título nativa Windows 11 -->
         <ui:TitleBar Grid.Row="0"
-                     Title="Hardware Overlay - Configurações (0.1v)" />
+                     Title="Hardware Overlay — Monitoramento e Diagnóstico de Hardware" />
 
-        <!-- Painel de Configurações -->
-        <ScrollViewer Grid.Row="1"
-                      VerticalScrollBarVisibility="Auto"
-                      Padding="24,8,24,24">
-            <StackPanel>
+        <!-- Estrutura Principal com Menu de Navegação Lateral + Área de Conteúdo -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="245" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
 
-                <!-- ==================== CONTROLE GERAL ==================== -->
-                <TextBlock Text="Controle Geral"
-                           FontSize="16"
-                           FontWeight="SemiBold"
-                           Foreground="#FFFFFF"
-                           Margin="0,8,0,10" />
+            <!-- ==================== MENU DE NAVEGAÇÃO LATERAL (SIDEBAR) ==================== -->
+            <Border Grid.Column="0"
+                    Background="#0E000000"
+                    BorderBrush="#1AFFFFFF"
+                    BorderThickness="0,0,1,0"
+                    Padding="10,12,10,12">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
 
-                <!-- Mostrar / Ocultar Overlay -->
-                <ui:CardControl Margin="0,0,0,8">
-                    <ui:CardControl.Header>
-                        <StackPanel>
-                            <TextBlock Text="Mostrar / Ocultar Overlay"
-                                       FontWeight="SemiBold"
-                                       FontSize="14" />
-                            <TextBlock Text="Alterna a visibilidade do overlay flutuante na tela"
-                                       FontSize="12"
-                                       Opacity="0.7" />
-                        </StackPanel>
-                    </ui:CardControl.Header>
-                    <ui:ToggleSwitch IsChecked="{Binding IsOverlayVisible, Mode=TwoWay}" />
-                </ui:CardControl>
-
-                <!-- Exibição Inteligente: Apenas em Tela Cheia -->
-                <ui:CardControl Margin="0,0,0,8">
-                    <ui:CardControl.Header>
-                        <StackPanel>
-                            <TextBlock Text="Exibição Inteligente: Apenas em Tela Cheia"
-                                       FontWeight="SemiBold"
-                                       FontSize="14" />
-                            <TextBlock Text="Oculta automaticamente na área de trabalho e exibe apenas quando um jogo em tela cheia estiver em foco"
-                                       FontSize="12"
-                                       Opacity="0.7"
-                                       TextWrapping="Wrap" />
-                        </StackPanel>
-                    </ui:CardControl.Header>
-                    <ui:ToggleSwitch IsChecked="{Binding SmartFullscreenOnly, Mode=TwoWay}" />
-                </ui:CardControl>
-
-                <!-- Modo Compacto (Destacado) -->
-                <ui:CardControl Margin="0,0,0,8">
-                    <ui:CardControl.Header>
-                        <StackPanel>
-                            <TextBlock Text="Modo Compacto (Apenas FPS, CPU % e GPU %)"
-                                       FontWeight="SemiBold"
-                                       Foreground="#00E5FF"
-                                       FontSize="14" />
-                            <TextBlock Text="Exibe exclusivamente FPS, uso de CPU e uso de GPU com espaçamento reduzido"
-                                       FontSize="12"
-                                       Opacity="0.75"
-                                       TextWrapping="Wrap" />
-                        </StackPanel>
-                    </ui:CardControl.Header>
-                    <ui:ToggleSwitch IsChecked="{Binding IsCompactMode, Mode=TwoWay}" />
-                </ui:CardControl>
-
-                <!-- Aviso visual do Atalho Global Ctrl + Shift + O -->
-                <ui:CardControl Margin="0,0,0,8">
-                    <ui:CardControl.Header>
-                        <StackPanel>
-                            <TextBlock Text="Atalho Global em Jogos"
-                                       FontWeight="SemiBold"
-                                       FontSize="14" />
-                            <TextBlock Text="Use o atalho a qualquer momento dentro do jogo para mostrar ou ocultar o overlay"
-                                       FontSize="12"
-                                       Opacity="0.7" />
-                        </StackPanel>
-                    </ui:CardControl.Header>
-                    <Border Background="#2600E5FF"
-                            BorderBrush="#6600E5FF"
+                    <!-- Cabeçalho de Status Rápido no Menu Lateral -->
+                    <Border Grid.Row="0"
+                            Background="#14FFFFFF"
+                            BorderBrush="#24FFFFFF"
                             BorderThickness="1"
-                            CornerRadius="6"
-                            Padding="10,4">
-                        <TextBlock Text="Ctrl + Shift + O"
-                                   FontFamily="Consolas"
-                                   FontWeight="Bold"
-                                   Foreground="#00E5FF"
-                                   FontSize="13" />
+                            CornerRadius="8"
+                            Padding="12,10"
+                            Margin="2,0,2,14">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="TELEMETRIA ATIVA"
+                                           FontSize="10"
+                                           FontWeight="Bold"
+                                           Foreground="#00E5FF" />
+                                <TextBlock Text="{Binding FpsText}"
+                                           FontSize="16"
+                                           FontWeight="Bold"
+                                           Foreground="#FFB900"
+                                           Margin="0,2,0,0" />
+                            </StackPanel>
+                            <ui:ToggleSwitch Grid.Column="1"
+                                             VerticalAlignment="Center"
+                                             ToolTip="Mostrar / Ocultar Overlay Flutuante"
+                                             IsChecked="{Binding IsOverlayVisible, Mode=TwoWay}" />
+                        </Grid>
                     </Border>
-                </ui:CardControl>
 
-                <!-- Travar Overlay (Click-Through) -->
-                <ui:CardControl Margin="0,0,0,8">
-                    <ui:CardControl.Header>
-                        <StackPanel>
-                            <TextBlock Text="Travar Overlay (Modo Click-Through)"
-                                       FontWeight="SemiBold"
-                                       FontSize="14" />
-                            <TextBlock Text="Faz os cliques do mouse atravessarem o overlay direto para o jogo"
-                                       FontSize="12"
-                                       Opacity="0.7" />
-                        </StackPanel>
-                    </ui:CardControl.Header>
-                    <ui:ToggleSwitch IsChecked="{Binding IsOverlayLocked, Mode=TwoWay}" />
-                </ui:CardControl>
-
-                <!-- Iniciar com o Windows -->
-                <ui:CardControl Margin="0,0,0,8">
-                    <ui:CardControl.Header>
-                        <StackPanel>
-                            <TextBlock Text="Iniciar com o Windows (Administrador)"
-                                       FontWeight="SemiBold"
-                                       FontSize="14" />
-                            <TextBlock Text="Inicia minimizado na bandeja do sistema ao fazer logon via Agendador de Tarefas"
-                                       FontSize="12"
-                                       Opacity="0.7" />
-                        </StackPanel>
-                    </ui:CardControl.Header>
-                    <ui:ToggleSwitch IsChecked="{Binding StartWithWindows, Mode=TwoWay}" />
-                </ui:CardControl>
-
-                <!-- Slider de Opacidade (0.1 a 1.0) -->
-                <ui:CardControl Margin="0,0,0,16">
-                    <ui:CardControl.Header>
-                        <StackPanel>
-                            <TextBlock Text="Opacidade do Fundo do Overlay"
-                                       FontWeight="SemiBold"
-                                       FontSize="14" />
-                            <TextBlock Text="Ajusta a transparência do card escuro (10% a 100%)"
-                                       FontSize="12"
-                                       Opacity="0.7" />
-                        </StackPanel>
-                    </ui:CardControl.Header>
-                    <StackPanel Orientation="Horizontal"
-                                VerticalAlignment="Center">
-                        <Slider Minimum="0.1"
-                                Maximum="1.0"
-                                SmallChange="0.05"
-                                LargeChange="0.1"
-                                TickFrequency="0.05"
-                                IsSnapToTickEnabled="False"
-                                Width="140"
-                                VerticalAlignment="Center"
-                                Value="{Binding OverlayOpacity, Mode=TwoWay}" />
-                        <TextBlock Text="{Binding OverlayOpacityPercentText}"
-                                   Width="46"
-                                   TextAlignment="Right"
-                                   VerticalAlignment="Center"
+                    <!-- 4 Seções Principais de Monitoramento no Topo -->
+                    <StackPanel Grid.Row="1">
+                        <TextBlock Text="MONITORAMENTO"
+                                   FontSize="11"
                                    FontWeight="SemiBold"
-                                   Margin="8,0,0,0" />
+                                   Foreground="#88FFFFFF"
+                                   Margin="12,0,0,6" />
+
+                        <!-- 1. Visão Geral -->
+                        <RadioButton Style="{StaticResource SideNavRadioButtonStyle}"
+                                     GroupName="MainNavigation"
+                                     IsChecked="{Binding IsOverviewTabSelected, Mode=TwoWay}">
+                            <StackPanel Orientation="Horizontal">
+                                <ui:SymbolIcon Symbol="DataHistogram24"
+                                               FontSize="18"
+                                               Foreground="#00E5FF"
+                                               VerticalAlignment="Center" />
+                                <TextBlock Text="Visão Geral"
+                                           FontSize="13.5"
+                                           Margin="12,0,0,0"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+                        </RadioButton>
+
+                        <!-- 2. Processador (CPU) -->
+                        <RadioButton Style="{StaticResource SideNavRadioButtonStyle}"
+                                     GroupName="MainNavigation"
+                                     IsChecked="{Binding IsCpuTabSelected, Mode=TwoWay}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Grid.Column="0"
+                                               Symbol="DeveloperBoard24"
+                                               FontSize="18"
+                                               Foreground="#60CDFF"
+                                               VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1"
+                                           Text="Processador (CPU)"
+                                           FontSize="13.5"
+                                           Margin="12,0,0,0"
+                                           VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="2"
+                                           Text="{Binding CpuLoadText}"
+                                           FontSize="11.5"
+                                           Foreground="#60CDFF"
+                                           VerticalAlignment="Center" />
+                            </Grid>
+                        </RadioButton>
+
+                        <!-- 3. Placa de Vídeo (GPU) -->
+                        <RadioButton Style="{StaticResource SideNavRadioButtonStyle}"
+                                     GroupName="MainNavigation"
+                                     IsChecked="{Binding IsGpuTabSelected, Mode=TwoWay}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Grid.Column="0"
+                                               Symbol="Video24"
+                                               FontSize="18"
+                                               Foreground="#6CCB5F"
+                                               VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1"
+                                           Text="Placa de Vídeo (GPU)"
+                                           FontSize="13.5"
+                                           Margin="12,0,0,0"
+                                           VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="2"
+                                           Text="{Binding GpuLoadText}"
+                                           FontSize="11.5"
+                                           Foreground="#6CCB5F"
+                                           VerticalAlignment="Center" />
+                            </Grid>
+                        </RadioButton>
+
+                        <!-- 4. Sistema & Armazenamento -->
+                        <RadioButton Style="{StaticResource SideNavRadioButtonStyle}"
+                                     GroupName="MainNavigation"
+                                     IsChecked="{Binding IsStorageTabSelected, Mode=TwoWay}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Grid.Column="0"
+                                               Symbol="HardDrive20"
+                                               FontSize="18"
+                                               Foreground="#C586C0"
+                                               VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1"
+                                           Text="Sistema &amp; Discos"
+                                           FontSize="13.5"
+                                           Margin="12,0,0,0"
+                                           VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="2"
+                                           Text="{Binding RamPercentText}"
+                                           FontSize="11.5"
+                                           Foreground="#C586C0"
+                                           VerticalAlignment="Center" />
+                            </Grid>
+                        </RadioButton>
                     </StackPanel>
-                </ui:CardControl>
 
-                <!-- ==================== LAYOUT E ALINHAMENTO NA TELA ==================== -->
-                <TextBlock Text="Orientação e Alinhamento na Tela"
-                           FontSize="16"
-                           FontWeight="SemiBold"
-                           Foreground="#FFFFFF"
-                           Margin="0,8,0,10" />
+                    <!-- Rodapé com Ícone de Engrenagem: 5. Configurações -->
+                    <StackPanel Grid.Row="3">
+                        <Border Height="1"
+                                Background="#1FFFFFFF"
+                                Margin="6,0,6,8" />
 
-                <!-- Orientação Horizontal vs Vertical -->
-                <ui:CardControl Margin="0,0,0,8">
-                    <ui:CardControl.Header>
-                        <StackPanel>
-                            <TextBlock Text="Orientação Horizontal (Barra em Linha)"
-                                       FontWeight="SemiBold"
-                                       FontSize="14" />
-                            <TextBlock Text="Organiza as métricas lado a lado em linha com separadores discretos"
-                                       FontSize="12"
-                                       Opacity="0.7" />
-                        </StackPanel>
-                    </ui:CardControl.Header>
-                    <ui:ToggleSwitch IsChecked="{Binding IsHorizontalLayout, Mode=TwoWay}" />
-                </ui:CardControl>
+                        <RadioButton Style="{StaticResource SideNavRadioButtonStyle}"
+                                     GroupName="MainNavigation"
+                                     IsChecked="{Binding IsSettingsTabSelected, Mode=TwoWay}">
+                            <StackPanel Orientation="Horizontal">
+                                <ui:SymbolIcon Symbol="Settings24"
+                                               FontSize="18"
+                                               Foreground="#FFB900"
+                                               VerticalAlignment="Center" />
+                                <TextBlock Text="Configurações"
+                                           FontSize="13.5"
+                                           Margin="12,0,0,0"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+                        </RadioButton>
+                    </StackPanel>
+                </Grid>
+            </Border>
 
-                <!-- Grade de Botões de Alinhamento Rápido (6 Posições) -->
-                <Border Background="#12FFFFFF"
-                        BorderBrush="#1FFFFFFF"
-                        BorderThickness="1"
-                        CornerRadius="8"
-                        Padding="14,12"
-                        Margin="0,0,0,8">
+            <!-- ==================== ÁREA DE CONTEÚDO PRINCIPAL ==================== -->
+            <Grid Grid.Column="1">
+
+                <!-- ======================================================================= -->
+                <!-- 1. ABA "VISÃO GERAL" (RESUMO DO SISTEMA)                                -->
+                <!-- ======================================================================= -->
+                <ScrollViewer Visibility="{Binding IsOverviewTabSelected, Converter={StaticResource BoolToVis}}"
+                              VerticalScrollBarVisibility="Auto"
+                              Padding="24,18,24,24">
                     <StackPanel>
-                        <TextBlock Text="Predefinições Rápidas de Alinhamento"
-                                   FontWeight="SemiBold"
-                                   FontSize="14"
-                                   Margin="0,0,0,4" />
-                        <TextBlock Text="Posicione o Overlay instantaneamente em qualquer canto ou centro da tela:"
-                                   FontSize="12"
+                        <TextBlock Text="Visão Geral do Sistema"
+                                   FontSize="22"
+                                   FontWeight="Bold"
+                                   Foreground="#FFFFFF" />
+                        <TextBlock Text="Resumo em tempo real das especificações e sensores de hardware do computador"
+                                   FontSize="13"
                                    Opacity="0.7"
+                                   Margin="0,2,0,18" />
+
+                        <!-- CARD 1: SISTEMA OPERACIONAL -->
+                        <Border Style="{StaticResource TelemetryCardBorderStyle}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <Border Grid.Column="0"
+                                        Width="44"
+                                        Height="44"
+                                        CornerRadius="8"
+                                        Background="#1A00E5FF"
+                                        VerticalAlignment="Center"
+                                        Margin="0,0,16,0">
+                                    <ui:SymbolIcon Symbol="Window24"
+                                                   FontSize="22"
+                                                   Foreground="#00E5FF"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center" />
+                                </Border>
+
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="SISTEMA OPERACIONAL"
+                                               FontSize="11"
+                                               FontWeight="Bold"
+                                               Foreground="#00E5FF" />
+                                    <TextBlock Text="{Binding OsName}"
+                                               FontSize="17"
+                                               FontWeight="Bold"
+                                               Foreground="#FFFFFF"
+                                               Margin="0,2,0,2" />
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="Edição / Versão: "
+                                                   FontSize="12.5"
+                                                   Opacity="0.7" />
+                                        <TextBlock Text="{Binding OsEdition}"
+                                                   FontSize="12.5"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="#E0E0E0" />
+                                        <TextBlock Text="   •   Build: "
+                                                   FontSize="12.5"
+                                                   Opacity="0.7" />
+                                        <TextBlock Text="{Binding OsBuild}"
+                                                   FontSize="12.5"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="#E0E0E0" />
+                                    </StackPanel>
+                                </StackPanel>
+
+                                <Border Grid.Column="2"
+                                        Background="#1F00E5FF"
+                                        BorderBrush="#4400E5FF"
+                                        BorderThickness="1"
+                                        CornerRadius="6"
+                                        Padding="12,6"
+                                        VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding FpsText}"
+                                               FontFamily="Consolas"
+                                               FontSize="14"
+                                               FontWeight="Bold"
+                                               Foreground="#FFB900" />
+                                </Border>
+                            </Grid>
+                        </Border>
+
+                        <!-- CARD 2: PROCESSADOR (CPU) -->
+                        <Border Style="{StaticResource TelemetryCardBorderStyle}">
+                            <StackPanel>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <Border Grid.Column="0"
+                                            Width="44"
+                                            Height="44"
+                                            CornerRadius="8"
+                                            Background="#1A60CDFF"
+                                            VerticalAlignment="Center"
+                                            Margin="0,0,16,0">
+                                        <ui:SymbolIcon Symbol="DeveloperBoard24"
+                                                       FontSize="22"
+                                                       Foreground="#60CDFF"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center" />
+                                    </Border>
+
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock Text="PROCESSADOR (CPU)"
+                                                   FontSize="11"
+                                                   FontWeight="Bold"
+                                                   Foreground="#60CDFF" />
+                                        <TextBlock Text="{Binding CpuName}"
+                                                   FontSize="16"
+                                                   FontWeight="Bold"
+                                                   Foreground="#FFFFFF"
+                                                   TextWrapping="Wrap"
+                                                   Margin="0,2,0,2" />
+                                        <TextBlock Text="{Binding CpuCoresThreadsSummary}"
+                                                   FontSize="12.5"
+                                                   Opacity="0.75" />
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Column="2"
+                                                Orientation="Horizontal"
+                                                VerticalAlignment="Center">
+                                        <Border Background="#18FFFFFF"
+                                                CornerRadius="6"
+                                                Padding="12,6"
+                                                Margin="0,0,8,0">
+                                            <StackPanel>
+                                                <TextBlock Text="USO"
+                                                           FontSize="10"
+                                                           Opacity="0.65" />
+                                                <TextBlock Text="{Binding CpuLoadText}"
+                                                           FontSize="15"
+                                                           FontWeight="Bold"
+                                                           Foreground="#60CDFF" />
+                                            </StackPanel>
+                                        </Border>
+                                        <Border Background="#18FFFFFF"
+                                                CornerRadius="6"
+                                                Padding="12,6">
+                                            <StackPanel>
+                                                <TextBlock Text="TEMP"
+                                                           FontSize="10"
+                                                           Opacity="0.65" />
+                                                <TextBlock Text="{Binding CpuTemperatureText}"
+                                                           FontSize="15"
+                                                           FontWeight="Bold"
+                                                           Foreground="#FFFFFF" />
+                                            </StackPanel>
+                                        </Border>
+                                    </StackPanel>
+                                </Grid>
+
+                                <ProgressBar Minimum="0"
+                                             Maximum="100"
+                                             Height="6"
+                                             Margin="0,12,0,0"
+                                             Foreground="#60CDFF"
+                                             Value="{Binding CpuLoadBarValue, Mode=OneWay}" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- CARD 3: PLACA(S) DE VÍDEO (MULTI-GPU) -->
+                        <Border Style="{StaticResource TelemetryCardBorderStyle}">
+                            <StackPanel>
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <ui:SymbolIcon Grid.Column="0"
+                                                   Symbol="Video24"
+                                                   FontSize="20"
+                                                   Foreground="#6CCB5F"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,10,0" />
+                                    <TextBlock Grid.Column="1"
+                                               Text="PLACAS DE VÍDEO (GPU)"
+                                               FontSize="12"
+                                               FontWeight="Bold"
+                                               Foreground="#6CCB5F"
+                                               VerticalAlignment="Center" />
+                                    <Border Grid.Column="2"
+                                            Background="#1A6CCB5F"
+                                            CornerRadius="4"
+                                            Padding="8,3">
+                                        <TextBlock Text="{Binding GpuCountBadgeText}"
+                                                   FontSize="11"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="#6CCB5F" />
+                                    </Border>
+                                </Grid>
+
+                                <ItemsControl ItemsSource="{Binding Gpus}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Background="#12FFFFFF"
+                                                    BorderBrush="#1FFFFFFF"
+                                                    BorderThickness="1"
+                                                    CornerRadius="6"
+                                                    Padding="14,12"
+                                                    Margin="0,0,0,8">
+                                                <StackPanel>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+
+                                                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding Name}"
+                                                                       FontSize="15"
+                                                                       FontWeight="Bold"
+                                                                       Foreground="#FFFFFF"
+                                                                       TextWrapping="Wrap" />
+                                                            <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
+                                                                <TextBlock Text="VRAM Total: "
+                                                                           FontSize="12"
+                                                                           Opacity="0.7" />
+                                                                <TextBlock Text="{Binding TotalVramDisplay}"
+                                                                           FontSize="12"
+                                                                           FontWeight="SemiBold"
+                                                                           Foreground="#6CCB5F" />
+                                                            </StackPanel>
+                                                        </StackPanel>
+
+                                                        <StackPanel Grid.Column="1"
+                                                                    Orientation="Horizontal"
+                                                                    VerticalAlignment="Center">
+                                                            <Border Background="#18FFFFFF"
+                                                                    CornerRadius="6"
+                                                                    Padding="10,5"
+                                                                    Margin="0,0,8,0">
+                                                                <StackPanel>
+                                                                    <TextBlock Text="USO"
+                                                                               FontSize="10"
+                                                                               Opacity="0.65" />
+                                                                    <TextBlock Text="{Binding CoreLoadText}"
+                                                                               FontSize="14"
+                                                                               FontWeight="Bold"
+                                                                               Foreground="#6CCB5F" />
+                                                                </StackPanel>
+                                                            </Border>
+                                                            <Border Background="#18FFFFFF"
+                                                                    CornerRadius="6"
+                                                                    Padding="10,5">
+                                                                <StackPanel>
+                                                                    <TextBlock Text="TEMP"
+                                                                               FontSize="10"
+                                                                               Opacity="0.65" />
+                                                                    <TextBlock Text="{Binding CoreTemperatureText}"
+                                                                               FontSize="14"
+                                                                               FontWeight="Bold"
+                                                                               Foreground="#FFFFFF" />
+                                                                </StackPanel>
+                                                            </Border>
+                                                        </StackPanel>
+                                                    </Grid>
+
+                                                    <ProgressBar Minimum="0"
+                                                                 Maximum="100"
+                                                                 Height="5"
+                                                                 Margin="0,10,0,0"
+                                                                 Foreground="#6CCB5F"
+                                                                 Value="{Binding CoreLoadBarValue, Mode=OneWay}" />
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- CARD 4: MEMÓRIA RAM -->
+                        <Border Style="{StaticResource TelemetryCardBorderStyle}">
+                            <StackPanel>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <Border Grid.Column="0"
+                                            Width="44"
+                                            Height="44"
+                                            CornerRadius="8"
+                                            Background="#1AC586C0"
+                                            VerticalAlignment="Center"
+                                            Margin="0,0,16,0">
+                                        <ui:SymbolIcon Symbol="Ram16"
+                                                       FontSize="22"
+                                                       Foreground="#C586C0"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center" />
+                                    </Border>
+
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock Text="MEMÓRIA RAM"
+                                                   FontSize="11"
+                                                   FontWeight="Bold"
+                                                   Foreground="#C586C0" />
+                                        <TextBlock Text="{Binding RamDetailedSummaryText}"
+                                                   FontSize="15"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="#FFFFFF"
+                                                   Margin="0,2,0,4" />
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="Instalada: " FontSize="12" Opacity="0.7" />
+                                            <TextBlock Text="{Binding RamTotalText}" FontSize="12" FontWeight="SemiBold" Margin="0,0,14,0" />
+                                            <TextBlock Text="Usada: " FontSize="12" Opacity="0.7" />
+                                            <TextBlock Text="{Binding RamUsedText}" FontSize="12" FontWeight="SemiBold" Margin="0,0,14,0" />
+                                            <TextBlock Text="Livre: " FontSize="12" Opacity="0.7" />
+                                            <TextBlock Text="{Binding RamFreeText}" FontSize="12" FontWeight="SemiBold" />
+                                        </StackPanel>
+                                    </StackPanel>
+
+                                    <Border Grid.Column="2"
+                                            Background="#18FFFFFF"
+                                            CornerRadius="6"
+                                            Padding="14,6"
+                                            VerticalAlignment="Center">
+                                        <StackPanel>
+                                            <TextBlock Text="OCUPAÇÃO"
+                                                       FontSize="10"
+                                                       Opacity="0.65" />
+                                            <TextBlock Text="{Binding RamPercentText}"
+                                                       FontSize="16"
+                                                       FontWeight="Bold"
+                                                       Foreground="#C586C0" />
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+
+                                <ProgressBar Minimum="0"
+                                             Maximum="100"
+                                             Height="6"
+                                             Margin="0,12,0,0"
+                                             Foreground="#C586C0"
+                                             Value="{Binding RamUsageBarValue, Mode=OneWay}" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- CARD 5: ARMAZENAMENTO (RESUMO DAS UNIDADES) -->
+                        <Border Style="{StaticResource TelemetryCardBorderStyle}">
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                    <ui:SymbolIcon Symbol="HardDrive20"
+                                                   FontSize="20"
+                                                   Foreground="#FFB900"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,10,0" />
+                                    <TextBlock Text="UNIDADES DE ARMAZENAMENTO"
+                                               FontSize="12"
+                                               FontWeight="Bold"
+                                               Foreground="#FFB900"
+                                               VerticalAlignment="Center" />
+                                </StackPanel>
+
+                                <ItemsControl ItemsSource="{Binding StorageDrives}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Background="#12FFFFFF"
+                                                    BorderBrush="#1FFFFFFF"
+                                                    BorderThickness="1"
+                                                    CornerRadius="6"
+                                                    Padding="14,10"
+                                                    Margin="0,0,0,8">
+                                                <StackPanel>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel Grid.Column="0">
+                                                            <TextBlock Text="{Binding DisplayTitle}"
+                                                                       FontSize="14"
+                                                                       FontWeight="Bold"
+                                                                       Foreground="#FFFFFF" />
+                                                            <TextBlock Text="{Binding PhysicalDiskModel}"
+                                                                       FontSize="11.5"
+                                                                       Opacity="0.7"
+                                                                       Margin="0,1,0,2" />
+                                                            <TextBlock Text="{Binding OverviewLineText}"
+                                                                       FontSize="12"
+                                                                       Foreground="#D8DEE9" />
+                                                        </StackPanel>
+
+                                                        <Border Grid.Column="1"
+                                                                Background="#18FFFFFF"
+                                                                CornerRadius="6"
+                                                                Padding="10,4"
+                                                                VerticalAlignment="Center">
+                                                            <StackPanel>
+                                                                <TextBlock Text="TEMP"
+                                                                           FontSize="9.5"
+                                                                           Opacity="0.65" />
+                                                                <TextBlock Text="{Binding TemperatureText}"
+                                                                           FontSize="13"
+                                                                           FontWeight="Bold"
+                                                                           Foreground="#FFB900" />
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </Grid>
+
+                                                    <ProgressBar Minimum="0"
+                                                                 Maximum="100"
+                                                                 Height="5"
+                                                                 Margin="0,8,0,0"
+                                                                 Foreground="#FFB900"
+                                                                 Value="{Binding UsagePercent, Mode=OneWay}" />
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- ======================================================================= -->
+                <!-- 2. ABA "PROCESSADOR (CPU)" (DETALHES AVANÇADOS & POR NÚCLEO)           -->
+                <!-- ======================================================================= -->
+                <ScrollViewer Visibility="{Binding IsCpuTabSelected, Converter={StaticResource BoolToVis}}"
+                              VerticalScrollBarVisibility="Auto"
+                              Padding="24,18,24,24">
+                    <StackPanel>
+                        <TextBlock Text="Processador (CPU)"
+                                   FontSize="22"
+                                   FontWeight="Bold"
+                                   Foreground="#FFFFFF" />
+                        <TextBlock Text="Especificações físicas, sensores globais de energia/tensão e telemetria individual por núcleo"
+                                   FontSize="13"
+                                   Opacity="0.7"
+                                   Margin="0,2,0,18" />
+
+                        <!-- Especificações do Processador -->
+                        <Border Style="{StaticResource TelemetryCardBorderStyle}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                    <TextBlock Text="MODELO DO PROCESSADOR"
+                                               FontSize="11"
+                                               FontWeight="Bold"
+                                               Foreground="#60CDFF" />
+                                    <TextBlock Text="{Binding CpuName}"
+                                               FontSize="18"
+                                               FontWeight="Bold"
+                                               Foreground="#FFFFFF"
+                                               TextWrapping="Wrap"
+                                               Margin="0,3,0,2" />
+                                    <TextBlock Text="{Binding CpuCoresThreadsSummary}"
+                                               FontSize="12.5"
+                                               Opacity="0.75" />
+                                </StackPanel>
+
+                                <Border Grid.Column="1"
+                                        Background="#18FFFFFF"
+                                        CornerRadius="6"
+                                        Padding="14,8"
+                                        Margin="12,0,8,0"
+                                        VerticalAlignment="Center">
+                                    <StackPanel HorizontalAlignment="Center">
+                                        <TextBlock Text="NÚCLEOS FÍSICOS"
+                                                   FontSize="10"
+                                                   Opacity="0.65" />
+                                        <TextBlock Text="{Binding CpuPhysicalCores}"
+                                                   FontSize="18"
+                                                   FontWeight="Bold"
+                                                   Foreground="#60CDFF"
+                                                   HorizontalAlignment="Center" />
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Grid.Column="2"
+                                        Background="#18FFFFFF"
+                                        CornerRadius="6"
+                                        Padding="14,8"
+                                        VerticalAlignment="Center">
+                                    <StackPanel HorizontalAlignment="Center">
+                                        <TextBlock Text="THREADS LÓGICOS"
+                                                   FontSize="10"
+                                                   Opacity="0.65" />
+                                        <TextBlock Text="{Binding CpuLogicalThreads}"
+                                                   FontSize="18"
+                                                   FontWeight="Bold"
+                                                   Foreground="#60CDFF"
+                                                   HorizontalAlignment="Center" />
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+                        </Border>
+
+                        <!-- Métricas Globais da CPU (Uso %, Temp °C, Consumo W, Tensão VCore V, Clock Médio/Máx MHz) -->
+                        <UniformGrid Columns="3" Margin="0,0,0,6">
+                            <!-- Uso Total (%) -->
+                            <Border Style="{StaticResource TelemetryCardBorderStyle}" Margin="0,0,6,12">
+                                <StackPanel>
+                                    <TextBlock Text="USO TOTAL DA CPU"
+                                               FontSize="11"
+                                               FontWeight="SemiBold"
+                                               Opacity="0.7" />
+                                    <TextBlock Text="{Binding CpuLoadText}"
+                                               FontSize="24"
+                                               FontWeight="Bold"
+                                               Foreground="#60CDFF"
+                                               Margin="0,4,0,8" />
+                                    <ProgressBar Minimum="0"
+                                                 Maximum="100"
+                                                 Height="6"
+                                                 Foreground="#60CDFF"
+                                                 Value="{Binding CpuLoadBarValue, Mode=OneWay}" />
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Temperatura (°C) -->
+                            <Border Style="{StaticResource TelemetryCardBorderStyle}" Margin="3,0,3,12">
+                                <StackPanel>
+                                    <TextBlock Text="TEMPERATURA (PACKAGE / TDIE)"
+                                               FontSize="11"
+                                               FontWeight="SemiBold"
+                                               Opacity="0.7" />
+                                    <TextBlock Text="{Binding CpuTemperatureText}"
+                                               FontSize="24"
+                                               FontWeight="Bold"
+                                               Foreground="#FFFFFF"
+                                               Margin="0,4,0,2" />
+                                    <TextBlock Text="Sensor térmico principal"
+                                               FontSize="11"
+                                               Opacity="0.55" />
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Consumo (Watts) -->
+                            <Border Style="{StaticResource TelemetryCardBorderStyle}" Margin="6,0,0,12">
+                                <StackPanel>
+                                    <TextBlock Text="CONSUMO ELÉTRICO (PACKAGE)"
+                                               FontSize="11"
+                                               FontWeight="SemiBold"
+                                               Opacity="0.7" />
+                                    <TextBlock Text="{Binding CpuPowerText}"
+                                               FontSize="24"
+                                               FontWeight="Bold"
+                                               Foreground="#FFB900"
+                                               Margin="0,4,0,2" />
+                                    <TextBlock Text="Potência em tempo real"
+                                               FontSize="11"
+                                               Opacity="0.55" />
+                                </StackPanel>
+                            </Border>
+                        </UniformGrid>
+
+                        <UniformGrid Columns="2" Margin="0,0,0,8">
+                            <!-- Tensão VCore (V) -->
+                            <Border Style="{StaticResource TelemetryCardBorderStyle}" Margin="0,0,6,12">
+                                <StackPanel>
+                                    <TextBlock Text="TENSÃO DO NÚCLEO (VCORE / VID)"
+                                               FontSize="11"
+                                               FontWeight="SemiBold"
+                                               Opacity="0.7" />
+                                    <TextBlock Text="{Binding CpuVoltageText}"
+                                               FontSize="22"
+                                               FontWeight="Bold"
+                                               Foreground="#00E5FF"
+                                               Margin="0,4,0,2" />
+                                    <TextBlock Text="Leitura direta CPU / SuperIO Placa-Mãe"
+                                               FontSize="11"
+                                               Opacity="0.55" />
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Clock Médio / Máximo (MHz) -->
+                            <Border Style="{StaticResource TelemetryCardBorderStyle}" Margin="6,0,0,12">
+                                <StackPanel>
+                                    <TextBlock Text="FREQUÊNCIA (CLOCK MÉDIO / MÁXIMO)"
+                                               FontSize="11"
+                                               FontWeight="SemiBold"
+                                               Opacity="0.7" />
+                                    <TextBlock Text="{Binding CpuClockAvgMaxText}"
+                                               FontSize="20"
+                                               FontWeight="Bold"
+                                               Foreground="#FFFFFF"
+                                               Margin="0,4,0,2" />
+                                    <TextBlock Text="Frequência operacional dos núcleos ativos"
+                                               FontSize="11"
+                                               Opacity="0.55" />
+                                </StackPanel>
+                            </Border>
+                        </UniformGrid>
+
+                        <!-- Grade de Núcleos (Per-Core Telemetry) -->
+                        <TextBlock Text="Telemetria Individual por Núcleo / Thread"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   Foreground="#FFFFFF"
+                                   Margin="0,4,0,10" />
+
+                        <ItemsControl ItemsSource="{Binding CpuCores}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <UniformGrid Columns="2" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="#14FFFFFF"
+                                            BorderBrush="#22FFFFFF"
+                                            BorderThickness="1"
+                                            CornerRadius="6"
+                                            Padding="12,10"
+                                            Margin="4">
+                                        <StackPanel>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="0"
+                                                           Text="{Binding CoreName}"
+                                                           FontWeight="SemiBold"
+                                                           FontSize="13"
+                                                           Foreground="#FFFFFF" />
+                                                <TextBlock Grid.Column="1"
+                                                           Text="{Binding ClockText}"
+                                                           FontFamily="Consolas"
+                                                           FontSize="12.5"
+                                                           Foreground="#A0AEC0"
+                                                           Margin="8,0"
+                                                           VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="2"
+                                                           Text="{Binding LoadText}"
+                                                           FontFamily="Consolas"
+                                                           FontWeight="Bold"
+                                                           FontSize="13"
+                                                           Foreground="#60CDFF"
+                                                           Width="44"
+                                                           TextAlignment="Right"
+                                                           VerticalAlignment="Center" />
+                                            </Grid>
+                                            <ProgressBar Minimum="0"
+                                                         Maximum="100"
+                                                         Height="5"
+                                                         Margin="0,7,0,0"
+                                                         Foreground="#60CDFF"
+                                                         Value="{Binding LoadBarValue, Mode=OneWay}" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- ======================================================================= -->
+                <!-- 3. ABA "PLACA DE VÍDEO (GPU)" (MULTI-GPU E SENSORES AVANÇADOS)         -->
+                <!-- ======================================================================= -->
+                <ScrollViewer Visibility="{Binding IsGpuTabSelected, Converter={StaticResource BoolToVis}}"
+                              VerticalScrollBarVisibility="Auto"
+                              Padding="24,18,24,24">
+                    <StackPanel>
+                        <Grid Margin="0,0,0,18">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Placa de Vídeo (GPU)"
+                                           FontSize="22"
+                                           FontWeight="Bold"
+                                           Foreground="#FFFFFF" />
+                                <TextBlock Text="Suporte Multi-GPU (Integrada e Dedicada) com telemetria de Core, Hot Spot, Clocks, VRAM, Energia e Fans"
+                                           FontSize="13"
+                                           Opacity="0.7"
+                                           Margin="0,2,0,0" />
+                            </StackPanel>
+
+                            <Border Grid.Column="1"
+                                    Background="#1A6CCB5F"
+                                    BorderBrush="#446CCB5F"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Padding="12,6"
+                                    VerticalAlignment="Center">
+                                <TextBlock Text="{Binding GpuCountBadgeText}"
+                                           FontSize="12.5"
+                                           FontWeight="Bold"
+                                           Foreground="#6CCB5F" />
+                            </Border>
+                        </Grid>
+
+                        <!-- Seletor de GPU no Topo (ComboBox Multi-GPU) -->
+                        <Border Style="{StaticResource TelemetryCardBorderStyle}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0"
+                                            VerticalAlignment="Center"
+                                            Margin="0,0,20,0">
+                                    <TextBlock Text="SELECIONAR ADAPTADOR GRÁFICO (GPU)"
+                                               FontSize="11"
+                                               FontWeight="Bold"
+                                               Foreground="#6CCB5F" />
+                                    <TextBlock Text="Alterne entre a GPU dedicada e a integrada"
+                                               FontSize="12"
+                                               Opacity="0.7" />
+                                </StackPanel>
+
+                                <ComboBox Grid.Column="1"
+                                          ItemsSource="{Binding Gpus}"
+                                          SelectedItem="{Binding SelectedGpu, Mode=TwoWay}"
+                                          DisplayMemberPath="DisplaySelectorTitle"
+                                          VerticalAlignment="Center"
+                                          FontSize="13.5"
+                                          FontWeight="SemiBold" />
+                            </Grid>
+                        </Border>
+
+                        <!-- Painel de Métricas em Tempo Real da GPU Selecionada -->
+                        <StackPanel DataContext="{Binding SelectedGpu}">
+                            <!-- Cabeçalho do Modelo da GPU -->
+                            <Border Style="{StaticResource TelemetryCardBorderStyle}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="{Binding Vendor}"
+                                                   FontSize="11"
+                                                   FontWeight="Bold"
+                                                   Foreground="#6CCB5F" />
+                                        <TextBlock Text="{Binding Name}"
+                                                   FontSize="19"
+                                                   FontWeight="Bold"
+                                                   Foreground="#FFFFFF"
+                                                   TextWrapping="Wrap"
+                                                   Margin="0,2,0,0" />
+                                    </StackPanel>
+
+                                    <Border Grid.Column="1"
+                                            Background="#18FFFFFF"
+                                            CornerRadius="6"
+                                            Padding="14,8"
+                                            VerticalAlignment="Center">
+                                        <StackPanel>
+                                            <TextBlock Text="VRAM TOTAL"
+                                                       FontSize="10"
+                                                       Opacity="0.65" />
+                                            <TextBlock Text="{Binding TotalVramDisplay}"
+                                                       FontSize="16"
+                                                       FontWeight="Bold"
+                                                       Foreground="#6CCB5F" />
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                            </Border>
+
+                            <!-- Linha 1: Uso do Core (%) e Uso de VRAM (GB) -->
+                            <UniformGrid Columns="2">
+                                <Border Style="{StaticResource TelemetryCardBorderStyle}" Margin="0,0,6,12">
+                                    <StackPanel>
+                                        <TextBlock Text="USO DO CORE (GPU LOAD)"
+                                                   FontSize="11"
+                                                   FontWeight="SemiBold"
+                                                   Opacity="0.7" />
+                                        <TextBlock Text="{Binding CoreLoadText}"
+                                                   FontSize="24"
+                                                   FontWeight="Bold"
+                                                   Foreground="#6CCB5F"
+                                                   Margin="0,4,0,8" />
+                                        <ProgressBar Minimum="0"
+                                                     Maximum="100"
+                                                     Height="6"
+                                                     Foreground="#6CCB5F"
+                                                     Value="{Binding CoreLoadBarValue, Mode=OneWay}" />
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource TelemetryCardBorderStyle}" Margin="6,0,0,12">
+                                    <StackPanel>
+                                        <TextBlock Text="USO DE MEMÓRIA DE VÍDEO (VRAM USADA / TOTAL)"
+                                                   FontSize="11"
+                                                   FontWeight="SemiBold"
+                                                   Opacity="0.7" />
+                                        <TextBlock Text="{Binding VramUsageText}"
+                                                   FontSize="18"
+                                                   FontWeight="Bold"
+                                                   Foreground="#FFFFFF"
+                                                   Margin="0,8,0,10" />
+                                        <ProgressBar Minimum="0"
+                                                     Maximum="100"
+                                                     Height="6"
+                                                     Foreground="#00E5FF"
+                                                     Value="{Binding VramUsagePercent, Mode=OneWay}" />
+                                    </StackPanel>
+                                </Border>
+                            </UniformGrid>
+
+                            <!-- Linha 2: Temperatura Core, Temperatura Hot Spot, Clock Core, Clock Memória -->
+                            <UniformGrid Columns="2">
+                                <Border Style="{StaticResource TelemetryCardBorderStyle}" Margin="0,0,6,12">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="TEMPERATURA CORE"
+                                                       FontSize="11"
+                                                       FontWeight="SemiBold"
+                                                       Opacity="0.7" />
+                                            <TextBlock Text="{Binding CoreTemperatureText}"
+                                                       FontSize="22"
+                                                       FontWeight="Bold"
+                                                       Foreground="#FFFFFF"
+                                                       Margin="0,4,0,0" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Text="TEMPERATURA HOT SPOT"
+                                                       FontSize="11"
+                                                       FontWeight="SemiBold"
+                                                       Opacity="0.7" />
+                                            <TextBlock Text="{Binding HotSpotTemperatureText}"
+                                                       FontSize="22"
+                                                       FontWeight="Bold"
+                                                       Foreground="#FFB900"
+                                                       Margin="0,4,0,0" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+
+                                <Border Style="{StaticResource TelemetryCardBorderStyle}" Margin="6,0,0,12">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="CLOCK DO CORE"
+                                                       FontSize="11"
+                                                       FontWeight="SemiBold"
+                                                       Opacity="0.7" />
+                                            <TextBlock Text="{Binding CoreClockText}"
+                                                       FontSize="20"
+                                                       FontWeight="Bold"
+                                                       Foreground="#6CCB5F"
+                                                       Margin="0,6,0,0" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Text="CLOCK DA MEMÓRIA"
+                                                       FontSize="11"
+                                                       FontWeight="SemiBold"
+                                                       Opacity="0.7" />
+                                            <TextBlock Text="{Binding MemoryClockText}"
+                                                       FontSize="20"
+                                                       FontWeight="Bold"
+                                                       Foreground="#FFFFFF"
+                                                       Margin="0,6,0,0" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </UniformGrid>
+
+                            <!-- Linha 3: Consumo Elétrico (W) e Velocidade dos Fans (RPM / %) -->
+                            <UniformGrid Columns="2">
+                                <Border Style="{StaticResource TelemetryCardBorderStyle}" Margin="0,0,6,12">
+                                    <StackPanel>
+                                        <TextBlock Text="CONSUMO DA GPU (BOARD / PACKAGE POWER)"
+                                                   FontSize="11"
+                                                   FontWeight="SemiBold"
+                                                   Opacity="0.7" />
+                                        <TextBlock Text="{Binding PowerText}"
+                                                   FontSize="22"
+                                                   FontWeight="Bold"
+                                                   Foreground="#FFB900"
+                                                   Margin="0,4,0,2" />
+                                        <TextBlock Text="Exibe N/D caso o hardware não possua sensor de potência"
+                                                   FontSize="11"
+                                                   Opacity="0.55" />
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource TelemetryCardBorderStyle}" Margin="6,0,0,12">
+                                    <StackPanel>
+                                        <TextBlock Text="VELOCIDADE DOS FANS (VENTOINHAS)"
+                                                   FontSize="11"
+                                                   FontWeight="SemiBold"
+                                                   Opacity="0.7" />
+                                        <TextBlock Text="{Binding FanText}"
+                                                   FontSize="22"
+                                                   FontWeight="Bold"
+                                                   Foreground="#00E5FF"
+                                                   Margin="0,4,0,2" />
+                                        <TextBlock Text="Rotação em RPM / % (ou N/D em GPUs integradas / Fan Stop)"
+                                                   FontSize="11"
+                                                   Opacity="0.55" />
+                                    </StackPanel>
+                                </Border>
+                            </UniformGrid>
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- ======================================================================= -->
+                <!-- 4. ABA "SISTEMA & ARMAZENAMENTO" (RAM DETALHADA + PARTIÇÕES + DISCOS)  -->
+                <!-- ======================================================================= -->
+                <ScrollViewer Visibility="{Binding IsStorageTabSelected, Converter={StaticResource BoolToVis}}"
+                              VerticalScrollBarVisibility="Auto"
+                              Padding="24,18,24,24">
+                    <StackPanel>
+                        <TextBlock Text="Sistema &amp; Armazenamento"
+                                   FontSize="22"
+                                   FontWeight="Bold"
+                                   Foreground="#FFFFFF" />
+                        <TextBlock Text="Ocupação detalhada da Memória RAM física, espaço das partições do Windows e temperatura dos SSDs/HDDs"
+                                   FontSize="13"
+                                   Opacity="0.7"
+                                   Margin="0,2,0,18" />
+
+                        <!-- Uso Detalhado de Memória RAM -->
+                        <Border Style="{StaticResource TelemetryCardBorderStyle}">
+                            <StackPanel>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="MEMÓRIA RAM FÍSICA"
+                                                   FontSize="11"
+                                                   FontWeight="Bold"
+                                                   Foreground="#C586C0" />
+                                        <TextBlock Text="{Binding RamDetailedSummaryText}"
+                                                   FontSize="17"
+                                                   FontWeight="Bold"
+                                                   Foreground="#FFFFFF"
+                                                   Margin="0,3,0,0" />
+                                    </StackPanel>
+
+                                    <TextBlock Grid.Column="1"
+                                               Text="{Binding RamPercentText}"
+                                               FontSize="24"
+                                               FontWeight="Bold"
+                                               Foreground="#C586C0"
+                                               VerticalAlignment="Center" />
+                                </Grid>
+
+                                <ProgressBar Minimum="0"
+                                             Maximum="100"
+                                             Height="10"
+                                             Margin="0,12,0,14"
+                                             Foreground="#C586C0"
+                                             Value="{Binding RamUsageBarValue, Mode=OneWay}" />
+
+                                <UniformGrid Columns="3">
+                                    <Border Background="#12FFFFFF" CornerRadius="6" Padding="12,8" Margin="0,0,6,0">
+                                        <StackPanel>
+                                            <TextBlock Text="TOTAL INSTALADO" FontSize="10" Opacity="0.65" />
+                                            <TextBlock Text="{Binding RamTotalText}" FontSize="16" FontWeight="Bold" Foreground="#FFFFFF" Margin="0,2,0,0" />
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Background="#12FFFFFF" CornerRadius="6" Padding="12,8" Margin="3,0,3,0">
+                                        <StackPanel>
+                                            <TextBlock Text="MEMÓRIA EM USO" FontSize="10" Opacity="0.65" />
+                                            <TextBlock Text="{Binding RamUsedText}" FontSize="16" FontWeight="Bold" Foreground="#C586C0" Margin="0,2,0,0" />
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Background="#12FFFFFF" CornerRadius="6" Padding="12,8" Margin="6,0,0,0">
+                                        <StackPanel>
+                                            <TextBlock Text="MEMÓRIA LIVRE" FontSize="10" Opacity="0.65" />
+                                            <TextBlock Text="{Binding RamFreeText}" FontSize="16" FontWeight="Bold" Foreground="#6CCB5F" Margin="0,2,0,0" />
+                                        </StackPanel>
+                                    </Border>
+                                </UniformGrid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Lista de Unidades de Armazenamento (Espaço Ocupado vs. Total + Temperatura Física SSD/HDD) -->
+                        <TextBlock Text="Unidades de Armazenamento (Partições e Temperatura Física)"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   Foreground="#FFFFFF"
+                                   Margin="0,6,0,10" />
+
+                        <ItemsControl ItemsSource="{Binding StorageDrives}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Style="{StaticResource TelemetryCardBorderStyle}">
+                                        <StackPanel>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+
+                                                <Border Grid.Column="0"
+                                                        Width="44"
+                                                        Height="44"
+                                                        CornerRadius="8"
+                                                        Background="#1AFFB900"
+                                                        VerticalAlignment="Center"
+                                                        Margin="0,0,14,0">
+                                                    <ui:SymbolIcon Symbol="HardDrive20"
+                                                                   FontSize="22"
+                                                                   Foreground="#FFB900"
+                                                                   HorizontalAlignment="Center"
+                                                                   VerticalAlignment="Center" />
+                                                </Border>
+
+                                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="{Binding DisplayTitle}"
+                                                                   FontSize="16"
+                                                                   FontWeight="Bold"
+                                                                   Foreground="#FFFFFF" />
+                                                        <Border Background="#1FFFFFFF"
+                                                                CornerRadius="4"
+                                                                Padding="6,2"
+                                                                Margin="8,0,0,0"
+                                                                VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding FileSystem}"
+                                                                       FontSize="10.5"
+                                                                       FontWeight="SemiBold"
+                                                                       Foreground="#00E5FF" />
+                                                        </Border>
+                                                    </StackPanel>
+                                                    <TextBlock Text="{Binding PhysicalDiskModel}"
+                                                               FontSize="12.5"
+                                                               Opacity="0.75"
+                                                               Margin="0,2,0,0" />
+                                                </StackPanel>
+
+                                                <!-- Temperatura Física do SSD/HDD (com fallback para "Sem sensor") -->
+                                                <Border Grid.Column="2"
+                                                        Background="#18FFFFFF"
+                                                        BorderBrush="#28FFFFFF"
+                                                        BorderThickness="1"
+                                                        CornerRadius="6"
+                                                        Padding="14,6"
+                                                        VerticalAlignment="Center">
+                                                    <StackPanel HorizontalAlignment="Center">
+                                                        <TextBlock Text="TEMPERATURA FÍSICA"
+                                                                   FontSize="9.5"
+                                                                   Opacity="0.65" />
+                                                        <TextBlock Text="{Binding TemperatureText}"
+                                                                   FontSize="15"
+                                                                   FontWeight="Bold"
+                                                                   Foreground="#FFB900"
+                                                                   HorizontalAlignment="Center"
+                                                                   Margin="0,2,0,0" />
+                                                    </StackPanel>
+                                                </Border>
+                                            </Grid>
+
+                                            <ProgressBar Minimum="0"
+                                                         Maximum="100"
+                                                         Height="8"
+                                                         Margin="0,12,0,8"
+                                                         Foreground="#FFB900"
+                                                         Value="{Binding UsagePercent, Mode=OneWay}" />
+
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="0"
+                                                           Text="{Binding CapacitySummaryText}"
+                                                           FontSize="12.5"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="#E0E0E0" />
+                                                <TextBlock Grid.Column="1"
+                                                           Text="{Binding FreeSpaceSummaryText}"
+                                                           FontSize="12.5"
+                                                           Foreground="#A0AEC0" />
+                                            </Grid>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!-- Sensores Físicos de Discos (HardwareType.Storage - LibreHardwareMonitor) -->
+                        <TextBlock Text="Discos Físicos Detectados (Sensores SMART / LibreHardwareMonitor)"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   Foreground="#FFFFFF"
+                                   Margin="0,8,0,10" />
+
+                        <ItemsControl ItemsSource="{Binding PhysicalDisks}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Style="{StaticResource TelemetryCardBorderStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <ui:SymbolIcon Grid.Column="0"
+                                                           Symbol="HardDrive20"
+                                                           FontSize="20"
+                                                           Foreground="#00E5FF"
+                                                           VerticalAlignment="Center"
+                                                           Margin="0,0,12,0" />
+
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding ModelName}"
+                                                           FontSize="14.5"
+                                                           FontWeight="Bold"
+                                                           Foreground="#FFFFFF" />
+                                                <TextBlock Text="Unidade Física (SMART / Sensor Térmico)"
+                                                           FontSize="11.5"
+                                                           Opacity="0.65" />
+                                            </StackPanel>
+
+                                            <Border Grid.Column="2"
+                                                    Background="#18FFFFFF"
+                                                    CornerRadius="6"
+                                                    Padding="12,5"
+                                                    VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding TemperatureText}"
+                                                           FontSize="14"
+                                                           FontWeight="Bold"
+                                                           Foreground="#00E5FF" />
+                                            </Border>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- ======================================================================= -->
+                <!-- 5. RODAPÉ (ÍCONE DE ENGRENAGEM): "CONFIGURAÇÕES" DO APP E DO OVERLAY   -->
+                <!-- ======================================================================= -->
+                <ScrollViewer Visibility="{Binding IsSettingsTabSelected, Converter={StaticResource BoolToVis}}"
+                              VerticalScrollBarVisibility="Auto"
+                              Padding="24,18,24,24">
+                    <StackPanel>
+                        <TextBlock Text="Configurações do Aplicativo e Overlay"
+                                   FontSize="22"
+                                   FontWeight="Bold"
+                                   Foreground="#FFFFFF" />
+                        <TextBlock Text="Personalize o comportamento do Overlay flutuante em jogos, atalhos globais e inicialização com o Windows"
+                                   FontSize="13"
+                                   Opacity="0.7"
+                                   Margin="0,2,0,18" />
+
+                        <!-- ==================== CONTROLE GERAL ==================== -->
+                        <TextBlock Text="Controle Geral"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   Foreground="#FFFFFF"
                                    Margin="0,0,0,10" />
 
-                        <UniformGrid Columns="3"
-                                     Rows="2">
-                            <ui:Button Content="Superior Esquerdo"
-                                       Appearance="Secondary"
-                                       HorizontalAlignment="Stretch"
-                                       Margin="0,0,6,6"
-                                       Command="{Binding AlignOverlayCommand}"
-                                       CommandParameter="TopLeft" />
-                            <ui:Button Content="Superior Centro"
-                                       Appearance="Secondary"
-                                       HorizontalAlignment="Stretch"
-                                       Margin="3,0,3,6"
-                                       Command="{Binding AlignOverlayCommand}"
-                                       CommandParameter="TopCenter" />
-                            <ui:Button Content="Superior Direito"
-                                       Appearance="Secondary"
-                                       HorizontalAlignment="Stretch"
-                                       Margin="6,0,0,6"
-                                       Command="{Binding AlignOverlayCommand}"
-                                       CommandParameter="TopRight" />
-                            <ui:Button Content="Inferior Esquerdo"
-                                       Appearance="Secondary"
-                                       HorizontalAlignment="Stretch"
-                                       Margin="0,0,6,0"
-                                       Command="{Binding AlignOverlayCommand}"
-                                       CommandParameter="BottomLeft" />
-                            <ui:Button Content="Inferior Centro"
-                                       Appearance="Secondary"
-                                       HorizontalAlignment="Stretch"
-                                       Margin="3,0,3,0"
-                                       Command="{Binding AlignOverlayCommand}"
-                                       CommandParameter="BottomCenter" />
-                            <ui:Button Content="Inferior Direito"
-                                       Appearance="Secondary"
-                                       HorizontalAlignment="Stretch"
-                                       Margin="6,0,0,0"
-                                       Command="{Binding AlignOverlayCommand}"
-                                       CommandParameter="BottomRight" />
-                        </UniformGrid>
+                        <!-- Mostrar / Ocultar Overlay -->
+                        <ui:CardControl Margin="0,0,0,8">
+                            <ui:CardControl.Header>
+                                <StackPanel>
+                                    <TextBlock Text="Mostrar / Ocultar Overlay"
+                                               FontWeight="SemiBold"
+                                               FontSize="14" />
+                                    <TextBlock Text="Alterna a visibilidade do overlay flutuante na tela"
+                                               FontSize="12"
+                                               Opacity="0.7" />
+                                </StackPanel>
+                            </ui:CardControl.Header>
+                            <ui:ToggleSwitch IsChecked="{Binding IsOverlayVisible, Mode=TwoWay}" />
+                        </ui:CardControl>
+
+                        <!-- Exibição Inteligente: Apenas em Tela Cheia -->
+                        <ui:CardControl Margin="0,0,0,8">
+                            <ui:CardControl.Header>
+                                <StackPanel>
+                                    <TextBlock Text="Exibição Inteligente: Apenas em Tela Cheia"
+                                               FontWeight="SemiBold"
+                                               FontSize="14" />
+                                    <TextBlock Text="Oculta automaticamente na área de trabalho e exibe apenas quando um jogo em tela cheia estiver em foco"
+                                               FontSize="12"
+                                               Opacity="0.7"
+                                               TextWrapping="Wrap" />
+                                </StackPanel>
+                            </ui:CardControl.Header>
+                            <ui:ToggleSwitch IsChecked="{Binding SmartFullscreenOnly, Mode=TwoWay}" />
+                        </ui:CardControl>
+
+                        <!-- Modo Compacto (Destacado) -->
+                        <ui:CardControl Margin="0,0,0,8">
+                            <ui:CardControl.Header>
+                                <StackPanel>
+                                    <TextBlock Text="Modo Compacto (Apenas FPS, CPU % e GPU %)"
+                                               FontWeight="SemiBold"
+                                               Foreground="#00E5FF"
+                                               FontSize="14" />
+                                    <TextBlock Text="Exibe exclusivamente FPS, uso de CPU e uso de GPU com espaçamento reduzido"
+                                               FontSize="12"
+                                               Opacity="0.75"
+                                               TextWrapping="Wrap" />
+                                </StackPanel>
+                            </ui:CardControl.Header>
+                            <ui:ToggleSwitch IsChecked="{Binding IsCompactMode, Mode=TwoWay}" />
+                        </ui:CardControl>
+
+                        <!-- Aviso visual do Atalho Global Ctrl + Shift + O -->
+                        <ui:CardControl Margin="0,0,0,8">
+                            <ui:CardControl.Header>
+                                <StackPanel>
+                                    <TextBlock Text="Atalho Global em Jogos"
+                                               FontWeight="SemiBold"
+                                               FontSize="14" />
+                                    <TextBlock Text="Use o atalho a qualquer momento dentro do jogo para mostrar ou ocultar o overlay"
+                                               FontSize="12"
+                                               Opacity="0.7" />
+                                </StackPanel>
+                            </ui:CardControl.Header>
+                            <Border Background="#2600E5FF"
+                                    BorderBrush="#6600E5FF"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Padding="10,4">
+                                <TextBlock Text="Ctrl + Shift + O"
+                                           FontFamily="Consolas"
+                                           FontWeight="Bold"
+                                           Foreground="#00E5FF"
+                                           FontSize="13" />
+                            </Border>
+                        </ui:CardControl>
+
+                        <!-- Travar Overlay (Click-Through) -->
+                        <ui:CardControl Margin="0,0,0,8">
+                            <ui:CardControl.Header>
+                                <StackPanel>
+                                    <TextBlock Text="Travar Overlay (Modo Click-Through)"
+                                               FontWeight="SemiBold"
+                                               FontSize="14" />
+                                    <TextBlock Text="Faz os cliques do mouse atravessarem o overlay direto para o jogo"
+                                               FontSize="12"
+                                               Opacity="0.7" />
+                                </StackPanel>
+                            </ui:CardControl.Header>
+                            <ui:ToggleSwitch IsChecked="{Binding IsOverlayLocked, Mode=TwoWay}" />
+                        </ui:CardControl>
+
+                        <!-- Iniciar com o Windows -->
+                        <ui:CardControl Margin="0,0,0,8">
+                            <ui:CardControl.Header>
+                                <StackPanel>
+                                    <TextBlock Text="Iniciar com o Windows (Administrador)"
+                                               FontWeight="SemiBold"
+                                               FontSize="14" />
+                                    <TextBlock Text="Inicia minimizado na bandeja do sistema ao fazer logon via Agendador de Tarefas"
+                                               FontSize="12"
+                                               Opacity="0.7" />
+                                </StackPanel>
+                            </ui:CardControl.Header>
+                            <ui:ToggleSwitch IsChecked="{Binding StartWithWindows, Mode=TwoWay}" />
+                        </ui:CardControl>
+
+                        <!-- Slider de Opacidade (0.1 a 1.0) -->
+                        <ui:CardControl Margin="0,0,0,16">
+                            <ui:CardControl.Header>
+                                <StackPanel>
+                                    <TextBlock Text="Opacidade do Fundo do Overlay"
+                                               FontWeight="SemiBold"
+                                               FontSize="14" />
+                                    <TextBlock Text="Ajusta a transparência do card escuro (10% a 100%)"
+                                               FontSize="12"
+                                               Opacity="0.7" />
+                                </StackPanel>
+                            </ui:CardControl.Header>
+                            <StackPanel Orientation="Horizontal"
+                                        VerticalAlignment="Center">
+                                <Slider Minimum="0.1"
+                                        Maximum="1.0"
+                                        SmallChange="0.05"
+                                        LargeChange="0.1"
+                                        TickFrequency="0.05"
+                                        IsSnapToTickEnabled="False"
+                                        Width="140"
+                                        VerticalAlignment="Center"
+                                        Value="{Binding OverlayOpacity, Mode=TwoWay}" />
+                                <TextBlock Text="{Binding OverlayOpacityPercentText}"
+                                           Width="46"
+                                           TextAlignment="Right"
+                                           VerticalAlignment="Center"
+                                           FontWeight="SemiBold"
+                                           Margin="8,0,0,0" />
+                            </StackPanel>
+                        </ui:CardControl>
+
+                        <!-- ==================== LAYOUT E ALINHAMENTO NA TELA ==================== -->
+                        <TextBlock Text="Orientação e Alinhamento na Tela"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   Foreground="#FFFFFF"
+                                   Margin="0,8,0,10" />
+
+                        <!-- Orientação Horizontal vs Vertical -->
+                        <ui:CardControl Margin="0,0,0,8">
+                            <ui:CardControl.Header>
+                                <StackPanel>
+                                    <TextBlock Text="Orientação Horizontal (Barra em Linha)"
+                                               FontWeight="SemiBold"
+                                               FontSize="14" />
+                                    <TextBlock Text="Organiza as métricas lado a lado em linha com separadores discretos"
+                                               FontSize="12"
+                                               Opacity="0.7" />
+                                </StackPanel>
+                            </ui:CardControl.Header>
+                            <ui:ToggleSwitch IsChecked="{Binding IsHorizontalLayout, Mode=TwoWay}" />
+                        </ui:CardControl>
+
+                        <!-- Grade de Botões de Alinhamento Rápido (6 Posições) -->
+                        <Border Background="#12FFFFFF"
+                                BorderBrush="#1FFFFFFF"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="14,12"
+                                Margin="0,0,0,8">
+                            <StackPanel>
+                                <TextBlock Text="Predefinições Rápidas de Alinhamento"
+                                           FontWeight="SemiBold"
+                                           FontSize="14"
+                                           Margin="0,0,0,4" />
+                                <TextBlock Text="Posicione o Overlay instantaneamente em qualquer canto ou centro da tela:"
+                                           FontSize="12"
+                                           Opacity="0.7"
+                                           Margin="0,0,0,10" />
+
+                                <UniformGrid Columns="3"
+                                             Rows="2">
+                                    <ui:Button Content="Superior Esquerdo"
+                                               Appearance="Secondary"
+                                               HorizontalAlignment="Stretch"
+                                               Margin="0,0,6,6"
+                                               Command="{Binding AlignOverlayCommand}"
+                                               CommandParameter="TopLeft" />
+                                    <ui:Button Content="Superior Centro"
+                                               Appearance="Secondary"
+                                               HorizontalAlignment="Stretch"
+                                               Margin="3,0,3,6"
+                                               Command="{Binding AlignOverlayCommand}"
+                                               CommandParameter="TopCenter" />
+                                    <ui:Button Content="Superior Direito"
+                                               Appearance="Secondary"
+                                               HorizontalAlignment="Stretch"
+                                               Margin="6,0,0,6"
+                                               Command="{Binding AlignOverlayCommand}"
+                                               CommandParameter="TopRight" />
+                                    <ui:Button Content="Inferior Esquerdo"
+                                               Appearance="Secondary"
+                                               HorizontalAlignment="Stretch"
+                                               Margin="0,0,6,0"
+                                               Command="{Binding AlignOverlayCommand}"
+                                               CommandParameter="BottomLeft" />
+                                    <ui:Button Content="Inferior Centro"
+                                               Appearance="Secondary"
+                                               HorizontalAlignment="Stretch"
+                                               Margin="3,0,3,0"
+                                               Command="{Binding AlignOverlayCommand}"
+                                               CommandParameter="BottomCenter" />
+                                    <ui:Button Content="Inferior Direito"
+                                               Appearance="Secondary"
+                                               HorizontalAlignment="Stretch"
+                                               Margin="6,0,0,0"
+                                               Command="{Binding AlignOverlayCommand}"
+                                               CommandParameter="BottomRight" />
+                                </UniformGrid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Ações Rápidas: Resetar Posição e Encerrar Aplicativo -->
+                        <ui:CardControl Margin="0,0,0,16">
+                            <ui:CardControl.Header>
+                                <StackPanel>
+                                    <TextBlock Text="Ações do Aplicativo"
+                                               FontWeight="SemiBold"
+                                               FontSize="14" />
+                                    <TextBlock Text="Fechar no 'X' minimiza para a bandeja. Use 'Encerrar Aplicativo' para sair."
+                                               FontSize="12"
+                                               Opacity="0.7" />
+                                </StackPanel>
+                            </ui:CardControl.Header>
+                            <StackPanel Orientation="Horizontal">
+                                <ui:Button Content="Resetar Posição (50, 50)"
+                                           Appearance="Secondary"
+                                           Margin="0,0,8,0"
+                                           Command="{Binding ResetPositionCommand}" />
+                                <ui:Button Content="Encerrar Aplicativo"
+                                           Appearance="Danger"
+                                           Command="{Binding ExitApplicationCommand}" />
+                            </StackPanel>
+                        </ui:CardControl>
+
+                        <!-- ==================== SENSORES DO OVERLAY FLUTUANTE ==================== -->
+                        <TextBlock Text="Sensores Exibidos no Overlay — Desempenho (ETW)"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   Foreground="#FFFFFF"
+                                   Margin="0,8,0,10" />
+
+                        <ui:CardControl Margin="0,0,0,16">
+                            <ui:CardControl.Header>
+                                <StackPanel>
+                                    <TextBlock Text="Exibir FPS (Quadros por Segundo)"
+                                               FontWeight="Medium"
+                                               FontSize="14" />
+                                    <TextBlock Text="Captura oficial via eventos DXGI/D3D9 do Windows (seguro contra Anti-Cheat)"
+                                               FontSize="12"
+                                               Opacity="0.7" />
+                                </StackPanel>
+                            </ui:CardControl.Header>
+                            <ui:ToggleSwitch IsChecked="{Binding ShowFps, Mode=TwoWay}" />
+                        </ui:CardControl>
+
+                        <!-- ==================== MÉTRICAS DE CPU NO OVERLAY ==================== -->
+                        <TextBlock Text="Métricas de CPU no Overlay"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   Foreground="#FFFFFF"
+                                   Margin="0,8,0,10" />
+
+                        <ui:CardControl Margin="0,0,0,8">
+                            <ui:CardControl.Header>
+                                <TextBlock Text="CPU Temperatura (°C)"
+                                           FontWeight="Medium"
+                                           FontSize="14" />
+                            </ui:CardControl.Header>
+                            <ui:ToggleSwitch IsChecked="{Binding ShowCpuTemp, Mode=TwoWay}" />
+                        </ui:CardControl>
+
+                        <ui:CardControl Margin="0,0,0,8">
+                            <ui:CardControl.Header>
+                                <TextBlock Text="CPU Uso Total (%)"
+                                           FontWeight="Medium"
+                                           FontSize="14" />
+                            </ui:CardControl.Header>
+                            <ui:ToggleSwitch IsChecked="{Binding ShowCpuLoad, Mode=TwoWay}" />
+                        </ui:CardControl>
+
+                        <ui:CardControl Margin="0,0,0,8">
+                            <ui:CardControl.Header>
+                                <TextBlock Text="CPU Clock (MHz)"
+                                           FontWeight="Medium"
+                                           FontSize="14" />
+                            </ui:CardControl.Header>
+                            <ui:ToggleSwitch IsChecked="{Binding ShowCpuClock, Mode=TwoWay}" />
+                        </ui:CardControl>
+
+                        <ui:CardControl Margin="0,0,0,16">
+                            <ui:CardControl.Header>
+                                <TextBlock Text="CPU Consumo (Watts)"
+                                           FontWeight="Medium"
+                                           FontSize="14" />
+                            </ui:CardControl.Header>
+                            <ui:ToggleSwitch IsChecked="{Binding ShowCpuPower, Mode=TwoWay}" />
+                        </ui:CardControl>
+
+                        <!-- ==================== MÉTRICAS DE GPU NO OVERLAY ==================== -->
+                        <TextBlock Text="Métricas de GPU no Overlay (NVIDIA / AMD / Intel)"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   Foreground="#FFFFFF"
+                                   Margin="0,8,0,10" />
+
+                        <ui:CardControl Margin="0,0,0,8">
+                            <ui:CardControl.Header>
+                                <TextBlock Text="GPU Temperatura (°C)"
+                                           FontWeight="Medium"
+                                           FontSize="14" />
+                            </ui:CardControl.Header>
+                            <ui:ToggleSwitch IsChecked="{Binding ShowGpuTemp, Mode=TwoWay}" />
+                        </ui:CardControl>
+
+                        <ui:CardControl Margin="0,0,0,8">
+                            <ui:CardControl.Header>
+                                <TextBlock Text="GPU Uso (%)"
+                                           FontWeight="Medium"
+                                           FontSize="14" />
+                            </ui:CardControl.Header>
+                            <ui:ToggleSwitch IsChecked="{Binding ShowGpuLoad, Mode=TwoWay}" />
+                        </ui:CardControl>
+
+                        <ui:CardControl Margin="0,0,0,8">
+                            <ui:CardControl.Header>
+                                <TextBlock Text="GPU Clock (MHz)"
+                                           FontWeight="Medium"
+                                           FontSize="14" />
+                            </ui:CardControl.Header>
+                            <ui:ToggleSwitch IsChecked="{Binding ShowGpuClock, Mode=TwoWay}" />
+                        </ui:CardControl>
+
+                        <ui:CardControl Margin="0,0,0,16">
+                            <ui:CardControl.Header>
+                                <TextBlock Text="GPU Consumo (Watts)"
+                                           FontWeight="Medium"
+                                           FontSize="14" />
+                            </ui:CardControl.Header>
+                            <ui:ToggleSwitch IsChecked="{Binding ShowGpuPower, Mode=TwoWay}" />
+                        </ui:CardControl>
+
+                        <!-- ==================== MÉTRICAS DE RAM NO OVERLAY ==================== -->
+                        <TextBlock Text="Memória RAM no Overlay"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   Foreground="#FFFFFF"
+                                   Margin="0,8,0,10" />
+
+                        <ui:CardControl Margin="0,0,0,8">
+                            <ui:CardControl.Header>
+                                <StackPanel>
+                                    <TextBlock Text="Uso de Memória RAM (GB e %)"
+                                               FontWeight="Medium"
+                                               FontSize="14" />
+                                    <TextBlock Text="Exibe a quantidade de RAM física em uso e a porcentagem ocupada"
+                                               FontSize="12"
+                                               Opacity="0.7" />
+                                </StackPanel>
+                            </ui:CardControl.Header>
+                            <ui:ToggleSwitch IsChecked="{Binding ShowRam, Mode=TwoWay}" />
+                        </ui:CardControl>
+
                     </StackPanel>
-                </Border>
+                </ScrollViewer>
 
-                <!-- Ações Rápidas: Resetar Posição e Encerrar Aplicativo -->
-                <ui:CardControl Margin="0,0,0,16">
-                    <ui:CardControl.Header>
-                        <StackPanel>
-                            <TextBlock Text="Ações do Aplicativo"
-                                       FontWeight="SemiBold"
-                                       FontSize="14" />
-                            <TextBlock Text="Fechar no 'X' minimiza para a bandeja. Use 'Encerrar Aplicativo' para sair."
-                                       FontSize="12"
-                                       Opacity="0.7" />
-                        </StackPanel>
-                    </ui:CardControl.Header>
-                    <StackPanel Orientation="Horizontal">
-                        <ui:Button Content="Resetar Posição (50, 50)"
-                                   Appearance="Secondary"
-                                   Margin="0,0,8,0"
-                                   Command="{Binding ResetPositionCommand}" />
-                        <ui:Button Content="Encerrar Aplicativo"
-                                   Appearance="Danger"
-                                   Command="{Binding ExitApplicationCommand}" />
-                    </StackPanel>
-                </ui:CardControl>
-
-                <!-- ==================== FPS EM JOGOS ==================== -->
-                <TextBlock Text="Desempenho em Jogos (ETW)"
-                           FontSize="16"
-                           FontWeight="SemiBold"
-                           Foreground="#FFFFFF"
-                           Margin="0,8,0,10" />
-
-                <ui:CardControl Margin="0,0,0,16">
-                    <ui:CardControl.Header>
-                        <StackPanel>
-                            <TextBlock Text="Exibir FPS (Quadros por Segundo)"
-                                       FontWeight="Medium"
-                                       FontSize="14" />
-                            <TextBlock Text="Captura oficial via eventos DXGI/D3D9 do Windows (seguro contra Anti-Cheat)"
-                                       FontSize="12"
-                                       Opacity="0.7" />
-                        </StackPanel>
-                    </ui:CardControl.Header>
-                    <ui:ToggleSwitch IsChecked="{Binding ShowFps, Mode=TwoWay}" />
-                </ui:CardControl>
-
-                <!-- ==================== MÉTRICAS DE CPU ==================== -->
-                <TextBlock Text="Métricas de CPU"
-                           FontSize="16"
-                           FontWeight="SemiBold"
-                           Foreground="#FFFFFF"
-                           Margin="0,8,0,10" />
-
-                <ui:CardControl Margin="0,0,0,8">
-                    <ui:CardControl.Header>
-                        <TextBlock Text="CPU Temperatura (°C)"
-                                   FontWeight="Medium"
-                                   FontSize="14" />
-                    </ui:CardControl.Header>
-                    <ui:ToggleSwitch IsChecked="{Binding ShowCpuTemp, Mode=TwoWay}" />
-                </ui:CardControl>
-
-                <ui:CardControl Margin="0,0,0,8">
-                    <ui:CardControl.Header>
-                        <TextBlock Text="CPU Uso Total (%)"
-                                   FontWeight="Medium"
-                                   FontSize="14" />
-                    </ui:CardControl.Header>
-                    <ui:ToggleSwitch IsChecked="{Binding ShowCpuLoad, Mode=TwoWay}" />
-                </ui:CardControl>
-
-                <ui:CardControl Margin="0,0,0,8">
-                    <ui:CardControl.Header>
-                        <TextBlock Text="CPU Clock (MHz)"
-                                   FontWeight="Medium"
-                                   FontSize="14" />
-                    </ui:CardControl.Header>
-                    <ui:ToggleSwitch IsChecked="{Binding ShowCpuClock, Mode=TwoWay}" />
-                </ui:CardControl>
-
-                <ui:CardControl Margin="0,0,0,16">
-                    <ui:CardControl.Header>
-                        <TextBlock Text="CPU Consumo (Watts)"
-                                   FontWeight="Medium"
-                                   FontSize="14" />
-                    </ui:CardControl.Header>
-                    <ui:ToggleSwitch IsChecked="{Binding ShowCpuPower, Mode=TwoWay}" />
-                </ui:CardControl>
-
-                <!-- ==================== MÉTRICAS DE GPU ==================== -->
-                <TextBlock Text="Métricas de GPU (NVIDIA / AMD / Intel)"
-                           FontSize="16"
-                           FontWeight="SemiBold"
-                           Foreground="#FFFFFF"
-                           Margin="0,8,0,10" />
-
-                <ui:CardControl Margin="0,0,0,8">
-                    <ui:CardControl.Header>
-                        <TextBlock Text="GPU Temperatura (°C)"
-                                   FontWeight="Medium"
-                                   FontSize="14" />
-                    </ui:CardControl.Header>
-                    <ui:ToggleSwitch IsChecked="{Binding ShowGpuTemp, Mode=TwoWay}" />
-                </ui:CardControl>
-
-                <ui:CardControl Margin="0,0,0,8">
-                    <ui:CardControl.Header>
-                        <TextBlock Text="GPU Uso (%)"
-                                   FontWeight="Medium"
-                                   FontSize="14" />
-                    </ui:CardControl.Header>
-                    <ui:ToggleSwitch IsChecked="{Binding ShowGpuLoad, Mode=TwoWay}" />
-                </ui:CardControl>
-
-                <ui:CardControl Margin="0,0,0,8">
-                    <ui:CardControl.Header>
-                        <TextBlock Text="GPU Clock (MHz)"
-                                   FontWeight="Medium"
-                                   FontSize="14" />
-                    </ui:CardControl.Header>
-                    <ui:ToggleSwitch IsChecked="{Binding ShowGpuClock, Mode=TwoWay}" />
-                </ui:CardControl>
-
-                <ui:CardControl Margin="0,0,0,16">
-                    <ui:CardControl.Header>
-                        <TextBlock Text="GPU Consumo (Watts)"
-                                   FontWeight="Medium"
-                                   FontSize="14" />
-                    </ui:CardControl.Header>
-                    <ui:ToggleSwitch IsChecked="{Binding ShowGpuPower, Mode=TwoWay}" />
-                </ui:CardControl>
-
-                <!-- ==================== MÉTRICAS DE RAM ==================== -->
-                <TextBlock Text="Memória RAM"
-                           FontSize="16"
-                           FontWeight="SemiBold"
-                           Foreground="#FFFFFF"
-                           Margin="0,8,0,10" />
-
-                <ui:CardControl Margin="0,0,0,8">
-                    <ui:CardControl.Header>
-                        <StackPanel>
-                            <TextBlock Text="Uso de Memória RAM (GB e %)"
-                                       FontWeight="Medium"
-                                       FontSize="14" />
-                            <TextBlock Text="Exibe a quantidade de RAM física em uso e a porcentagem ocupada"
-                                       FontSize="12"
-                                       Opacity="0.7" />
-                        </StackPanel>
-                    </ui:CardControl.Header>
-                    <ui:ToggleSwitch IsChecked="{Binding ShowRam, Mode=TwoWay}" />
-                </ui:CardControl>
-
-            </StackPanel>
-        </ScrollViewer>
+            </Grid>
+        </Grid>
     </Grid>
 </ui:FluentWindow>

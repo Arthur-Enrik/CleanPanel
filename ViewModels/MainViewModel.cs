@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -19,38 +20,141 @@ public partial class MainViewModel : ObservableObject
 
     public Func<(double Width, double Height)>? OverlaySizeProvider { get; set; }
 
-    // Textos formatados para o Overlay
+    // ==================== NAVEGAÇÃO LATERAL (TASK MANAGER STYLE) ====================
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsOverviewTabSelected))]
+    [NotifyPropertyChangedFor(nameof(IsCpuTabSelected))]
+    [NotifyPropertyChangedFor(nameof(IsGpuTabSelected))]
+    [NotifyPropertyChangedFor(nameof(IsStorageTabSelected))]
+    [NotifyPropertyChangedFor(nameof(IsSettingsTabSelected))]
+    private int _selectedNavIndex;
+
+    public bool IsOverviewTabSelected
+    {
+        get => SelectedNavIndex == 0;
+        set { if (value) SelectedNavIndex = 0; }
+    }
+
+    public bool IsCpuTabSelected
+    {
+        get => SelectedNavIndex == 1;
+        set { if (value) SelectedNavIndex = 1; }
+    }
+
+    public bool IsGpuTabSelected
+    {
+        get => SelectedNavIndex == 2;
+        set { if (value) SelectedNavIndex = 2; }
+    }
+
+    public bool IsStorageTabSelected
+    {
+        get => SelectedNavIndex == 3;
+        set { if (value) SelectedNavIndex = 3; }
+    }
+
+    public bool IsSettingsTabSelected
+    {
+        get => SelectedNavIndex == 4;
+        set { if (value) SelectedNavIndex = 4; }
+    }
+
+    // ==================== ESPECIFICAÇÕES ESTÁTICAS (CACHEADAS) ====================
+    [ObservableProperty]
+    private string _osName = "Microsoft Windows";
+
+    [ObservableProperty]
+    private string _osEdition = "N/D";
+
+    [ObservableProperty]
+    private string _osBuild = "N/D";
+
+    [ObservableProperty]
+    private string _cpuName = "Detectando processador...";
+
+    [ObservableProperty]
+    private int _cpuPhysicalCores = 1;
+
+    [ObservableProperty]
+    private int _cpuLogicalThreads = 1;
+
+    [ObservableProperty]
+    private string _cpuCoresThreadsSummary = "Detectando núcleos...";
+
+    // ==================== TEXTOS FORMATADOS (OVERLAY + DASHBOARD) ====================
     [ObservableProperty]
     private string _fpsText = "0 FPS";
 
     [ObservableProperty]
-    private string _cpuTemperatureText = "0 °C";
+    private string _cpuTemperatureText = "N/D";
 
     [ObservableProperty]
     private string _cpuLoadText = "0 %";
 
     [ObservableProperty]
-    private string _cpuClockText = "0 MHz";
+    private double _cpuLoadBarValue;
 
     [ObservableProperty]
-    private string _cpuPowerText = "0.0 W";
+    private string _cpuClockText = "N/D";
 
     [ObservableProperty]
-    private string _gpuTemperatureText = "0 °C";
+    private string _cpuMaxClockText = "N/D";
+
+    [ObservableProperty]
+    private string _cpuClockAvgMaxText = "N/D";
+
+    [ObservableProperty]
+    private string _cpuPowerText = "N/D";
+
+    [ObservableProperty]
+    private string _cpuVoltageText = "N/D";
+
+    [ObservableProperty]
+    private string _gpuTemperatureText = "N/D";
 
     [ObservableProperty]
     private string _gpuLoadText = "0 %";
 
     [ObservableProperty]
-    private string _gpuClockText = "0 MHz";
+    private string _gpuClockText = "N/D";
 
     [ObservableProperty]
-    private string _gpuPowerText = "0.0 W";
+    private string _gpuPowerText = "N/D";
 
     [ObservableProperty]
     private string _ramUsageText = "0.0 GB (0%)";
 
-    // Controles gerais
+    [ObservableProperty]
+    private string _ramTotalText = "N/D";
+
+    [ObservableProperty]
+    private string _ramUsedText = "0.0 GB";
+
+    [ObservableProperty]
+    private string _ramFreeText = "N/D";
+
+    [ObservableProperty]
+    private string _ramPercentText = "0 %";
+
+    [ObservableProperty]
+    private double _ramUsageBarValue;
+
+    [ObservableProperty]
+    private string _ramDetailedSummaryText = "Calculando uso de memória física...";
+
+    // ==================== COLEÇÕES DE TELEMETRIA AVANÇADA ====================
+    public ObservableCollection<CpuCoreMetric> CpuCores { get; } = [];
+    public ObservableCollection<GpuDetailedMetrics> Gpus { get; } = [];
+    public ObservableCollection<StorageDriveMetrics> StorageDrives { get; } = [];
+    public ObservableCollection<PhysicalStorageMetrics> PhysicalDisks { get; } = [];
+
+    [ObservableProperty]
+    private GpuDetailedMetrics? _selectedGpu;
+
+    [ObservableProperty]
+    private string _gpuCountBadgeText = "1 GPU Detectada";
+
+    // ==================== CONTROLES DO OVERLAY & CONFIGURAÇÕES ====================
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(EffectiveOverlayVisible))]
     private bool _isOverlayVisible;
@@ -71,7 +175,6 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private bool _startWithWindows;
 
-    // Novas funcionalidades: Modo Compacto, Exibição Inteligente e Orientação do Layout
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(OverlayCardPadding))]
     [NotifyPropertyChangedFor(nameof(ShowSectionHeaders))]
@@ -101,7 +204,7 @@ public partial class MainViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(EffectiveOverlayVisible))]
     private bool _isForegroundFullScreen = true;
 
-    // Visibilidade individual de métricas
+    // Visibilidade individual de métricas no Overlay
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(EffectiveShowFps))]
     private bool _showFps;
@@ -196,8 +299,54 @@ public partial class MainViewModel : ObservableObject
 
         UpdatePollingAndSmartVisibilityState();
 
+        _hardwareMonitorService.SpecsInitialized += OnHardwareSpecsInitialized;
         _hardwareMonitorService.HeartbeatTick += OnHeartbeatTick;
         _hardwareMonitorService.MetricsUpdated += OnHardwareMetricsUpdated;
+    }
+
+    public void SetMainWindowVisible(bool isVisible)
+    {
+        _hardwareMonitorService.IsMainWindowVisible = isVisible;
+        UpdatePollingAndSmartVisibilityState();
+    }
+
+    private void OnHardwareSpecsInitialized(HardwareSpecs specs)
+    {
+        Application.Current?.Dispatcher.InvokeAsync(() =>
+        {
+            OsName = specs.OsName;
+            OsEdition = specs.OsEdition;
+            OsBuild = specs.OsBuild;
+
+            CpuName = specs.CpuName;
+            CpuPhysicalCores = specs.CpuPhysicalCores;
+            CpuLogicalThreads = specs.CpuLogicalThreads;
+            CpuCoresThreadsSummary = specs.CpuCoresThreadsSummary;
+
+            if (specs.TotalRamGb > 0f)
+            {
+                RamTotalText = string.Create(CultureInfo.InvariantCulture, $"{specs.TotalRamGb:0.0} GB");
+            }
+
+            if (Gpus.Count == 0 && specs.Gpus.Count > 0)
+            {
+                foreach (GpuSpecInfo gpuSpec in specs.Gpus)
+                {
+                    Gpus.Add(new GpuDetailedMetrics
+                    {
+                        Id = gpuSpec.Id,
+                        Name = gpuSpec.Name,
+                        Vendor = gpuSpec.Vendor,
+                        TotalVramGb = gpuSpec.TotalVramGb,
+                        IsIntegratedOrSharedVram = gpuSpec.IsIntegratedOrSharedVram,
+                        TotalVramDisplay = gpuSpec.TotalVramDisplay
+                    });
+                }
+
+                SelectedGpu ??= Gpus.FirstOrDefault();
+                UpdateGpuCountBadge();
+            }
+        });
     }
 
     private void ApplySettings(AppSettings settings)
@@ -236,10 +385,11 @@ public partial class MainViewModel : ObservableObject
     private void UpdatePollingAndSmartVisibilityState()
     {
         bool isFullscreen = !SmartFullscreenOnly || WindowWin32Helper.IsForegroundWindowFullScreen();
-        bool shouldBeVisible = IsOverlayVisible && isFullscreen;
+        bool shouldOverlayBeVisible = IsOverlayVisible && isFullscreen;
+        bool isMainWindowOpen = _hardwareMonitorService.IsMainWindowVisible;
 
-        _hardwareMonitorService.IsPollingSuspended = !shouldBeVisible;
-        _fpsMonitorService.IsSuspended = !shouldBeVisible || !EffectiveShowFps;
+        _hardwareMonitorService.IsPollingSuspended = !shouldOverlayBeVisible && !isMainWindowOpen;
+        _fpsMonitorService.IsSuspended = (!shouldOverlayBeVisible || !EffectiveShowFps) && !isMainWindowOpen;
 
         if (IsForegroundFullScreen != isFullscreen)
         {
@@ -257,22 +407,176 @@ public partial class MainViewModel : ObservableObject
 
         Application.Current?.Dispatcher.InvokeAsync(() =>
         {
+            // FPS
             FpsText = $"{metrics.CurrentFps} FPS";
 
-            CpuTemperatureText = $"{metrics.CpuTemperature:0} °C";
+            // CPU (Com blindagem contra zeros falsos -> "N/D")
+            CpuTemperatureText = metrics.CpuTemperature > 0f
+                ? $"{metrics.CpuTemperature:0} °C"
+                : "N/D";
+
             CpuLoadText = $"{metrics.CpuLoad:0} %";
-            CpuClockText = $"{metrics.CpuClock:0} MHz";
-            CpuPowerText = string.Create(CultureInfo.InvariantCulture, $"{metrics.CpuPower:0.0} W");
+            CpuLoadBarValue = Math.Clamp(metrics.CpuLoad, 0f, 100f);
 
-            GpuTemperatureText = $"{metrics.GpuTemperature:0} °C";
+            CpuClockText = metrics.CpuClock > 0f
+                ? $"{metrics.CpuClock:0} MHz"
+                : "N/D";
+
+            CpuMaxClockText = metrics.CpuMaxClock > 0f
+                ? $"{metrics.CpuMaxClock:0} MHz"
+                : "N/D";
+
+            CpuClockAvgMaxText = metrics.CpuClock > 0f
+                ? (metrics.CpuMaxClock > 0f
+                    ? $"{metrics.CpuClock:0} MHz (Máx: {metrics.CpuMaxClock:0} MHz)"
+                    : $"{metrics.CpuClock:0} MHz")
+                : "N/D";
+
+            CpuPowerText = metrics.CpuPower > 0f
+                ? string.Create(CultureInfo.InvariantCulture, $"{metrics.CpuPower:0.0} W")
+                : "N/D";
+
+            CpuVoltageText = metrics.CpuVoltageVcore is > 0f
+                ? string.Create(CultureInfo.InvariantCulture, $"{metrics.CpuVoltageVcore.Value:0.000} V")
+                : "N/D";
+
+            // GPU Primária do Overlay (Com blindagem contra zeros falsos -> "N/D")
+            GpuTemperatureText = metrics.GpuTemperature > 0f
+                ? $"{metrics.GpuTemperature:0} °C"
+                : "N/D";
+
             GpuLoadText = $"{metrics.GpuLoad:0} %";
-            GpuClockText = $"{metrics.GpuClock:0} MHz";
-            GpuPowerText = string.Create(CultureInfo.InvariantCulture, $"{metrics.GpuPower:0.0} W");
 
+            GpuClockText = metrics.GpuClock > 0f
+                ? $"{metrics.GpuClock:0} MHz"
+                : "N/D";
+
+            GpuPowerText = metrics.GpuPower > 0f
+                ? string.Create(CultureInfo.InvariantCulture, $"{metrics.GpuPower:0.0} W")
+                : "N/D";
+
+            // Memória RAM
             RamUsageText = string.Create(
                 CultureInfo.InvariantCulture,
                 $"{metrics.RamUsedGb:0.0} GB ({metrics.RamUsagePercent:0}%)");
+
+            RamUsedText = string.Create(CultureInfo.InvariantCulture, $"{metrics.RamUsedGb:0.0} GB");
+            RamPercentText = $"{metrics.RamUsagePercent:0} %";
+            RamUsageBarValue = Math.Clamp(metrics.RamUsagePercent, 0f, 100f);
+
+            if (metrics.RamTotalGb > 0f)
+            {
+                RamTotalText = string.Create(CultureInfo.InvariantCulture, $"{metrics.RamTotalGb:0.0} GB");
+                RamFreeText = string.Create(CultureInfo.InvariantCulture, $"{metrics.RamFreeGb:0.0} GB");
+                RamDetailedSummaryText = string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"{metrics.RamUsedGb:0.0} GB usados de {metrics.RamTotalGb:0.0} GB ({metrics.RamFreeGb:0.0} GB livres)");
+            }
+
+            // Telemetria detalhada (só atualiza as coleções da UI quando a janela principal está aberta)
+            if (metrics.IsDetailedSnapshot)
+            {
+                SyncCpuCoresCollection(metrics.CpuCores);
+                SyncGpusCollection(metrics.Gpus);
+                SyncStorageCollections(metrics.StorageDrives, metrics.PhysicalDisks);
+            }
         });
+    }
+
+    private void SyncCpuCoresCollection(List<CpuCoreMetric> incoming)
+    {
+        if (CpuCores.Count == incoming.Count)
+        {
+            for (int i = 0; i < incoming.Count; i++)
+            {
+                CpuCores[i].UpdateFrom(incoming[i]);
+            }
+            return;
+        }
+
+        CpuCores.Clear();
+        foreach (CpuCoreMetric item in incoming)
+        {
+            CpuCores.Add(item);
+        }
+    }
+
+    private void SyncGpusCollection(List<GpuDetailedMetrics> incoming)
+    {
+        if (incoming.Count == 0)
+            return;
+
+        if (Gpus.Count == incoming.Count)
+        {
+            for (int i = 0; i < incoming.Count; i++)
+            {
+                Gpus[i].UpdateFrom(incoming[i]);
+            }
+
+            SelectedGpu ??= Gpus.FirstOrDefault();
+            return;
+        }
+
+        string? previousSelectedId = SelectedGpu?.Id;
+        Gpus.Clear();
+        foreach (GpuDetailedMetrics gpu in incoming)
+        {
+            Gpus.Add(gpu);
+        }
+
+        SelectedGpu = Gpus.FirstOrDefault(g => g.Id == previousSelectedId) ?? Gpus.FirstOrDefault();
+        UpdateGpuCountBadge();
+    }
+
+    private void UpdateGpuCountBadge()
+    {
+        GpuCountBadgeText = Gpus.Count == 1
+            ? "1 GPU Detectada"
+            : $"{Gpus.Count} GPUs Detectadas";
+    }
+
+    private void SyncStorageCollections(List<StorageDriveMetrics> drives, List<PhysicalStorageMetrics> physicalDisks)
+    {
+        if (StorageDrives.Count == drives.Count)
+        {
+            for (int i = 0; i < drives.Count; i++)
+            {
+                StorageDrives[i].UpdateFrom(drives[i]);
+            }
+        }
+        else
+        {
+            StorageDrives.Clear();
+            foreach (StorageDriveMetrics d in drives)
+            {
+                StorageDrives.Add(d);
+            }
+        }
+
+        if (PhysicalDisks.Count == physicalDisks.Count)
+        {
+            for (int i = 0; i < physicalDisks.Count; i++)
+            {
+                PhysicalDisks[i].UpdateFrom(physicalDisks[i]);
+            }
+        }
+        else
+        {
+            PhysicalDisks.Clear();
+            foreach (PhysicalStorageMetrics p in physicalDisks)
+            {
+                PhysicalDisks.Add(p);
+            }
+        }
+    }
+
+    [RelayCommand]
+    private void SelectTab(string? indexParameter)
+    {
+        if (int.TryParse(indexParameter, out int idx) && idx is >= 0 and <= 4)
+        {
+            SelectedNavIndex = idx;
+        }
     }
 
     [RelayCommand]
