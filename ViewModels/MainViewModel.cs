@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using HardwareOverlayApp.Helpers;
 using HardwareOverlayApp.Models;
 using HardwareOverlayApp.Services;
 
@@ -15,6 +16,8 @@ public partial class MainViewModel : ObservableObject
     private readonly StartupService _startupService;
     private readonly Action _exitApplicationAction;
     private readonly bool _isInitializing;
+
+    public Func<(double Width, double Height)>? OverlaySizeProvider { get; set; }
 
     // Textos formatados para o Overlay
     [ObservableProperty]
@@ -49,6 +52,7 @@ public partial class MainViewModel : ObservableObject
 
     // Controles gerais
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(EffectiveOverlayVisible))]
     private bool _isOverlayVisible;
 
     [ObservableProperty]
@@ -67,50 +71,110 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private bool _startWithWindows;
 
+    // Novas funcionalidades: Modo Compacto, Exibição Inteligente e Orientação do Layout
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(OverlayCardPadding))]
+    [NotifyPropertyChangedFor(nameof(ShowSectionHeaders))]
+    [NotifyPropertyChangedFor(nameof(EffectiveShowFps))]
+    [NotifyPropertyChangedFor(nameof(EffectiveShowCpuTemp))]
+    [NotifyPropertyChangedFor(nameof(EffectiveShowCpuLoad))]
+    [NotifyPropertyChangedFor(nameof(EffectiveShowCpuClock))]
+    [NotifyPropertyChangedFor(nameof(EffectiveShowCpuPower))]
+    [NotifyPropertyChangedFor(nameof(EffectiveShowGpuTemp))]
+    [NotifyPropertyChangedFor(nameof(EffectiveShowGpuLoad))]
+    [NotifyPropertyChangedFor(nameof(EffectiveShowGpuClock))]
+    [NotifyPropertyChangedFor(nameof(EffectiveShowGpuPower))]
+    [NotifyPropertyChangedFor(nameof(EffectiveShowRam))]
+    [NotifyPropertyChangedFor(nameof(ShowCpuSection))]
+    [NotifyPropertyChangedFor(nameof(ShowGpuSection))]
+    private bool _isCompactMode;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(EffectiveOverlayVisible))]
+    private bool _smartFullscreenOnly;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsVerticalLayout))]
+    private bool _isHorizontalLayout;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(EffectiveOverlayVisible))]
+    private bool _isForegroundFullScreen = true;
+
     // Visibilidade individual de métricas
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(EffectiveShowFps))]
     private bool _showFps;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(EffectiveShowCpuTemp))]
     [NotifyPropertyChangedFor(nameof(ShowCpuSection))]
     private bool _showCpuTemp;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(EffectiveShowCpuLoad))]
     [NotifyPropertyChangedFor(nameof(ShowCpuSection))]
     private bool _showCpuLoad;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(EffectiveShowCpuClock))]
     [NotifyPropertyChangedFor(nameof(ShowCpuSection))]
     private bool _showCpuClock;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(EffectiveShowCpuPower))]
     [NotifyPropertyChangedFor(nameof(ShowCpuSection))]
     private bool _showCpuPower;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(EffectiveShowGpuTemp))]
     [NotifyPropertyChangedFor(nameof(ShowGpuSection))]
     private bool _showGpuTemp;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(EffectiveShowGpuLoad))]
     [NotifyPropertyChangedFor(nameof(ShowGpuSection))]
     private bool _showGpuLoad;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(EffectiveShowGpuClock))]
     [NotifyPropertyChangedFor(nameof(ShowGpuSection))]
     private bool _showGpuClock;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(EffectiveShowGpuPower))]
     [NotifyPropertyChangedFor(nameof(ShowGpuSection))]
     private bool _showGpuPower;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(EffectiveShowRam))]
     private bool _showRam;
 
     public string OverlayOpacityPercentText => $"{OverlayOpacity * 100.0:0}%";
 
-    public bool ShowCpuSection => ShowCpuTemp || ShowCpuLoad || ShowCpuClock || ShowCpuPower;
+    public bool EffectiveOverlayVisible => IsOverlayVisible && (!SmartFullscreenOnly || IsForegroundFullScreen);
 
-    public bool ShowGpuSection => ShowGpuTemp || ShowGpuLoad || ShowGpuClock || ShowGpuPower;
+    public bool IsVerticalLayout => !IsHorizontalLayout;
+
+    public Thickness OverlayCardPadding => IsCompactMode ? new Thickness(10, 5, 10, 5) : new Thickness(14, 10, 14, 10);
+
+    public bool ShowSectionHeaders => !IsCompactMode;
+
+    // No Modo Compacto, exibe exclusivamente FPS, CPU % e GPU %
+    public bool EffectiveShowFps => IsCompactMode || ShowFps;
+    public bool EffectiveShowCpuTemp => !IsCompactMode && ShowCpuTemp;
+    public bool EffectiveShowCpuLoad => IsCompactMode || ShowCpuLoad;
+    public bool EffectiveShowCpuClock => !IsCompactMode && ShowCpuClock;
+    public bool EffectiveShowCpuPower => !IsCompactMode && ShowCpuPower;
+    public bool EffectiveShowGpuTemp => !IsCompactMode && ShowGpuTemp;
+    public bool EffectiveShowGpuLoad => IsCompactMode || ShowGpuLoad;
+    public bool EffectiveShowGpuClock => !IsCompactMode && ShowGpuClock;
+    public bool EffectiveShowGpuPower => !IsCompactMode && ShowGpuPower;
+    public bool EffectiveShowRam => !IsCompactMode && ShowRam;
+
+    public bool ShowCpuSection => EffectiveShowCpuTemp || EffectiveShowCpuLoad || EffectiveShowCpuClock || EffectiveShowCpuPower;
+
+    public bool ShowGpuSection => EffectiveShowGpuTemp || EffectiveShowGpuLoad || EffectiveShowGpuClock || EffectiveShowGpuPower;
 
     public MainViewModel(
         SettingsService settingsService,
@@ -130,6 +194,9 @@ public partial class MainViewModel : ObservableObject
         ApplySettings(settings);
         _isInitializing = false;
 
+        UpdatePollingAndSmartVisibilityState();
+
+        _hardwareMonitorService.HeartbeatTick += OnHeartbeatTick;
         _hardwareMonitorService.MetricsUpdated += OnHardwareMetricsUpdated;
     }
 
@@ -141,6 +208,10 @@ public partial class MainViewModel : ObservableObject
         OverlayLeft = settings.OverlayLeft;
         OverlayTop = settings.OverlayTop;
         StartWithWindows = settings.StartWithWindows;
+
+        IsCompactMode = settings.IsCompactMode;
+        SmartFullscreenOnly = settings.SmartFullscreenOnly;
+        IsHorizontalLayout = settings.IsHorizontalLayout;
 
         ShowFps = settings.ShowFps;
 
@@ -155,6 +226,28 @@ public partial class MainViewModel : ObservableObject
         ShowGpuPower = settings.ShowGpuPower;
 
         ShowRam = settings.ShowRam;
+    }
+
+    private void OnHeartbeatTick()
+    {
+        UpdatePollingAndSmartVisibilityState();
+    }
+
+    private void UpdatePollingAndSmartVisibilityState()
+    {
+        bool isFullscreen = !SmartFullscreenOnly || WindowWin32Helper.IsForegroundWindowFullScreen();
+        bool shouldBeVisible = IsOverlayVisible && isFullscreen;
+
+        _hardwareMonitorService.IsPollingSuspended = !shouldBeVisible;
+        _fpsMonitorService.IsSuspended = !shouldBeVisible || !EffectiveShowFps;
+
+        if (IsForegroundFullScreen != isFullscreen)
+        {
+            Application.Current?.Dispatcher.InvokeAsync(() =>
+            {
+                IsForegroundFullScreen = isFullscreen;
+            });
+        }
     }
 
     private void OnHardwareMetricsUpdated(HardwareMetrics metrics)
@@ -189,6 +282,61 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private void AlignOverlay(string? alignment)
+    {
+        if (string.IsNullOrWhiteSpace(alignment))
+            return;
+
+        Rect workArea = SystemParameters.WorkArea;
+        (double overlayWidth, double overlayHeight) = OverlaySizeProvider?.Invoke() ?? (240.0, 160.0);
+
+        if (overlayWidth <= 10)
+            overlayWidth = IsHorizontalLayout ? 420.0 : 240.0;
+        if (overlayHeight <= 10)
+            overlayHeight = IsHorizontalLayout ? 56.0 : (IsCompactMode ? 90.0 : 220.0);
+
+        const double screenMargin = 16.0;
+
+        double targetLeft = OverlayLeft;
+        double targetTop = OverlayTop;
+
+        switch (alignment)
+        {
+            case "TopLeft":
+                targetLeft = workArea.Left + screenMargin;
+                targetTop = workArea.Top + screenMargin;
+                break;
+
+            case "TopCenter":
+                targetLeft = workArea.Left + ((workArea.Width - overlayWidth) / 2.0);
+                targetTop = workArea.Top + screenMargin;
+                break;
+
+            case "TopRight":
+                targetLeft = workArea.Right - overlayWidth - screenMargin;
+                targetTop = workArea.Top + screenMargin;
+                break;
+
+            case "BottomLeft":
+                targetLeft = workArea.Left + screenMargin;
+                targetTop = workArea.Bottom - overlayHeight - screenMargin;
+                break;
+
+            case "BottomCenter":
+                targetLeft = workArea.Left + ((workArea.Width - overlayWidth) / 2.0);
+                targetTop = workArea.Bottom - overlayHeight - screenMargin;
+                break;
+
+            case "BottomRight":
+                targetLeft = workArea.Right - overlayWidth - screenMargin;
+                targetTop = workArea.Bottom - overlayHeight - screenMargin;
+                break;
+        }
+
+        SetOverlayPosition(Math.Max(workArea.Left, targetLeft), Math.Max(workArea.Top, targetTop));
+    }
+
+    [RelayCommand]
     private void ExitApplication()
     {
         _exitApplicationAction();
@@ -214,6 +362,9 @@ public partial class MainViewModel : ObservableObject
             OverlayLeft = OverlayLeft,
             OverlayTop = OverlayTop,
             StartWithWindows = StartWithWindows,
+            IsCompactMode = IsCompactMode,
+            SmartFullscreenOnly = SmartFullscreenOnly,
+            IsHorizontalLayout = IsHorizontalLayout,
             ShowFps = ShowFps,
             ShowCpuTemp = ShowCpuTemp,
             ShowCpuLoad = ShowCpuLoad,
@@ -229,7 +380,12 @@ public partial class MainViewModel : ObservableObject
         _settingsService.Save(settings);
     }
 
-    partial void OnIsOverlayVisibleChanged(bool value) => SaveSettings();
+    partial void OnIsOverlayVisibleChanged(bool value)
+    {
+        UpdatePollingAndSmartVisibilityState();
+        SaveSettings();
+    }
+
     partial void OnIsOverlayLockedChanged(bool value) => SaveSettings();
     partial void OnOverlayOpacityChanged(double value) => SaveSettings();
 
@@ -242,7 +398,26 @@ public partial class MainViewModel : ObservableObject
         SaveSettings();
     }
 
-    partial void OnShowFpsChanged(bool value) => SaveSettings();
+    partial void OnIsCompactModeChanged(bool value)
+    {
+        UpdatePollingAndSmartVisibilityState();
+        SaveSettings();
+    }
+
+    partial void OnSmartFullscreenOnlyChanged(bool value)
+    {
+        UpdatePollingAndSmartVisibilityState();
+        SaveSettings();
+    }
+
+    partial void OnIsHorizontalLayoutChanged(bool value) => SaveSettings();
+
+    partial void OnShowFpsChanged(bool value)
+    {
+        UpdatePollingAndSmartVisibilityState();
+        SaveSettings();
+    }
+
     partial void OnShowCpuTempChanged(bool value) => SaveSettings();
     partial void OnShowCpuLoadChanged(bool value) => SaveSettings();
     partial void OnShowCpuClockChanged(bool value) => SaveSettings();

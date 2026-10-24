@@ -9,10 +9,29 @@ public class HardwareMonitorService : IDisposable
     private readonly Computer _computer;
     private readonly UpdateVisitor _updateVisitor;
     private readonly CancellationTokenSource _cts = new();
+    private readonly object _hardwareLock = new();
     private Task? _monitoringTask;
-    private bool _isDisposed;
+    private volatile bool _isDisposed;
+    private volatile bool _isPollingSuspended;
 
     public event Action<HardwareMetrics>? MetricsUpdated;
+    public event Action? HeartbeatTick;
+
+    public bool IsPollingSuspended
+    {
+        get => _isPollingSuspended;
+        set
+        {
+            bool wasSuspended = _isPollingSuspended;
+            _isPollingSuspended = value;
+
+            // Ao retomar do modo suspenso, realiza uma leitura imediata em background
+            if (wasSuspended && !value && !_isDisposed)
+            {
+                _ = Task.Run(ReadAndPublishMetrics);
+            }
+        }
+    }
 
     public HardwareMonitorService()
     {
@@ -29,6 +48,9 @@ public class HardwareMonitorService : IDisposable
 
     public void Start()
     {
+        if (_isDisposed || _monitoringTask is not null)
+            return;
+
         try
         {
             _computer.Open();
@@ -43,27 +65,32 @@ public class HardwareMonitorService : IDisposable
 
     private async Task RunMonitoringLoopAsync(CancellationToken cancellationToken)
     {
-        // Leitura imediata inicial antes do primeiro ciclo de 1s
         ReadAndPublishMetrics();
 
         using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(1000));
 
         try
         {
-            while (await timer.WaitForNextTickAsync(cancellationToken))
+            while (await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false))
             {
+                HeartbeatTick?.Invoke();
+
+                // Se o Overlay estiver oculto (manualmente ou via Smart Fullscreen), poupa ciclos de CPU
+                if (_isPollingSuspended)
+                    continue;
+
                 ReadAndPublishMetrics();
             }
         }
         catch (OperationCanceledException)
         {
-            // Encerramento normal solicitado pelo CancellationToken
+            // Cancelamento limpo via CancellationTokenSource
         }
     }
 
     private void ReadAndPublishMetrics()
     {
-        if (_isDisposed)
+        if (_isDisposed || !Monitor.TryEnter(_hardwareLock))
             return;
 
         try
@@ -92,7 +119,6 @@ public class HardwareMonitorService : IDisposable
                 }
             }
 
-            // Fallback de temperatura da CPU na placa-mãe caso o processador não exponha sensor próprio
             if (metrics.CpuTemperature <= 0f)
             {
                 foreach (IHardware hardware in _computer.Hardware)
@@ -109,6 +135,10 @@ public class HardwareMonitorService : IDisposable
         catch
         {
             // Ignora falhas transitórias na leitura dos sensores
+        }
+        finally
+        {
+            Monitor.Exit(_hardwareLock);
         }
     }
 
@@ -286,13 +316,16 @@ public class HardwareMonitorService : IDisposable
             // Ignora cancelamento no encerramento
         }
 
-        try
+        lock (_hardwareLock)
         {
-            _computer.Close();
-        }
-        catch
-        {
-            // Ignora erros de fechamento de driver
+            try
+            {
+                _computer.Close();
+            }
+            catch
+            {
+                // Ignora erros de fechamento de driver
+            }
         }
 
         _cts.Dispose();

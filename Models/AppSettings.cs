@@ -9,6 +9,11 @@ public class AppSettings
     public double OverlayTop { get; set; } = 50.0;
     public bool StartWithWindows { get; set; } = false;
 
+    // Personalização avançada e exibição inteligente
+    public bool IsCompactMode { get; set; } = false;
+    public bool SmartFullscreenOnly { get; set; } = false;
+    public bool IsHorizontalLayout { get; set; } = false;
+
     // FPS
     public bool ShowFps { get; set; } = true;
 

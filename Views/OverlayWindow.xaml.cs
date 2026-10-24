@@ -19,6 +19,12 @@ public partial class OverlayWindow : Window
         _viewModel = viewModel;
         DataContext = _viewModel;
 
+        _viewModel.OverlaySizeProvider = () =>
+        {
+            UpdateLayout();
+            return (ActualWidth, ActualHeight);
+        };
+
         Left = _viewModel.OverlayLeft;
         Top = _viewModel.OverlayTop;
         UpdateCursor();
@@ -32,6 +38,9 @@ public partial class OverlayWindow : Window
         base.OnSourceInitialized(e);
 
         IntPtr hwnd = new WindowInteropHelper(this).Handle;
+        if (hwnd == IntPtr.Zero)
+            return;
+
         _hwndSource = HwndSource.FromHwnd(hwnd);
         _hwndSource?.AddHook(WndProc);
 
@@ -62,7 +71,8 @@ public partial class OverlayWindow : Window
                 break;
 
             case nameof(MainViewModel.IsOverlayVisible):
-                if (_viewModel.IsOverlayVisible)
+            case nameof(MainViewModel.EffectiveOverlayVisible):
+                if (_viewModel.EffectiveOverlayVisible)
                 {
                     WindowWin32Helper.ForceTopMost(this);
                 }
@@ -79,7 +89,7 @@ public partial class OverlayWindow : Window
                 break;
 
             case nameof(MainViewModel.FpsText):
-                if (_viewModel.IsOverlayVisible)
+                if (_viewModel.EffectiveOverlayVisible)
                 {
                     WindowWin32Helper.ForceTopMost(this);
                 }
@@ -111,13 +121,19 @@ public partial class OverlayWindow : Window
     private void OnWindowDeactivated(object? sender, EventArgs e)
     {
         Topmost = true;
-        WindowWin32Helper.ForceTopMost(this);
+        if (_viewModel.EffectiveOverlayVisible)
+        {
+            WindowWin32Helper.ForceTopMost(this);
+        }
     }
 
     protected override void OnClosed(EventArgs e)
     {
         IntPtr hwnd = new WindowInteropHelper(this).Handle;
-        WindowWin32Helper.UnregisterToggleOverlayHotKey(hwnd);
+        if (hwnd != IntPtr.Zero)
+        {
+            WindowWin32Helper.UnregisterToggleOverlayHotKey(hwnd);
+        }
 
         if (_hwndSource != null)
         {
@@ -125,6 +141,7 @@ public partial class OverlayWindow : Window
             _hwndSource = null;
         }
 
+        _viewModel.OverlaySizeProvider = null;
         _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
         Deactivated -= OnWindowDeactivated;
         base.OnClosed(e);

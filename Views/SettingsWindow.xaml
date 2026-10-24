@@ -8,10 +8,10 @@
                  mc:Ignorable="d"
                  d:DataContext="{d:DesignInstance Type=vm:MainViewModel}"
                  Title="Hardware Overlay - Configurações (0.1v)"
-                 Width="580"
-                 Height="780"
-                 MinWidth="500"
-                 MinHeight="600"
+                 Width="600"
+                 Height="820"
+                 MinWidth="520"
+                 MinHeight="620"
                  WindowStartupLocation="CenterScreen"
                  ExtendsContentIntoTitleBar="True"
                  WindowBackdropType="Mica"
@@ -53,6 +53,39 @@
                         </StackPanel>
                     </ui:CardControl.Header>
                     <ui:ToggleSwitch IsChecked="{Binding IsOverlayVisible, Mode=TwoWay}" />
+                </ui:CardControl>
+
+                <!-- Exibição Inteligente: Apenas em Tela Cheia -->
+                <ui:CardControl Margin="0,0,0,8">
+                    <ui:CardControl.Header>
+                        <StackPanel>
+                            <TextBlock Text="Exibição Inteligente: Apenas em Tela Cheia"
+                                       FontWeight="SemiBold"
+                                       FontSize="14" />
+                            <TextBlock Text="Oculta automaticamente na área de trabalho e exibe apenas quando um jogo em tela cheia estiver em foco"
+                                       FontSize="12"
+                                       Opacity="0.7"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+                    </ui:CardControl.Header>
+                    <ui:ToggleSwitch IsChecked="{Binding SmartFullscreenOnly, Mode=TwoWay}" />
+                </ui:CardControl>
+
+                <!-- Modo Compacto (Destacado) -->
+                <ui:CardControl Margin="0,0,0,8">
+                    <ui:CardControl.Header>
+                        <StackPanel>
+                            <TextBlock Text="Modo Compacto (Apenas FPS, CPU % e GPU %)"
+                                       FontWeight="SemiBold"
+                                       Foreground="#00E5FF"
+                                       FontSize="14" />
+                            <TextBlock Text="Exibe exclusivamente FPS, uso de CPU e uso de GPU com espaçamento reduzido"
+                                       FontSize="12"
+                                       Opacity="0.75"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+                    </ui:CardControl.Header>
+                    <ui:ToggleSwitch IsChecked="{Binding IsCompactMode, Mode=TwoWay}" />
                 </ui:CardControl>
 
                 <!-- Aviso visual do Atalho Global Ctrl + Shift + O -->
@@ -111,7 +144,7 @@
                 </ui:CardControl>
 
                 <!-- Slider de Opacidade (0.1 a 1.0) -->
-                <ui:CardControl Margin="0,0,0,8">
+                <ui:CardControl Margin="0,0,0,16">
                     <ui:CardControl.Header>
                         <StackPanel>
                             <TextBlock Text="Opacidade do Fundo do Overlay"
@@ -142,6 +175,87 @@
                     </StackPanel>
                 </ui:CardControl>
 
+                <!-- ==================== LAYOUT E ALINHAMENTO NA TELA ==================== -->
+                <TextBlock Text="Orientação e Alinhamento na Tela"
+                           FontSize="16"
+                           FontWeight="SemiBold"
+                           Foreground="#FFFFFF"
+                           Margin="0,8,0,10" />
+
+                <!-- Orientação Horizontal vs Vertical -->
+                <ui:CardControl Margin="0,0,0,8">
+                    <ui:CardControl.Header>
+                        <StackPanel>
+                            <TextBlock Text="Orientação Horizontal (Barra em Linha)"
+                                       FontWeight="SemiBold"
+                                       FontSize="14" />
+                            <TextBlock Text="Organiza as métricas lado a lado em linha com separadores discretos"
+                                       FontSize="12"
+                                       Opacity="0.7" />
+                        </StackPanel>
+                    </ui:CardControl.Header>
+                    <ui:ToggleSwitch IsChecked="{Binding IsHorizontalLayout, Mode=TwoWay}" />
+                </ui:CardControl>
+
+                <!-- Grade de Botões de Alinhamento Rápido (6 Posições) -->
+                <Border Background="#12FFFFFF"
+                        BorderBrush="#1FFFFFFF"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="14,12"
+                        Margin="0,0,0,8">
+                    <StackPanel>
+                        <TextBlock Text="Predefinições Rápidas de Alinhamento"
+                                   FontWeight="SemiBold"
+                                   FontSize="14"
+                                   Margin="0,0,0,4" />
+                        <TextBlock Text="Posicione o Overlay instantaneamente em qualquer canto ou centro da tela:"
+                                   FontSize="12"
+                                   Opacity="0.7"
+                                   Margin="0,0,0,10" />
+
+                        <UniformGrid Columns="3"
+                                     Rows="2">
+                            <ui:Button Content="Superior Esquerdo"
+                                       Appearance="Secondary"
+                                       HorizontalAlignment="Stretch"
+                                       Margin="0,0,6,6"
+                                       Command="{Binding AlignOverlayCommand}"
+                                       CommandParameter="TopLeft" />
+                            <ui:Button Content="Superior Centro"
+                                       Appearance="Secondary"
+                                       HorizontalAlignment="Stretch"
+                                       Margin="3,0,3,6"
+                                       Command="{Binding AlignOverlayCommand}"
+                                       CommandParameter="TopCenter" />
+                            <ui:Button Content="Superior Direito"
+                                       Appearance="Secondary"
+                                       HorizontalAlignment="Stretch"
+                                       Margin="6,0,0,6"
+                                       Command="{Binding AlignOverlayCommand}"
+                                       CommandParameter="TopRight" />
+                            <ui:Button Content="Inferior Esquerdo"
+                                       Appearance="Secondary"
+                                       HorizontalAlignment="Stretch"
+                                       Margin="0,0,6,0"
+                                       Command="{Binding AlignOverlayCommand}"
+                                       CommandParameter="BottomLeft" />
+                            <ui:Button Content="Inferior Centro"
+                                       Appearance="Secondary"
+                                       HorizontalAlignment="Stretch"
+                                       Margin="3,0,3,0"
+                                       Command="{Binding AlignOverlayCommand}"
+                                       CommandParameter="BottomCenter" />
+                            <ui:Button Content="Inferior Direito"
+                                       Appearance="Secondary"
+                                       HorizontalAlignment="Stretch"
+                                       Margin="6,0,0,0"
+                                       Command="{Binding AlignOverlayCommand}"
+                                       CommandParameter="BottomRight" />
+                        </UniformGrid>
+                    </StackPanel>
+                </Border>
+
                 <!-- Ações Rápidas: Resetar Posição e Encerrar Aplicativo -->
                 <ui:CardControl Margin="0,0,0,16">
                     <ui:CardControl.Header>
@@ -155,7 +269,7 @@
                         </StackPanel>
                     </ui:CardControl.Header>
                     <StackPanel Orientation="Horizontal">
-                        <ui:Button Content="Resetar Posição do Overlay"
+                        <ui:Button Content="Resetar Posição (50, 50)"
                                    Appearance="Secondary"
                                    Margin="0,0,8,0"
                                    Command="{Binding ResetPositionCommand}" />

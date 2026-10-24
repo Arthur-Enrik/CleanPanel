@@ -14,6 +14,10 @@
   - **GPU (NVIDIA / AMD / Intel)**: Temperatura do Núcleo (°C), Uso do Núcleo (%), Clock (MHz) e Consumo Elétrico (Watts).
   - **Memória RAM**: Quantidade física utilizada em `GB` e porcentagem de ocupação (`%`).
 - **Overlay Flutuante Inteligente**:
+  - **Modo Compacto**: exibe exclusivamente as três métricas essenciais (**FPS**, **CPU %** e **GPU %**) com padding reduzido para máxima discrição.
+  - **Exibição Inteligente (Apenas em Tela Cheia)**: detecta automaticamente quando um jogo/aplicativo está em Tela Cheia (`GetWindowRect` + `MonitorFromWindow` / `GetMonitorInfo`), ocultando o overlay e suspendendo o polling pesado de sensores quando você está na área de trabalho.
+  - **Orientação Vertical ou Horizontal**: alterne dinamicamente entre o layout em coluna ou barra horizontal em linha com separadores discretos.
+  - **Alinhamento Rápido em 6 Posições**: botões de 1 clique para posicionar o overlay nos cantos ou centro superior/inferior da tela (`SystemParameters.WorkArea`).
   - **Modo Destravado**: arraste o overlay livremente com o mouse para qualquer posição da tela; as coordenadas `Left` e `Top` são salvas automaticamente ao soltar o clique.
   - **Modo Travado (Click-Through)**: utiliza `WS_EX_TRANSPARENT` da API Win32 (`user32.dll`) para que todos os cliques e movimentos do mouse atravessem o overlay diretamente para o jogo em execução.
   - **Oculto do Alt+Tab**: utiliza `WS_EX_TOOLWINDOW` e `SetWindowPos(..., HWND_TOPMOST, ...)` para permanecer acima de jogos em modo **Janela sem Bordas (Borderless Windowed)** e **DirectX 12 Flip Model**.

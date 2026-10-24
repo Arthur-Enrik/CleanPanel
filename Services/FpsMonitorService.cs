@@ -19,29 +19,46 @@ public class FpsMonitorService : IDisposable
 
     private readonly object _framesLock = new();
     private readonly Queue<long> _frameTimestamps = new(512);
+    private readonly CancellationTokenSource _cts = new();
     private readonly int _currentAppPid = Environment.ProcessId;
 
     private TraceEventSession? _etwSession;
     private Task? _etwTask;
     private int _trackedPid;
     private bool _trackedPidIsIgnored;
-    private bool _isDisposed;
+    private volatile bool _isDisposed;
+    private volatile bool _isSuspended;
+
+    public bool IsSuspended
+    {
+        get => _isSuspended;
+        set
+        {
+            _isSuspended = value;
+            if (value)
+            {
+                lock (_framesLock)
+                {
+                    _frameTimestamps.Clear();
+                }
+            }
+        }
+    }
 
     public int CurrentFps => CalculateCurrentFps();
 
     public void Start()
     {
-        if (_etwTask != null)
+        if (_isDisposed || _etwTask is not null)
             return;
 
-        _etwTask = Task.Run(RunEtwSession);
+        _etwTask = Task.Run(() => RunEtwSession(_cts.Token));
     }
 
-    private void RunEtwSession()
+    private void RunEtwSession(CancellationToken cancellationToken)
     {
         try
         {
-            // Se houver uma sessão órfã anterior com o mesmo nome, encerra antes de recriar
             using (_ = new TraceEventSession(SessionName) { StopOnDispose = true })
             {
             }
@@ -51,6 +68,9 @@ public class FpsMonitorService : IDisposable
             // Ignora caso não exista sessão anterior
         }
 
+        if (cancellationToken.IsCancellationRequested)
+            return;
+
         try
         {
             _etwSession = new TraceEventSession(SessionName)
@@ -58,84 +78,112 @@ public class FpsMonitorService : IDisposable
                 StopOnDispose = true
             };
 
+            using CancellationTokenRegistration registration = cancellationToken.Register(() =>
+            {
+                try
+                {
+                    _etwSession?.Stop();
+                }
+                catch
+                {
+                    // Ignora falhas de interrupção durante o cancelamento
+                }
+            });
+
             _etwSession.Source.AllEvents += OnEtwEvent;
 
             _etwSession.EnableProvider(DxgiProviderGuid, TraceEventLevel.Informational);
             _etwSession.EnableProvider(D3D9ProviderGuid, TraceEventLevel.Informational);
 
-            // Process() é bloqueante até que _etwSession.Stop() ou Dispose() seja chamado
             _etwSession.Source.Process();
         }
         catch
         {
-            // Caso o usuário não esteja com privilégios suficientes para sessão ETW, mantém FPS em 0 sem travar o app
+            // Caso o usuário não tenha privilégios de sessão ETW ou ocorra parada abrupta, mantém o app estável
         }
     }
 
     private void OnEtwEvent(TraceEvent data)
     {
-        if (_isDisposed)
+        if (_isDisposed || _isSuspended || _cts.IsCancellationRequested)
             return;
 
-        int eventId = (int)data.ID;
-
-        bool isDxgiPresent = data.ProviderGuid == DxgiProviderGuid && eventId == DxgiPresentStartEventId;
-        bool isD3D9Present = data.ProviderGuid == D3D9ProviderGuid && eventId == D3D9PresentStartEventId;
-
-        if (!isDxgiPresent && !isD3D9Present)
-            return;
-
-        int eventPid = data.ProcessID;
-        if (eventPid <= 4 || eventPid == _currentAppPid)
-            return;
-
-        int foregroundPid = WindowWin32Helper.GetForegroundProcessId();
-        if (foregroundPid <= 0 || eventPid != foregroundPid)
-            return;
-
-        long now = Stopwatch.GetTimestamp();
-
-        lock (_framesLock)
+        try
         {
-            if (foregroundPid != _trackedPid)
-            {
-                _trackedPid = foregroundPid;
-                _frameTimestamps.Clear();
-                _trackedPidIsIgnored = IsSystemShellOrDwmProcess(foregroundPid);
-            }
+            int eventId = (int)data.ID;
 
-            if (_trackedPidIsIgnored)
+            bool isDxgiPresent = data.ProviderGuid == DxgiProviderGuid && eventId == DxgiPresentStartEventId;
+            bool isD3D9Present = data.ProviderGuid == D3D9ProviderGuid && eventId == D3D9PresentStartEventId;
+
+            if (!isDxgiPresent && !isD3D9Present)
                 return;
 
-            _frameTimestamps.Enqueue(now);
+            int eventPid = data.ProcessID;
+            if (eventPid <= 4 || eventPid == _currentAppPid)
+                return;
 
-            long cutoff = now - Stopwatch.Frequency;
-            while (_frameTimestamps.Count > 0 && _frameTimestamps.Peek() < cutoff)
+            int foregroundPid = WindowWin32Helper.GetForegroundProcessId();
+            if (foregroundPid <= 0 || eventPid != foregroundPid)
+                return;
+
+            long now = Stopwatch.GetTimestamp();
+
+            lock (_framesLock)
             {
-                _frameTimestamps.Dequeue();
+                if (foregroundPid != _trackedPid)
+                {
+                    _trackedPid = foregroundPid;
+                    _frameTimestamps.Clear();
+                    _trackedPidIsIgnored = IsSystemShellOrDwmProcess(foregroundPid);
+                }
+
+                if (_trackedPidIsIgnored)
+                    return;
+
+                _frameTimestamps.Enqueue(now);
+
+                long cutoff = now - Stopwatch.Frequency;
+                while (_frameTimestamps.Count > 0 && _frameTimestamps.Peek() < cutoff)
+                {
+                    _frameTimestamps.Dequeue();
+                }
             }
+        }
+        catch
+        {
+            // Protege o callback ETW contra encerramento abrupto do processo do jogo ou falha de leitura de evento
         }
     }
 
     private int CalculateCurrentFps()
     {
-        int foregroundPid = WindowWin32Helper.GetForegroundProcessId();
-        if (foregroundPid <= 4 || foregroundPid == _currentAppPid)
+        if (_isDisposed || _isSuspended)
             return 0;
 
-        long cutoff = Stopwatch.GetTimestamp() - Stopwatch.Frequency;
-
-        lock (_framesLock)
+        try
         {
-            if (foregroundPid != _trackedPid || _trackedPidIsIgnored)
+            int foregroundPid = WindowWin32Helper.GetForegroundProcessId();
+            if (foregroundPid <= 4 || foregroundPid == _currentAppPid)
                 return 0;
 
-            while (_frameTimestamps.Count > 0 && _frameTimestamps.Peek() < cutoff)
-            {
-                _frameTimestamps.Dequeue();
-            }
+            long cutoff = Stopwatch.GetTimestamp() - Stopwatch.Frequency;
 
-            return _frameTimestamps.Count;
+            lock (_framesLock)
+            {
+                if (foregroundPid != _trackedPid || _trackedPidIsIgnored)
+                    return 0;
+
+                while (_frameTimestamps.Count > 0 && _frameTimestamps.Peek() < cutoff)
+                {
+                    _frameTimestamps.Dequeue();
+                }
+
+                return _frameTimestamps.Count;
+            }
+        }
+        catch
+        {
+            return 0;
         }
     }
 
@@ -162,6 +210,7 @@ public class FpsMonitorService : IDisposable
             return;
 
         _isDisposed = true;
+        _cts.Cancel();
 
         try
         {
@@ -172,5 +221,16 @@ public class FpsMonitorService : IDisposable
         {
             // Ignora erros no encerramento da sessão ETW
         }
+
+        try
+        {
+            _etwTask?.Wait(TimeSpan.FromMilliseconds(500));
+        }
+        catch
+        {
+            // Ignora exceções de cancelamento da Task
+        }
+
+        _cts.Dispose();
     }
 }
