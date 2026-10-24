@@ -8,20 +8,21 @@
                  mc:Ignorable="d"
                  d:DataContext="{d:DesignInstance Type=vm:MainViewModel}"
                  Title="CleanPanel"
-                 Width="1080"
-                 Height="760"
-                 MinWidth="860"
-                 MinHeight="580"
+                 Width="1100"
+                 Height="780"
+                 MinWidth="880"
+                 MinHeight="600"
                  WindowStartupLocation="CenterScreen"
                  ExtendsContentIntoTitleBar="True"
                  WindowBackdropType="Mica"
-                 WindowCornerPreference="Round">
+                 WindowCornerPreference="Round"
+                 Foreground="{DynamicResource TextFillColorPrimaryBrush}">
 
     <ui:FluentWindow.Resources>
-        <!-- Estilo moderno de item do Menu Lateral (Estilo Task Manager do Windows 11 / WPF-UI NavigationView) -->
+        <!-- Estilo moderno de item do Menu Lateral compatível com Modo Claro e Modo Escuro -->
         <Style x:Key="SideNavRadioButtonStyle" TargetType="RadioButton">
             <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Foreground" Value="#D0D4DC" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="Margin" Value="0,2" />
             <Setter Property="Padding" Value="12,10" />
@@ -57,13 +58,13 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="RootBorder" Property="Background" Value="#12FFFFFF" />
-                                <Setter Property="Foreground" Value="#FFFFFF" />
+                                <Setter TargetName="RootBorder" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
                             </Trigger>
                             <Trigger Property="IsChecked" Value="True">
                                 <Setter TargetName="RootBorder" Property="Background" Value="#1E00E5FF" />
                                 <Setter TargetName="ActiveIndicator" Property="Visibility" Value="Visible" />
-                                <Setter Property="Foreground" Value="#FFFFFF" />
+                                <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
                                 <Setter Property="FontWeight" Value="SemiBold" />
                             </Trigger>
                         </ControlTemplate.Triggers>
@@ -72,14 +73,47 @@
             </Setter>
         </Style>
 
-        <!-- Estilo de Card de Painel de Telemetria -->
+        <!-- Estilo de Card de Painel de Telemetria (Usa DynamicResource do WPF-UI para Temas Claro/Escuro) -->
         <Style x:Key="TelemetryCardBorderStyle" TargetType="Border">
-            <Setter Property="Background" Value="#14FFFFFF" />
-            <Setter Property="BorderBrush" Value="#22FFFFFF" />
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="8" />
             <Setter Property="Padding" Value="16" />
             <Setter Property="Margin" Value="0,0,0,12" />
+        </Style>
+
+        <!-- Estilo de Sub-Card Interno / Caixa de Métrica (Adaptável ao Tema Claro/Escuro) -->
+        <Style x:Key="SubCardBorderStyle" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+        </Style>
+
+        <!-- Estilo de Botão Rápido de Amostra de Cor (Swatch) -->
+        <Style x:Key="ColorSwatchButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="24" />
+            <Setter Property="Height" Value="24" />
+            <Setter Property="Margin" Value="0,0,6,0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="SwatchBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1.5"
+                                CornerRadius="6" />
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="SwatchBorder" Property="BorderBrush" Value="#00E5FF" />
+                                <Setter TargetName="SwatchBorder" Property="BorderThickness" Value="2" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
     </ui:FluentWindow.Resources>
 
@@ -89,21 +123,25 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- Barra de título nativa Windows 11 -->
+        <!-- Barra de título nativa Windows 11 com ícone oficial CleanPanel -->
         <ui:TitleBar Grid.Row="0"
-                     Title="CleanPanel" />
+                     Title="CleanPanel">
+            <ui:TitleBar.Icon>
+                <ui:ImageIcon Source="{Binding Icon, RelativeSource={RelativeSource AncestorType=Window}}" />
+            </ui:TitleBar.Icon>
+        </ui:TitleBar>
 
         <!-- Estrutura Principal com Menu de Navegação Lateral + Área de Conteúdo -->
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="245" />
+                <ColumnDefinition Width="250" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
             <!-- ==================== MENU DE NAVEGAÇÃO LATERAL (SIDEBAR) ==================== -->
             <Border Grid.Column="0"
-                    Background="#0E000000"
-                    BorderBrush="#1AFFFFFF"
+                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
                     BorderThickness="0,0,1,0"
                     Padding="10,12,10,12">
                 <Grid>
@@ -116,9 +154,7 @@
 
                     <!-- Cabeçalho de Status Rápido no Menu Lateral -->
                     <Border Grid.Row="0"
-                            Background="#14FFFFFF"
-                            BorderBrush="#24FFFFFF"
-                            BorderThickness="1"
+                            Style="{StaticResource SubCardBorderStyle}"
                             CornerRadius="8"
                             Padding="12,10"
                             Margin="2,0,2,14">
@@ -131,11 +167,11 @@
                                 <TextBlock Text="TELEMETRIA ATIVA"
                                            FontSize="10"
                                            FontWeight="Bold"
-                                           Foreground="#00E5FF" />
+                                           Foreground="#00B8D4" />
                                 <TextBlock Text="{Binding FpsText}"
                                            FontSize="16"
                                            FontWeight="Bold"
-                                           Foreground="#FFB900"
+                                           Foreground="#F59E0B"
                                            Margin="0,2,0,0" />
                             </StackPanel>
                             <ui:ToggleSwitch Grid.Column="1"
@@ -145,12 +181,12 @@
                         </Grid>
                     </Border>
 
-                    <!-- 4 Seções Principais de Monitoramento no Topo -->
+                    <!-- Seções Principais de Monitoramento e Personalização -->
                     <StackPanel Grid.Row="1">
                         <TextBlock Text="MONITORAMENTO"
                                    FontSize="11"
                                    FontWeight="SemiBold"
-                                   Foreground="#88FFFFFF"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                    Margin="12,0,0,6" />
 
                         <!-- 1. Visão Geral -->
@@ -160,7 +196,7 @@
                             <StackPanel Orientation="Horizontal">
                                 <ui:SymbolIcon Symbol="DataHistogram24"
                                                FontSize="18"
-                                               Foreground="#00E5FF"
+                                               Foreground="#00B8D4"
                                                VerticalAlignment="Center" />
                                 <TextBlock Text="Visão Geral"
                                            FontSize="13.5"
@@ -182,7 +218,7 @@
                                 <ui:SymbolIcon Grid.Column="0"
                                                Symbol="DeveloperBoard24"
                                                FontSize="18"
-                                               Foreground="#60CDFF"
+                                               Foreground="#0288D1"
                                                VerticalAlignment="Center" />
                                 <TextBlock Grid.Column="1"
                                            Text="Processador (CPU)"
@@ -192,7 +228,8 @@
                                 <TextBlock Grid.Column="2"
                                            Text="{Binding CpuLoadText}"
                                            FontSize="11.5"
-                                           Foreground="#60CDFF"
+                                           FontWeight="SemiBold"
+                                           Foreground="#0288D1"
                                            VerticalAlignment="Center" />
                             </Grid>
                         </RadioButton>
@@ -210,7 +247,7 @@
                                 <ui:SymbolIcon Grid.Column="0"
                                                Symbol="Video24"
                                                FontSize="18"
-                                               Foreground="#6CCB5F"
+                                               Foreground="#10B981"
                                                VerticalAlignment="Center" />
                                 <TextBlock Grid.Column="1"
                                            Text="Placa de Vídeo (GPU)"
@@ -220,7 +257,8 @@
                                 <TextBlock Grid.Column="2"
                                            Text="{Binding GpuLoadText}"
                                            FontSize="11.5"
-                                           Foreground="#6CCB5F"
+                                           FontWeight="SemiBold"
+                                           Foreground="#10B981"
                                            VerticalAlignment="Center" />
                             </Grid>
                         </RadioButton>
@@ -238,7 +276,7 @@
                                 <ui:SymbolIcon Grid.Column="0"
                                                Symbol="HardDrive20"
                                                FontSize="18"
-                                               Foreground="#C586C0"
+                                               Foreground="#A855F7"
                                                VerticalAlignment="Center" />
                                 <TextBlock Grid.Column="1"
                                            Text="Sistema &amp; Discos"
@@ -248,16 +286,39 @@
                                 <TextBlock Grid.Column="2"
                                            Text="{Binding RamPercentText}"
                                            FontSize="11.5"
-                                           Foreground="#C586C0"
+                                           FontWeight="SemiBold"
+                                           Foreground="#A855F7"
                                            VerticalAlignment="Center" />
                             </Grid>
                         </RadioButton>
+
+                        <TextBlock Text="ESTILO &amp; LAYOUT"
+                                   FontSize="11"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   Margin="12,14,0,6" />
+
+                        <!-- 5. Personalização (Temas, Cores & Ordem dos Sensores) -->
+                        <RadioButton Style="{StaticResource SideNavRadioButtonStyle}"
+                                     GroupName="MainNavigation"
+                                     IsChecked="{Binding IsPersonalizationTabSelected, Mode=TwoWay}">
+                            <StackPanel Orientation="Horizontal">
+                                <ui:SymbolIcon Symbol="Color24"
+                                               FontSize="18"
+                                               Foreground="#14B8A6"
+                                               VerticalAlignment="Center" />
+                                <TextBlock Text="Personalização"
+                                           FontSize="13.5"
+                                           Margin="12,0,0,0"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+                        </RadioButton>
                     </StackPanel>
 
-                    <!-- Rodapé com Ícone de Engrenagem: 5. Configurações -->
+                    <!-- Rodapé com Ícone de Engrenagem: 6. Configurações -->
                     <StackPanel Grid.Row="3">
                         <Border Height="1"
-                                Background="#1FFFFFFF"
+                                Background="{DynamicResource CardStrokeColorDefaultBrush}"
                                 Margin="6,0,6,8" />
 
                         <RadioButton Style="{StaticResource SideNavRadioButtonStyle}"
@@ -266,7 +327,7 @@
                             <StackPanel Orientation="Horizontal">
                                 <ui:SymbolIcon Symbol="Settings24"
                                                FontSize="18"
-                                               Foreground="#FFB900"
+                                               Foreground="#F59E0B"
                                                VerticalAlignment="Center" />
                                 <TextBlock Text="Configurações"
                                            FontSize="13.5"
@@ -291,10 +352,10 @@
                         <TextBlock Text="Visão Geral do Sistema"
                                    FontSize="22"
                                    FontWeight="Bold"
-                                   Foreground="#FFFFFF" />
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                         <TextBlock Text="Resumo em tempo real das especificações e sensores de hardware do computador"
                                    FontSize="13"
-                                   Opacity="0.7"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                    Margin="0,2,0,18" />
 
                         <!-- CARD 1: SISTEMA OPERACIONAL -->
@@ -315,7 +376,7 @@
                                         Margin="0,0,16,0">
                                     <ui:SymbolIcon Symbol="Window24"
                                                    FontSize="22"
-                                                   Foreground="#00E5FF"
+                                                   Foreground="#00B8D4"
                                                    HorizontalAlignment="Center"
                                                    VerticalAlignment="Center" />
                                 </Border>
@@ -324,27 +385,27 @@
                                     <TextBlock Text="SISTEMA OPERACIONAL"
                                                FontSize="11"
                                                FontWeight="Bold"
-                                               Foreground="#00E5FF" />
+                                               Foreground="#00B8D4" />
                                     <TextBlock Text="{Binding OsName}"
                                                FontSize="17"
                                                FontWeight="Bold"
-                                               Foreground="#FFFFFF"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                                                Margin="0,2,0,2" />
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="Edição / Versão: "
                                                    FontSize="12.5"
-                                                   Opacity="0.7" />
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                         <TextBlock Text="{Binding OsEdition}"
                                                    FontSize="12.5"
                                                    FontWeight="SemiBold"
-                                                   Foreground="#E0E0E0" />
+                                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                                         <TextBlock Text="   •   Build: "
                                                    FontSize="12.5"
-                                                   Opacity="0.7" />
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                         <TextBlock Text="{Binding OsBuild}"
                                                    FontSize="12.5"
                                                    FontWeight="SemiBold"
-                                                   Foreground="#E0E0E0" />
+                                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                                     </StackPanel>
                                 </StackPanel>
 
@@ -359,7 +420,7 @@
                                                FontFamily="Consolas"
                                                FontSize="14"
                                                FontWeight="Bold"
-                                               Foreground="#FFB900" />
+                                               Foreground="#F59E0B" />
                                 </Border>
                             </Grid>
                         </Border>
@@ -378,12 +439,12 @@
                                             Width="44"
                                             Height="44"
                                             CornerRadius="8"
-                                            Background="#1A60CDFF"
+                                            Background="#1A0288D1"
                                             VerticalAlignment="Center"
                                             Margin="0,0,16,0">
                                         <ui:SymbolIcon Symbol="DeveloperBoard24"
                                                        FontSize="22"
-                                                       Foreground="#60CDFF"
+                                                       Foreground="#0288D1"
                                                        HorizontalAlignment="Center"
                                                        VerticalAlignment="Center" />
                                     </Border>
@@ -392,46 +453,44 @@
                                         <TextBlock Text="PROCESSADOR (CPU)"
                                                    FontSize="11"
                                                    FontWeight="Bold"
-                                                   Foreground="#60CDFF" />
+                                                   Foreground="#0288D1" />
                                         <TextBlock Text="{Binding CpuName}"
                                                    FontSize="16"
                                                    FontWeight="Bold"
-                                                   Foreground="#FFFFFF"
+                                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                                                    TextWrapping="Wrap"
                                                    Margin="0,2,0,2" />
                                         <TextBlock Text="{Binding CpuCoresThreadsSummary}"
                                                    FontSize="12.5"
-                                                   Opacity="0.75" />
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                     </StackPanel>
 
                                     <StackPanel Grid.Column="2"
                                                 Orientation="Horizontal"
                                                 VerticalAlignment="Center">
-                                        <Border Background="#18FFFFFF"
-                                                CornerRadius="6"
+                                        <Border Style="{StaticResource SubCardBorderStyle}"
                                                 Padding="12,6"
                                                 Margin="0,0,8,0">
                                             <StackPanel>
                                                 <TextBlock Text="USO"
                                                            FontSize="10"
-                                                           Opacity="0.65" />
+                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                                 <TextBlock Text="{Binding CpuLoadText}"
                                                            FontSize="15"
                                                            FontWeight="Bold"
-                                                           Foreground="#60CDFF" />
+                                                           Foreground="#0288D1" />
                                             </StackPanel>
                                         </Border>
-                                        <Border Background="#18FFFFFF"
-                                                CornerRadius="6"
+                                        <Border Style="{StaticResource SubCardBorderStyle}"
                                                 Padding="12,6">
                                             <StackPanel>
                                                 <TextBlock Text="TEMP"
                                                            FontSize="10"
-                                                           Opacity="0.65" />
+                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                                 <TextBlock Text="{Binding CpuTemperatureText}"
                                                            FontSize="15"
                                                            FontWeight="Bold"
-                                                           Foreground="#FFFFFF" />
+                                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                                             </StackPanel>
                                         </Border>
                                     </StackPanel>
@@ -441,7 +500,7 @@
                                              Maximum="100"
                                              Height="6"
                                              Margin="0,12,0,0"
-                                             Foreground="#60CDFF"
+                                             Foreground="#0288D1"
                                              Value="{Binding CpuLoadBarValue, Mode=OneWay}" />
                             </StackPanel>
                         </Border>
@@ -459,33 +518,30 @@
                                     <ui:SymbolIcon Grid.Column="0"
                                                    Symbol="Video24"
                                                    FontSize="20"
-                                                   Foreground="#6CCB5F"
+                                                   Foreground="#10B981"
                                                    VerticalAlignment="Center"
                                                    Margin="0,0,10,0" />
                                     <TextBlock Grid.Column="1"
                                                Text="PLACAS DE VÍDEO (GPU)"
                                                FontSize="12"
                                                FontWeight="Bold"
-                                               Foreground="#6CCB5F"
+                                               Foreground="#10B981"
                                                VerticalAlignment="Center" />
                                     <Border Grid.Column="2"
-                                            Background="#1A6CCB5F"
+                                            Background="#1A10B981"
                                             CornerRadius="4"
                                             Padding="8,3">
                                         <TextBlock Text="{Binding GpuCountBadgeText}"
                                                    FontSize="11"
                                                    FontWeight="SemiBold"
-                                                   Foreground="#6CCB5F" />
+                                                   Foreground="#10B981" />
                                     </Border>
                                 </Grid>
 
                                 <ItemsControl ItemsSource="{Binding Gpus}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <Border Background="#12FFFFFF"
-                                                    BorderBrush="#1FFFFFFF"
-                                                    BorderThickness="1"
-                                                    CornerRadius="6"
+                                            <Border Style="{StaticResource SubCardBorderStyle}"
                                                     Padding="14,12"
                                                     Margin="0,0,0,8">
                                                 <StackPanel>
@@ -499,47 +555,45 @@
                                                             <TextBlock Text="{Binding Name}"
                                                                        FontSize="15"
                                                                        FontWeight="Bold"
-                                                                       Foreground="#FFFFFF"
+                                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                                                                        TextWrapping="Wrap" />
                                                             <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
                                                                 <TextBlock Text="VRAM Total: "
                                                                            FontSize="12"
-                                                                           Opacity="0.7" />
+                                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                                                 <TextBlock Text="{Binding TotalVramDisplay}"
                                                                            FontSize="12"
                                                                            FontWeight="SemiBold"
-                                                                           Foreground="#6CCB5F" />
+                                                                           Foreground="#10B981" />
                                                             </StackPanel>
                                                         </StackPanel>
 
                                                         <StackPanel Grid.Column="1"
                                                                     Orientation="Horizontal"
                                                                     VerticalAlignment="Center">
-                                                            <Border Background="#18FFFFFF"
-                                                                    CornerRadius="6"
+                                                            <Border Style="{StaticResource SubCardBorderStyle}"
                                                                     Padding="10,5"
                                                                     Margin="0,0,8,0">
                                                                 <StackPanel>
                                                                     <TextBlock Text="USO"
                                                                                FontSize="10"
-                                                                               Opacity="0.65" />
+                                                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                                                     <TextBlock Text="{Binding CoreLoadText}"
                                                                                FontSize="14"
                                                                                FontWeight="Bold"
-                                                                               Foreground="#6CCB5F" />
+                                                                               Foreground="#10B981" />
                                                                 </StackPanel>
                                                             </Border>
-                                                            <Border Background="#18FFFFFF"
-                                                                    CornerRadius="6"
+                                                            <Border Style="{StaticResource SubCardBorderStyle}"
                                                                     Padding="10,5">
                                                                 <StackPanel>
                                                                     <TextBlock Text="TEMP"
                                                                                FontSize="10"
-                                                                               Opacity="0.65" />
+                                                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                                                     <TextBlock Text="{Binding CoreTemperatureText}"
                                                                                FontSize="14"
                                                                                FontWeight="Bold"
-                                                                               Foreground="#FFFFFF" />
+                                                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                                                                 </StackPanel>
                                                             </Border>
                                                         </StackPanel>
@@ -549,7 +603,7 @@
                                                                  Maximum="100"
                                                                  Height="5"
                                                                  Margin="0,10,0,0"
-                                                                 Foreground="#6CCB5F"
+                                                                 Foreground="#10B981"
                                                                  Value="{Binding CoreLoadBarValue, Mode=OneWay}" />
                                                 </StackPanel>
                                             </Border>
@@ -573,12 +627,12 @@
                                             Width="44"
                                             Height="44"
                                             CornerRadius="8"
-                                            Background="#1AC586C0"
+                                            Background="#1AA855F7"
                                             VerticalAlignment="Center"
                                             Margin="0,0,16,0">
                                         <ui:SymbolIcon Symbol="Ram16"
                                                        FontSize="22"
-                                                       Foreground="#C586C0"
+                                                       Foreground="#A855F7"
                                                        HorizontalAlignment="Center"
                                                        VerticalAlignment="Center" />
                                     </Border>
@@ -587,35 +641,34 @@
                                         <TextBlock Text="MEMÓRIA RAM"
                                                    FontSize="11"
                                                    FontWeight="Bold"
-                                                   Foreground="#C586C0" />
+                                                   Foreground="#A855F7" />
                                         <TextBlock Text="{Binding RamDetailedSummaryText}"
                                                    FontSize="15"
                                                    FontWeight="SemiBold"
-                                                   Foreground="#FFFFFF"
+                                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                                                    Margin="0,2,0,4" />
                                         <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="Instalada: " FontSize="12" Opacity="0.7" />
+                                            <TextBlock Text="Instalada: " FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                             <TextBlock Text="{Binding RamTotalText}" FontSize="12" FontWeight="SemiBold" Margin="0,0,14,0" />
-                                            <TextBlock Text="Usada: " FontSize="12" Opacity="0.7" />
+                                            <TextBlock Text="Usada: " FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                             <TextBlock Text="{Binding RamUsedText}" FontSize="12" FontWeight="SemiBold" Margin="0,0,14,0" />
-                                            <TextBlock Text="Livre: " FontSize="12" Opacity="0.7" />
+                                            <TextBlock Text="Livre: " FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                             <TextBlock Text="{Binding RamFreeText}" FontSize="12" FontWeight="SemiBold" />
                                         </StackPanel>
                                     </StackPanel>
 
                                     <Border Grid.Column="2"
-                                            Background="#18FFFFFF"
-                                            CornerRadius="6"
+                                            Style="{StaticResource SubCardBorderStyle}"
                                             Padding="14,6"
                                             VerticalAlignment="Center">
                                         <StackPanel>
                                             <TextBlock Text="OCUPAÇÃO"
                                                        FontSize="10"
-                                                       Opacity="0.65" />
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                             <TextBlock Text="{Binding RamPercentText}"
                                                        FontSize="16"
                                                        FontWeight="Bold"
-                                                       Foreground="#C586C0" />
+                                                       Foreground="#A855F7" />
                                         </StackPanel>
                                     </Border>
                                 </Grid>
@@ -624,7 +677,7 @@
                                              Maximum="100"
                                              Height="6"
                                              Margin="0,12,0,0"
-                                             Foreground="#C586C0"
+                                             Foreground="#A855F7"
                                              Value="{Binding RamUsageBarValue, Mode=OneWay}" />
                             </StackPanel>
                         </Border>
@@ -635,23 +688,20 @@
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
                                     <ui:SymbolIcon Symbol="HardDrive20"
                                                    FontSize="20"
-                                                   Foreground="#FFB900"
+                                                   Foreground="#F59E0B"
                                                    VerticalAlignment="Center"
                                                    Margin="0,0,10,0" />
                                     <TextBlock Text="UNIDADES DE ARMAZENAMENTO"
                                                FontSize="12"
                                                FontWeight="Bold"
-                                               Foreground="#FFB900"
+                                               Foreground="#F59E0B"
                                                VerticalAlignment="Center" />
                                 </StackPanel>
 
                                 <ItemsControl ItemsSource="{Binding StorageDrives}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <Border Background="#12FFFFFF"
-                                                    BorderBrush="#1FFFFFFF"
-                                                    BorderThickness="1"
-                                                    CornerRadius="6"
+                                            <Border Style="{StaticResource SubCardBorderStyle}"
                                                     Padding="14,10"
                                                     Margin="0,0,0,8">
                                                 <StackPanel>
@@ -664,29 +714,28 @@
                                                             <TextBlock Text="{Binding DisplayTitle}"
                                                                        FontSize="14"
                                                                        FontWeight="Bold"
-                                                                       Foreground="#FFFFFF" />
+                                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                                                             <TextBlock Text="{Binding PhysicalDiskModel}"
                                                                        FontSize="11.5"
-                                                                       Opacity="0.7"
+                                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                                                        Margin="0,1,0,2" />
                                                             <TextBlock Text="{Binding OverviewLineText}"
                                                                        FontSize="12"
-                                                                       Foreground="#D8DEE9" />
+                                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                                                         </StackPanel>
 
                                                         <Border Grid.Column="1"
-                                                                Background="#18FFFFFF"
-                                                                CornerRadius="6"
+                                                                Style="{StaticResource SubCardBorderStyle}"
                                                                 Padding="10,4"
                                                                 VerticalAlignment="Center">
                                                             <StackPanel>
                                                                 <TextBlock Text="TEMP"
                                                                            FontSize="9.5"
-                                                                           Opacity="0.65" />
+                                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                                                 <TextBlock Text="{Binding TemperatureText}"
                                                                            FontSize="13"
                                                                            FontWeight="Bold"
-                                                                           Foreground="#FFB900" />
+                                                                           Foreground="#F59E0B" />
                                                             </StackPanel>
                                                         </Border>
                                                     </Grid>
@@ -695,7 +744,7 @@
                                                                  Maximum="100"
                                                                  Height="5"
                                                                  Margin="0,8,0,0"
-                                                                 Foreground="#FFB900"
+                                                                 Foreground="#F59E0B"
                                                                  Value="{Binding UsagePercent, Mode=OneWay}" />
                                                 </StackPanel>
                                             </Border>
@@ -717,10 +766,10 @@
                         <TextBlock Text="Processador (CPU)"
                                    FontSize="22"
                                    FontWeight="Bold"
-                                   Foreground="#FFFFFF" />
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                         <TextBlock Text="Especificações físicas, sensores globais de energia/tensão e telemetria individual por núcleo"
                                    FontSize="13"
-                                   Opacity="0.7"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                    Margin="0,2,0,18" />
 
                         <!-- Especificações do Processador -->
@@ -736,49 +785,47 @@
                                     <TextBlock Text="MODELO DO PROCESSADOR"
                                                FontSize="11"
                                                FontWeight="Bold"
-                                               Foreground="#60CDFF" />
+                                               Foreground="#0288D1" />
                                     <TextBlock Text="{Binding CpuName}"
                                                FontSize="18"
                                                FontWeight="Bold"
-                                               Foreground="#FFFFFF"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                                                TextWrapping="Wrap"
                                                Margin="0,3,0,2" />
                                     <TextBlock Text="{Binding CpuCoresThreadsSummary}"
                                                FontSize="12.5"
-                                               Opacity="0.75" />
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                 </StackPanel>
 
                                 <Border Grid.Column="1"
-                                        Background="#18FFFFFF"
-                                        CornerRadius="6"
+                                        Style="{StaticResource SubCardBorderStyle}"
                                         Padding="14,8"
                                         Margin="12,0,8,0"
                                         VerticalAlignment="Center">
                                     <StackPanel HorizontalAlignment="Center">
                                         <TextBlock Text="NÚCLEOS FÍSICOS"
                                                    FontSize="10"
-                                                   Opacity="0.65" />
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                         <TextBlock Text="{Binding CpuPhysicalCores}"
                                                    FontSize="18"
                                                    FontWeight="Bold"
-                                                   Foreground="#60CDFF"
+                                                   Foreground="#0288D1"
                                                    HorizontalAlignment="Center" />
                                     </StackPanel>
                                 </Border>
 
                                 <Border Grid.Column="2"
-                                        Background="#18FFFFFF"
-                                        CornerRadius="6"
+                                        Style="{StaticResource SubCardBorderStyle}"
                                         Padding="14,8"
                                         VerticalAlignment="Center">
                                     <StackPanel HorizontalAlignment="Center">
                                         <TextBlock Text="THREADS LÓGICOS"
                                                    FontSize="10"
-                                                   Opacity="0.65" />
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                         <TextBlock Text="{Binding CpuLogicalThreads}"
                                                    FontSize="18"
                                                    FontWeight="Bold"
-                                                   Foreground="#60CDFF"
+                                                   Foreground="#0288D1"
                                                    HorizontalAlignment="Center" />
                                     </StackPanel>
                                 </Border>
@@ -793,16 +840,16 @@
                                     <TextBlock Text="USO TOTAL DA CPU"
                                                FontSize="11"
                                                FontWeight="SemiBold"
-                                               Opacity="0.7" />
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                     <TextBlock Text="{Binding CpuLoadText}"
                                                FontSize="24"
                                                FontWeight="Bold"
-                                               Foreground="#60CDFF"
+                                               Foreground="#0288D1"
                                                Margin="0,4,0,8" />
                                     <ProgressBar Minimum="0"
                                                  Maximum="100"
                                                  Height="6"
-                                                 Foreground="#60CDFF"
+                                                 Foreground="#0288D1"
                                                  Value="{Binding CpuLoadBarValue, Mode=OneWay}" />
                                 </StackPanel>
                             </Border>
@@ -813,15 +860,15 @@
                                     <TextBlock Text="TEMPERATURA (PACKAGE / TDIE)"
                                                FontSize="11"
                                                FontWeight="SemiBold"
-                                               Opacity="0.7" />
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                     <TextBlock Text="{Binding CpuTemperatureText}"
                                                FontSize="24"
                                                FontWeight="Bold"
-                                               Foreground="#FFFFFF"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                                                Margin="0,4,0,2" />
                                     <TextBlock Text="Sensor térmico principal"
                                                FontSize="11"
-                                               Opacity="0.55" />
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                 </StackPanel>
                             </Border>
 
@@ -831,15 +878,15 @@
                                     <TextBlock Text="CONSUMO ELÉTRICO (PACKAGE)"
                                                FontSize="11"
                                                FontWeight="SemiBold"
-                                               Opacity="0.7" />
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                     <TextBlock Text="{Binding CpuPowerText}"
                                                FontSize="24"
                                                FontWeight="Bold"
-                                               Foreground="#FFB900"
+                                               Foreground="#F59E0B"
                                                Margin="0,4,0,2" />
                                     <TextBlock Text="Potência em tempo real"
                                                FontSize="11"
-                                               Opacity="0.55" />
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                 </StackPanel>
                             </Border>
                         </UniformGrid>
@@ -851,15 +898,15 @@
                                     <TextBlock Text="TENSÃO DO NÚCLEO (VCORE / VID)"
                                                FontSize="11"
                                                FontWeight="SemiBold"
-                                               Opacity="0.7" />
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                     <TextBlock Text="{Binding CpuVoltageText}"
                                                FontSize="22"
                                                FontWeight="Bold"
-                                               Foreground="#00E5FF"
+                                               Foreground="#00B8D4"
                                                Margin="0,4,0,2" />
                                     <TextBlock Text="Leitura direta CPU / SuperIO Placa-Mãe"
                                                FontSize="11"
-                                               Opacity="0.55" />
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                 </StackPanel>
                             </Border>
 
@@ -869,15 +916,15 @@
                                     <TextBlock Text="FREQUÊNCIA (CLOCK MÉDIO / MÁXIMO)"
                                                FontSize="11"
                                                FontWeight="SemiBold"
-                                               Opacity="0.7" />
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                     <TextBlock Text="{Binding CpuClockAvgMaxText}"
                                                FontSize="20"
                                                FontWeight="Bold"
-                                               Foreground="#FFFFFF"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                                                Margin="0,4,0,2" />
                                     <TextBlock Text="Frequência operacional dos núcleos ativos"
                                                FontSize="11"
-                                               Opacity="0.55" />
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                 </StackPanel>
                             </Border>
                         </UniformGrid>
@@ -886,7 +933,7 @@
                         <TextBlock Text="Telemetria Individual por Núcleo / Thread"
                                    FontSize="16"
                                    FontWeight="SemiBold"
-                                   Foreground="#FFFFFF"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                                    Margin="0,4,0,10" />
 
                         <ItemsControl ItemsSource="{Binding CpuCores}">
@@ -897,8 +944,8 @@
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Border Background="#14FFFFFF"
-                                            BorderBrush="#22FFFFFF"
+                                    <Border Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                                            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
                                             BorderThickness="1"
                                             CornerRadius="6"
                                             Padding="12,10"
@@ -914,12 +961,12 @@
                                                            Text="{Binding CoreName}"
                                                            FontWeight="SemiBold"
                                                            FontSize="13"
-                                                           Foreground="#FFFFFF" />
+                                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                                                 <TextBlock Grid.Column="1"
                                                            Text="{Binding ClockText}"
                                                            FontFamily="Consolas"
                                                            FontSize="12.5"
-                                                           Foreground="#A0AEC0"
+                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                                            Margin="8,0"
                                                            VerticalAlignment="Center" />
                                                 <TextBlock Grid.Column="2"
@@ -927,7 +974,7 @@
                                                            FontFamily="Consolas"
                                                            FontWeight="Bold"
                                                            FontSize="13"
-                                                           Foreground="#60CDFF"
+                                                           Foreground="#0288D1"
                                                            Width="44"
                                                            TextAlignment="Right"
                                                            VerticalAlignment="Center" />
@@ -936,7 +983,7 @@
                                                          Maximum="100"
                                                          Height="5"
                                                          Margin="0,7,0,0"
-                                                         Foreground="#60CDFF"
+                                                         Foreground="#0288D1"
                                                          Value="{Binding LoadBarValue, Mode=OneWay}" />
                                         </StackPanel>
                                     </Border>
@@ -962,16 +1009,16 @@
                                 <TextBlock Text="Placa de Vídeo (GPU)"
                                            FontSize="22"
                                            FontWeight="Bold"
-                                           Foreground="#FFFFFF" />
+                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                                 <TextBlock Text="Suporte Multi-GPU (Integrada e Dedicada) com telemetria de Core, Hot Spot, Clocks, VRAM, Energia e Fans"
                                            FontSize="13"
-                                           Opacity="0.7"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                            Margin="0,2,0,0" />
                             </StackPanel>
 
                             <Border Grid.Column="1"
-                                    Background="#1A6CCB5F"
-                                    BorderBrush="#446CCB5F"
+                                    Background="#1A10B981"
+                                    BorderBrush="#4410B981"
                                     BorderThickness="1"
                                     CornerRadius="6"
                                     Padding="12,6"
@@ -979,7 +1026,7 @@
                                 <TextBlock Text="{Binding GpuCountBadgeText}"
                                            FontSize="12.5"
                                            FontWeight="Bold"
-                                           Foreground="#6CCB5F" />
+                                           Foreground="#10B981" />
                             </Border>
                         </Grid>
 
@@ -996,10 +1043,10 @@
                                     <TextBlock Text="SELECIONAR ADAPTADOR GRÁFICO (GPU)"
                                                FontSize="11"
                                                FontWeight="Bold"
-                                               Foreground="#6CCB5F" />
+                                               Foreground="#10B981" />
                                     <TextBlock Text="Alterne entre a GPU dedicada e a integrada"
                                                FontSize="12"
-                                               Opacity="0.7" />
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                 </StackPanel>
 
                                 <ComboBox Grid.Column="1"
@@ -1025,28 +1072,27 @@
                                         <TextBlock Text="{Binding Vendor}"
                                                    FontSize="11"
                                                    FontWeight="Bold"
-                                                   Foreground="#6CCB5F" />
+                                                   Foreground="#10B981" />
                                         <TextBlock Text="{Binding Name}"
                                                    FontSize="19"
                                                    FontWeight="Bold"
-                                                   Foreground="#FFFFFF"
+                                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                                                    TextWrapping="Wrap"
                                                    Margin="0,2,0,0" />
                                     </StackPanel>
 
                                     <Border Grid.Column="1"
-                                            Background="#18FFFFFF"
-                                            CornerRadius="6"
+                                            Style="{StaticResource SubCardBorderStyle}"
                                             Padding="14,8"
                                             VerticalAlignment="Center">
                                         <StackPanel>
                                             <TextBlock Text="VRAM TOTAL"
                                                        FontSize="10"
-                                                       Opacity="0.65" />
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                             <TextBlock Text="{Binding TotalVramDisplay}"
                                                        FontSize="16"
                                                        FontWeight="Bold"
-                                                       Foreground="#6CCB5F" />
+                                                       Foreground="#10B981" />
                                         </StackPanel>
                                     </Border>
                                 </Grid>
@@ -1059,16 +1105,16 @@
                                         <TextBlock Text="USO DO CORE (GPU LOAD)"
                                                    FontSize="11"
                                                    FontWeight="SemiBold"
-                                                   Opacity="0.7" />
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                         <TextBlock Text="{Binding CoreLoadText}"
                                                    FontSize="24"
                                                    FontWeight="Bold"
-                                                   Foreground="#6CCB5F"
+                                                   Foreground="#10B981"
                                                    Margin="0,4,0,8" />
                                         <ProgressBar Minimum="0"
                                                      Maximum="100"
                                                      Height="6"
-                                                     Foreground="#6CCB5F"
+                                                     Foreground="#10B981"
                                                      Value="{Binding CoreLoadBarValue, Mode=OneWay}" />
                                     </StackPanel>
                                 </Border>
@@ -1078,16 +1124,16 @@
                                         <TextBlock Text="USO DE MEMÓRIA DE VÍDEO (VRAM USADA / TOTAL)"
                                                    FontSize="11"
                                                    FontWeight="SemiBold"
-                                                   Opacity="0.7" />
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                         <TextBlock Text="{Binding VramUsageText}"
                                                    FontSize="18"
                                                    FontWeight="Bold"
-                                                   Foreground="#FFFFFF"
+                                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                                                    Margin="0,8,0,10" />
                                         <ProgressBar Minimum="0"
                                                      Maximum="100"
                                                      Height="6"
-                                                     Foreground="#00E5FF"
+                                                     Foreground="#00B8D4"
                                                      Value="{Binding VramUsagePercent, Mode=OneWay}" />
                                     </StackPanel>
                                 </Border>
@@ -1105,22 +1151,22 @@
                                             <TextBlock Text="TEMPERATURA CORE"
                                                        FontSize="11"
                                                        FontWeight="SemiBold"
-                                                       Opacity="0.7" />
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                             <TextBlock Text="{Binding CoreTemperatureText}"
                                                        FontSize="22"
                                                        FontWeight="Bold"
-                                                       Foreground="#FFFFFF"
+                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                                                        Margin="0,4,0,0" />
                                         </StackPanel>
                                         <StackPanel Grid.Column="1">
                                             <TextBlock Text="TEMPERATURA HOT SPOT"
                                                        FontSize="11"
                                                        FontWeight="SemiBold"
-                                                       Opacity="0.7" />
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                             <TextBlock Text="{Binding HotSpotTemperatureText}"
                                                        FontSize="22"
                                                        FontWeight="Bold"
-                                                       Foreground="#FFB900"
+                                                       Foreground="#F59E0B"
                                                        Margin="0,4,0,0" />
                                         </StackPanel>
                                     </Grid>
@@ -1136,22 +1182,22 @@
                                             <TextBlock Text="CLOCK DO CORE"
                                                        FontSize="11"
                                                        FontWeight="SemiBold"
-                                                       Opacity="0.7" />
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                             <TextBlock Text="{Binding CoreClockText}"
                                                        FontSize="20"
                                                        FontWeight="Bold"
-                                                       Foreground="#6CCB5F"
+                                                       Foreground="#10B981"
                                                        Margin="0,6,0,0" />
                                         </StackPanel>
                                         <StackPanel Grid.Column="1">
                                             <TextBlock Text="CLOCK DA MEMÓRIA"
                                                        FontSize="11"
                                                        FontWeight="SemiBold"
-                                                       Opacity="0.7" />
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                             <TextBlock Text="{Binding MemoryClockText}"
                                                        FontSize="20"
                                                        FontWeight="Bold"
-                                                       Foreground="#FFFFFF"
+                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                                                        Margin="0,6,0,0" />
                                         </StackPanel>
                                     </Grid>
@@ -1165,15 +1211,15 @@
                                         <TextBlock Text="CONSUMO DA GPU (BOARD / PACKAGE POWER)"
                                                    FontSize="11"
                                                    FontWeight="SemiBold"
-                                                   Opacity="0.7" />
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                         <TextBlock Text="{Binding PowerText}"
                                                    FontSize="22"
                                                    FontWeight="Bold"
-                                                   Foreground="#FFB900"
+                                                   Foreground="#F59E0B"
                                                    Margin="0,4,0,2" />
                                         <TextBlock Text="Exibe N/D caso o hardware não possua sensor de potência"
                                                    FontSize="11"
-                                                   Opacity="0.55" />
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                     </StackPanel>
                                 </Border>
 
@@ -1182,15 +1228,15 @@
                                         <TextBlock Text="VELOCIDADE DOS FANS (VENTOINHAS)"
                                                    FontSize="11"
                                                    FontWeight="SemiBold"
-                                                   Opacity="0.7" />
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                         <TextBlock Text="{Binding FanText}"
                                                    FontSize="22"
                                                    FontWeight="Bold"
-                                                   Foreground="#00E5FF"
+                                                   Foreground="#00B8D4"
                                                    Margin="0,4,0,2" />
                                         <TextBlock Text="Rotação em RPM / % (ou N/D em GPUs integradas / Fan Stop)"
                                                    FontSize="11"
-                                                   Opacity="0.55" />
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                     </StackPanel>
                                 </Border>
                             </UniformGrid>
@@ -1208,10 +1254,10 @@
                         <TextBlock Text="Sistema &amp; Armazenamento"
                                    FontSize="22"
                                    FontWeight="Bold"
-                                   Foreground="#FFFFFF" />
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                         <TextBlock Text="Ocupação detalhada da Memória RAM física, espaço das partições do Windows e temperatura dos SSDs/HDDs"
                                    FontSize="13"
-                                   Opacity="0.7"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                    Margin="0,2,0,18" />
 
                         <!-- Uso Detalhado de Memória RAM -->
@@ -1226,11 +1272,11 @@
                                         <TextBlock Text="MEMÓRIA RAM FÍSICA"
                                                    FontSize="11"
                                                    FontWeight="Bold"
-                                                   Foreground="#C586C0" />
+                                                   Foreground="#A855F7" />
                                         <TextBlock Text="{Binding RamDetailedSummaryText}"
                                                    FontSize="17"
                                                    FontWeight="Bold"
-                                                   Foreground="#FFFFFF"
+                                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                                                    Margin="0,3,0,0" />
                                     </StackPanel>
 
@@ -1238,7 +1284,7 @@
                                                Text="{Binding RamPercentText}"
                                                FontSize="24"
                                                FontWeight="Bold"
-                                               Foreground="#C586C0"
+                                               Foreground="#A855F7"
                                                VerticalAlignment="Center" />
                                 </Grid>
 
@@ -1246,26 +1292,26 @@
                                              Maximum="100"
                                              Height="10"
                                              Margin="0,12,0,14"
-                                             Foreground="#C586C0"
+                                             Foreground="#A855F7"
                                              Value="{Binding RamUsageBarValue, Mode=OneWay}" />
 
                                 <UniformGrid Columns="3">
-                                    <Border Background="#12FFFFFF" CornerRadius="6" Padding="12,8" Margin="0,0,6,0">
+                                    <Border Style="{StaticResource SubCardBorderStyle}" Padding="12,8" Margin="0,0,6,0">
                                         <StackPanel>
-                                            <TextBlock Text="TOTAL INSTALADO" FontSize="10" Opacity="0.65" />
-                                            <TextBlock Text="{Binding RamTotalText}" FontSize="16" FontWeight="Bold" Foreground="#FFFFFF" Margin="0,2,0,0" />
+                                            <TextBlock Text="TOTAL INSTALADO" FontSize="10" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                            <TextBlock Text="{Binding RamTotalText}" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource TextFillColorPrimaryBrush}" Margin="0,2,0,0" />
                                         </StackPanel>
                                     </Border>
-                                    <Border Background="#12FFFFFF" CornerRadius="6" Padding="12,8" Margin="3,0,3,0">
+                                    <Border Style="{StaticResource SubCardBorderStyle}" Padding="12,8" Margin="3,0,3,0">
                                         <StackPanel>
-                                            <TextBlock Text="MEMÓRIA EM USO" FontSize="10" Opacity="0.65" />
-                                            <TextBlock Text="{Binding RamUsedText}" FontSize="16" FontWeight="Bold" Foreground="#C586C0" Margin="0,2,0,0" />
+                                            <TextBlock Text="MEMÓRIA EM USO" FontSize="10" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                            <TextBlock Text="{Binding RamUsedText}" FontSize="16" FontWeight="Bold" Foreground="#A855F7" Margin="0,2,0,0" />
                                         </StackPanel>
                                     </Border>
-                                    <Border Background="#12FFFFFF" CornerRadius="6" Padding="12,8" Margin="6,0,0,0">
+                                    <Border Style="{StaticResource SubCardBorderStyle}" Padding="12,8" Margin="6,0,0,0">
                                         <StackPanel>
-                                            <TextBlock Text="MEMÓRIA LIVRE" FontSize="10" Opacity="0.65" />
-                                            <TextBlock Text="{Binding RamFreeText}" FontSize="16" FontWeight="Bold" Foreground="#6CCB5F" Margin="0,2,0,0" />
+                                            <TextBlock Text="MEMÓRIA LIVRE" FontSize="10" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                            <TextBlock Text="{Binding RamFreeText}" FontSize="16" FontWeight="Bold" Foreground="#10B981" Margin="0,2,0,0" />
                                         </StackPanel>
                                     </Border>
                                 </UniformGrid>
@@ -1276,7 +1322,7 @@
                         <TextBlock Text="Unidades de Armazenamento (Partições e Temperatura Física)"
                                    FontSize="16"
                                    FontWeight="SemiBold"
-                                   Foreground="#FFFFFF"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                                    Margin="0,6,0,10" />
 
                         <ItemsControl ItemsSource="{Binding StorageDrives}">
@@ -1295,12 +1341,12 @@
                                                         Width="44"
                                                         Height="44"
                                                         CornerRadius="8"
-                                                        Background="#1AFFB900"
+                                                        Background="#1AF59E0B"
                                                         VerticalAlignment="Center"
                                                         Margin="0,0,14,0">
                                                     <ui:SymbolIcon Symbol="HardDrive20"
                                                                    FontSize="22"
-                                                                   Foreground="#FFB900"
+                                                                   Foreground="#F59E0B"
                                                                    HorizontalAlignment="Center"
                                                                    VerticalAlignment="Center" />
                                                 </Border>
@@ -1310,8 +1356,8 @@
                                                         <TextBlock Text="{Binding DisplayTitle}"
                                                                    FontSize="16"
                                                                    FontWeight="Bold"
-                                                                   Foreground="#FFFFFF" />
-                                                        <Border Background="#1FFFFFFF"
+                                                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                        <Border Style="{StaticResource SubCardBorderStyle}"
                                                                 CornerRadius="4"
                                                                 Padding="6,2"
                                                                 Margin="8,0,0,0"
@@ -1319,31 +1365,28 @@
                                                             <TextBlock Text="{Binding FileSystem}"
                                                                        FontSize="10.5"
                                                                        FontWeight="SemiBold"
-                                                                       Foreground="#00E5FF" />
+                                                                       Foreground="#00B8D4" />
                                                         </Border>
                                                     </StackPanel>
                                                     <TextBlock Text="{Binding PhysicalDiskModel}"
                                                                FontSize="12.5"
-                                                               Opacity="0.75"
+                                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                                                Margin="0,2,0,0" />
                                                 </StackPanel>
 
                                                 <!-- Temperatura Física do SSD/HDD (com fallback para "Sem sensor") -->
                                                 <Border Grid.Column="2"
-                                                        Background="#18FFFFFF"
-                                                        BorderBrush="#28FFFFFF"
-                                                        BorderThickness="1"
-                                                        CornerRadius="6"
+                                                        Style="{StaticResource SubCardBorderStyle}"
                                                         Padding="14,6"
                                                         VerticalAlignment="Center">
                                                     <StackPanel HorizontalAlignment="Center">
                                                         <TextBlock Text="TEMPERATURA FÍSICA"
                                                                    FontSize="9.5"
-                                                                   Opacity="0.65" />
+                                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                                         <TextBlock Text="{Binding TemperatureText}"
                                                                    FontSize="15"
                                                                    FontWeight="Bold"
-                                                                   Foreground="#FFB900"
+                                                                   Foreground="#F59E0B"
                                                                    HorizontalAlignment="Center"
                                                                    Margin="0,2,0,0" />
                                                     </StackPanel>
@@ -1354,7 +1397,7 @@
                                                          Maximum="100"
                                                          Height="8"
                                                          Margin="0,12,0,8"
-                                                         Foreground="#FFB900"
+                                                         Foreground="#F59E0B"
                                                          Value="{Binding UsagePercent, Mode=OneWay}" />
 
                                             <Grid>
@@ -1366,11 +1409,11 @@
                                                            Text="{Binding CapacitySummaryText}"
                                                            FontSize="12.5"
                                                            FontWeight="SemiBold"
-                                                           Foreground="#E0E0E0" />
+                                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                                                 <TextBlock Grid.Column="1"
                                                            Text="{Binding FreeSpaceSummaryText}"
                                                            FontSize="12.5"
-                                                           Foreground="#A0AEC0" />
+                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                             </Grid>
                                         </StackPanel>
                                     </Border>
@@ -1382,7 +1425,7 @@
                         <TextBlock Text="Discos Físicos Detectados (Sensores SMART / LibreHardwareMonitor)"
                                    FontSize="16"
                                    FontWeight="SemiBold"
-                                   Foreground="#FFFFFF"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                                    Margin="0,8,0,10" />
 
                         <ItemsControl ItemsSource="{Binding PhysicalDisks}">
@@ -1399,7 +1442,7 @@
                                             <ui:SymbolIcon Grid.Column="0"
                                                            Symbol="HardDrive20"
                                                            FontSize="20"
-                                                           Foreground="#00E5FF"
+                                                           Foreground="#00B8D4"
                                                            VerticalAlignment="Center"
                                                            Margin="0,0,12,0" />
 
@@ -1407,21 +1450,20 @@
                                                 <TextBlock Text="{Binding ModelName}"
                                                            FontSize="14.5"
                                                            FontWeight="Bold"
-                                                           Foreground="#FFFFFF" />
+                                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                                                 <TextBlock Text="Unidade Física (SMART / Sensor Térmico)"
                                                            FontSize="11.5"
-                                                           Opacity="0.65" />
+                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                             </StackPanel>
 
                                             <Border Grid.Column="2"
-                                                    Background="#18FFFFFF"
-                                                    CornerRadius="6"
+                                                    Style="{StaticResource SubCardBorderStyle}"
                                                     Padding="12,5"
                                                     VerticalAlignment="Center">
                                                 <TextBlock Text="{Binding TemperatureText}"
                                                            FontSize="14"
                                                            FontWeight="Bold"
-                                                           Foreground="#00E5FF" />
+                                                           Foreground="#00B8D4" />
                                             </Border>
                                         </Grid>
                                     </Border>
@@ -1432,7 +1474,452 @@
                 </ScrollViewer>
 
                 <!-- ======================================================================= -->
-                <!-- 5. RODAPÉ (ÍCONE DE ENGRENAGEM): "CONFIGURAÇÕES" DO APP E DO OVERLAY   -->
+                <!-- 5. ABA "PERSONALIZAÇÃO" (TEMAS DO APP, CORES E ORDEM DO OVERLAY)       -->
+                <!-- ======================================================================= -->
+                <ScrollViewer Visibility="{Binding IsPersonalizationTabSelected, Converter={StaticResource BoolToVis}}"
+                              VerticalScrollBarVisibility="Auto"
+                              Padding="24,18,24,24">
+                    <StackPanel>
+                        <TextBlock Text="Personalização Visual &amp; Layout do Overlay"
+                                   FontSize="22"
+                                   FontWeight="Bold"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                        <TextBlock Text="Customize o tema do CleanPanel, a paleta de cores em tempo real e a ordem de exibição dos blocos no Overlay"
+                                   FontSize="13"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   Margin="0,2,0,18" />
+
+                        <!-- ==================== A. TEMA DO APLICATIVO ==================== -->
+                        <TextBlock Text="Tema do Aplicativo (CleanPanel)"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                   Margin="0,0,0,10" />
+
+                        <Border Style="{StaticResource TelemetryCardBorderStyle}">
+                            <StackPanel>
+                                <TextBlock Text="Modo de Aparência da Janela Principal"
+                                           FontWeight="SemiBold"
+                                           FontSize="14"
+                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                <TextBlock Text="Escolha entre o tema Escuro, Claro ou sincronizado automaticamente com o tema atual do Windows 11"
+                                           FontSize="12"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                           Margin="0,2,0,12" />
+
+                                <UniformGrid Columns="3">
+                                    <!-- Opção 1: Escuro (Dark) -->
+                                    <Border Style="{StaticResource SubCardBorderStyle}"
+                                            Padding="12,10"
+                                            Margin="0,0,6,0">
+                                        <RadioButton GroupName="AppThemeGroup"
+                                                     IsChecked="{Binding IsThemeDarkSelected, Mode=TwoWay}"
+                                                     Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                                     Cursor="Hand">
+                                            <StackPanel Margin="6,0,0,0">
+                                                <TextBlock Text="Escuro (Dark)"
+                                                           FontWeight="SemiBold"
+                                                           FontSize="13.5"
+                                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                <TextBlock Text="Visual escuro de alto contraste"
+                                                           FontSize="11"
+                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                            </StackPanel>
+                                        </RadioButton>
+                                    </Border>
+
+                                    <!-- Opção 2: Claro (Light) -->
+                                    <Border Style="{StaticResource SubCardBorderStyle}"
+                                            Padding="12,10"
+                                            Margin="3,0,3,0">
+                                        <RadioButton GroupName="AppThemeGroup"
+                                                     IsChecked="{Binding IsThemeLightSelected, Mode=TwoWay}"
+                                                     Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                                     Cursor="Hand">
+                                            <StackPanel Margin="6,0,0,0">
+                                                <TextBlock Text="Claro (Light)"
+                                                           FontWeight="SemiBold"
+                                                           FontSize="13.5"
+                                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                <TextBlock Text="Superfícies claras e nítidas"
+                                                           FontSize="11"
+                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                            </StackPanel>
+                                        </RadioButton>
+                                    </Border>
+
+                                    <!-- Opção 3: Automático (Seguir o Windows) -->
+                                    <Border Style="{StaticResource SubCardBorderStyle}"
+                                            Padding="12,10"
+                                            Margin="6,0,0,0">
+                                        <RadioButton GroupName="AppThemeGroup"
+                                                     IsChecked="{Binding IsThemeAutoSelected, Mode=TwoWay}"
+                                                     Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                                     Cursor="Hand">
+                                            <StackPanel Margin="6,0,0,0">
+                                                <TextBlock Text="Automático (Windows)"
+                                                           FontWeight="SemiBold"
+                                                           FontSize="13.5"
+                                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                <TextBlock Text="Segue o tema do sistema"
+                                                           FontSize="11"
+                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                            </StackPanel>
+                                        </RadioButton>
+                                    </Border>
+                                </UniformGrid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- ==================== B. PERSONALIZAÇÃO DE CORES DO OVERLAY ==================== -->
+                        <Grid Margin="0,8,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Text="Personalização de Cores do Overlay"
+                                       FontSize="16"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                       VerticalAlignment="Center" />
+                            <ui:Button Grid.Column="1"
+                                       Content="Restaurar Cores Padrão"
+                                       Appearance="Secondary"
+                                       Command="{Binding ResetOverlayColorsCommand}" />
+                        </Grid>
+
+                        <!-- Paletas Rápidas Predefinidas -->
+                        <Border Style="{StaticResource TelemetryCardBorderStyle}">
+                            <StackPanel>
+                                <TextBlock Text="Temas Rápidos de Cores para o Overlay"
+                                           FontWeight="SemiBold"
+                                           FontSize="14"
+                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                <TextBlock Text="Aplique instantaneamente uma combinação harmônica de fundo, borda, títulos e métricas:"
+                                           FontSize="12"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                           Margin="0,2,0,10" />
+
+                                <UniformGrid Columns="3" Rows="2">
+                                    <ui:Button Content="Ciano Clean (Padrão)"
+                                               Appearance="Secondary"
+                                               HorizontalAlignment="Stretch"
+                                               Margin="0,0,6,6"
+                                               Command="{Binding ApplyColorPresetCommand}"
+                                               CommandParameter="CleanCyan" />
+                                    <ui:Button Content="Verde Esmeralda"
+                                               Appearance="Secondary"
+                                               HorizontalAlignment="Stretch"
+                                               Margin="3,0,3,6"
+                                               Command="{Binding ApplyColorPresetCommand}"
+                                               CommandParameter="EmeraldNeon" />
+                                    <ui:Button Content="Âmbar Dourado"
+                                               Appearance="Secondary"
+                                               HorizontalAlignment="Stretch"
+                                               Margin="6,0,0,6"
+                                               Command="{Binding ApplyColorPresetCommand}"
+                                               CommandParameter="AmberGold" />
+                                    <ui:Button Content="Rubi Carmesim"
+                                               Appearance="Secondary"
+                                               HorizontalAlignment="Stretch"
+                                               Margin="0,0,6,0"
+                                               Command="{Binding ApplyColorPresetCommand}"
+                                               CommandParameter="CrimsonPulse" />
+                                    <ui:Button Content="Roxo Synthwave"
+                                               Appearance="Secondary"
+                                               HorizontalAlignment="Stretch"
+                                               Margin="3,0,3,0"
+                                               Command="{Binding ApplyColorPresetCommand}"
+                                               CommandParameter="PurpleSynth" />
+                                    <ui:Button Content="Claro Minimalista"
+                                               Appearance="Secondary"
+                                               HorizontalAlignment="Stretch"
+                                               Margin="6,0,0,0"
+                                               Command="{Binding ApplyColorPresetCommand}"
+                                               CommandParameter="MinimalLight" />
+                                </UniformGrid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 1. Cor do Fundo do Overlay -->
+                        <Border Style="{StaticResource TelemetryCardBorderStyle}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="125" />
+                                </Grid.ColumnDefinitions>
+
+                                <Border Grid.Column="0"
+                                        Width="36"
+                                        Height="36"
+                                        CornerRadius="8"
+                                        Background="{Binding OverlayBackgroundBrush}"
+                                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                        BorderThickness="1.5"
+                                        VerticalAlignment="Center"
+                                        Margin="0,0,14,0" />
+
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="1. Cor do Fundo do Overlay"
+                                               FontWeight="SemiBold"
+                                               FontSize="14"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                    <TextBlock Text="Cor base da janela flutuante (Padrão: #141418)"
+                                               FontSize="12"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="2"
+                                            Orientation="Horizontal"
+                                            VerticalAlignment="Center"
+                                            Margin="12,0,14,0">
+                                    <Button Style="{StaticResource ColorSwatchButtonStyle}" Background="#141418" ToolTip="#141418" Command="{Binding SetBackgroundQuickColorCommand}" CommandParameter="#141418" />
+                                    <Button Style="{StaticResource ColorSwatchButtonStyle}" Background="#0F172A" ToolTip="#0F172A" Command="{Binding SetBackgroundQuickColorCommand}" CommandParameter="#0F172A" />
+                                    <Button Style="{StaticResource ColorSwatchButtonStyle}" Background="#090D16" ToolTip="#090D16" Command="{Binding SetBackgroundQuickColorCommand}" CommandParameter="#090D16" />
+                                    <Button Style="{StaticResource ColorSwatchButtonStyle}" Background="#18181B" ToolTip="#18181B" Command="{Binding SetBackgroundQuickColorCommand}" CommandParameter="#18181B" />
+                                    <Button Style="{StaticResource ColorSwatchButtonStyle}" Background="#1E1B4B" ToolTip="#1E1B4B" Command="{Binding SetBackgroundQuickColorCommand}" CommandParameter="#1E1B4B" />
+                                    <Button Style="{StaticResource ColorSwatchButtonStyle}" Background="#F8FAFC" ToolTip="#F8FAFC" Command="{Binding SetBackgroundQuickColorCommand}" CommandParameter="#F8FAFC" />
+                                </StackPanel>
+
+                                <TextBox Grid.Column="3"
+                                         Text="{Binding OverlayBackgroundColorHex, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         FontFamily="Consolas"
+                                         FontWeight="SemiBold"
+                                         VerticalAlignment="Center"
+                                         ToolTip="Código Hex (#RRGGBB ou #AARRGGBB)" />
+                            </Grid>
+                        </Border>
+
+                        <!-- 2. Cor da Borda do Overlay -->
+                        <Border Style="{StaticResource TelemetryCardBorderStyle}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="125" />
+                                </Grid.ColumnDefinitions>
+
+                                <Border Grid.Column="0"
+                                        Width="36"
+                                        Height="36"
+                                        CornerRadius="8"
+                                        Background="{Binding OverlayBorderBrush}"
+                                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                        BorderThickness="1.5"
+                                        VerticalAlignment="Center"
+                                        Margin="0,0,14,0" />
+
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="2. Cor da Borda do Overlay"
+                                               FontWeight="SemiBold"
+                                               FontSize="14"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                    <TextBlock Text="Contorno sutil do painel flutuante (Padrão: #33FFFFFF)"
+                                               FontSize="12"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                </StackPanel>
+
+                                <TextBox Grid.Column="2"
+                                         Text="{Binding OverlayBorderColorHex, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         FontFamily="Consolas"
+                                         FontWeight="SemiBold"
+                                         VerticalAlignment="Center"
+                                         ToolTip="Código Hex (#RRGGBB ou #AARRGGBB)" />
+                            </Grid>
+                        </Border>
+
+                        <!-- 3. Cor de Destaque dos Títulos / Cabeçalhos de Hardware -->
+                        <Border Style="{StaticResource TelemetryCardBorderStyle}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="125" />
+                                </Grid.ColumnDefinitions>
+
+                                <Border Grid.Column="0"
+                                        Width="36"
+                                        Height="36"
+                                        CornerRadius="8"
+                                        Background="{Binding OverlayHeaderBrush}"
+                                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                        BorderThickness="1.5"
+                                        VerticalAlignment="Center"
+                                        Margin="0,0,14,0" />
+
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="3. Cor de Destaque dos Títulos de Hardware"
+                                               FontWeight="SemiBold"
+                                               FontSize="14"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                    <TextBlock Text="Cor dos nomes reais de CPU, GPU e Memória RAM (Padrão: #00E5FF)"
+                                               FontSize="12"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="2"
+                                            Orientation="Horizontal"
+                                            VerticalAlignment="Center"
+                                            Margin="12,0,14,0">
+                                    <Button Style="{StaticResource ColorSwatchButtonStyle}" Background="#00E5FF" ToolTip="#00E5FF" Command="{Binding SetHeaderQuickColorCommand}" CommandParameter="#00E5FF" />
+                                    <Button Style="{StaticResource ColorSwatchButtonStyle}" Background="#38BDF8" ToolTip="#38BDF8" Command="{Binding SetHeaderQuickColorCommand}" CommandParameter="#38BDF8" />
+                                    <Button Style="{StaticResource ColorSwatchButtonStyle}" Background="#2DD4BF" ToolTip="#2DD4BF" Command="{Binding SetHeaderQuickColorCommand}" CommandParameter="#2DD4BF" />
+                                    <Button Style="{StaticResource ColorSwatchButtonStyle}" Background="#10B981" ToolTip="#10B981" Command="{Binding SetHeaderQuickColorCommand}" CommandParameter="#10B981" />
+                                    <Button Style="{StaticResource ColorSwatchButtonStyle}" Background="#FFB900" ToolTip="#FFB900" Command="{Binding SetHeaderQuickColorCommand}" CommandParameter="#FFB900" />
+                                    <Button Style="{StaticResource ColorSwatchButtonStyle}" Background="#F43F5E" ToolTip="#F43F5E" Command="{Binding SetHeaderQuickColorCommand}" CommandParameter="#F43F5E" />
+                                    <Button Style="{StaticResource ColorSwatchButtonStyle}" Background="#A855F7" ToolTip="#A855F7" Command="{Binding SetHeaderQuickColorCommand}" CommandParameter="#A855F7" />
+                                </StackPanel>
+
+                                <TextBox Grid.Column="3"
+                                         Text="{Binding OverlayHeaderColorHex, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         FontFamily="Consolas"
+                                         FontWeight="SemiBold"
+                                         VerticalAlignment="Center"
+                                         ToolTip="Código Hex (#RRGGBB ou #AARRGGBB)" />
+                            </Grid>
+                        </Border>
+
+                        <!-- 4. Cor do Texto / Valores das Métricas -->
+                        <Border Style="{StaticResource TelemetryCardBorderStyle}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="125" />
+                                </Grid.ColumnDefinitions>
+
+                                <Border Grid.Column="0"
+                                        Width="36"
+                                        Height="36"
+                                        CornerRadius="8"
+                                        Background="{Binding OverlayValueTextBrush}"
+                                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                        BorderThickness="1.5"
+                                        VerticalAlignment="Center"
+                                        Margin="0,0,14,0" />
+
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="4. Cor do Texto / Valores das Métricas"
+                                               FontWeight="SemiBold"
+                                               FontSize="14"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                    <TextBlock Text="Cor das leituras numéricas de Uso, Temperatura, Clock e VRAM (Padrão: #FFFFFF)"
+                                               FontSize="12"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="2"
+                                            Orientation="Horizontal"
+                                            VerticalAlignment="Center"
+                                            Margin="12,0,14,0">
+                                    <Button Style="{StaticResource ColorSwatchButtonStyle}" Background="#FFFFFF" ToolTip="#FFFFFF" Command="{Binding SetValueQuickColorCommand}" CommandParameter="#FFFFFF" />
+                                    <Button Style="{StaticResource ColorSwatchButtonStyle}" Background="#E2E8F0" ToolTip="#E2E8F0" Command="{Binding SetValueQuickColorCommand}" CommandParameter="#E2E8F0" />
+                                    <Button Style="{StaticResource ColorSwatchButtonStyle}" Background="#38BDF8" ToolTip="#38BDF8" Command="{Binding SetValueQuickColorCommand}" CommandParameter="#38BDF8" />
+                                    <Button Style="{StaticResource ColorSwatchButtonStyle}" Background="#6CCB5F" ToolTip="#6CCB5F" Command="{Binding SetValueQuickColorCommand}" CommandParameter="#6CCB5F" />
+                                    <Button Style="{StaticResource ColorSwatchButtonStyle}" Background="#FFB900" ToolTip="#FFB900" Command="{Binding SetValueQuickColorCommand}" CommandParameter="#FFB900" />
+                                    <Button Style="{StaticResource ColorSwatchButtonStyle}" Background="#0F172A" ToolTip="#0F172A" Command="{Binding SetValueQuickColorCommand}" CommandParameter="#0F172A" />
+                                </StackPanel>
+
+                                <TextBox Grid.Column="3"
+                                         Text="{Binding OverlayValueTextColorHex, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         FontFamily="Consolas"
+                                         FontWeight="SemiBold"
+                                         VerticalAlignment="Center"
+                                         ToolTip="Código Hex (#RRGGBB ou #AARRGGBB)" />
+                            </Grid>
+                        </Border>
+
+                        <!-- ==================== C. ORDENAÇÃO DOS BLOCOS NO OVERLAY ==================== -->
+                        <TextBlock Text="Ordenação Dinâmica dos Blocos no Overlay"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                   Margin="0,8,0,10" />
+
+                        <Border Style="{StaticResource TelemetryCardBorderStyle}">
+                            <StackPanel>
+                                <TextBlock Text="Ordem de Exibição dos Grupos de Sensores"
+                                           FontWeight="SemiBold"
+                                           FontSize="14"
+                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                <TextBlock Text="Use os botões Subir (▲) e Descer (▼) para reorganizar a posição de FPS, CPU, GPU e RAM no Overlay em tempo real:"
+                                           FontSize="12"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                           Margin="0,2,0,12" />
+
+                                <ItemsControl ItemsSource="{Binding OverlaySections}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Style="{StaticResource SubCardBorderStyle}"
+                                                    Padding="14,10"
+                                                    Margin="0,0,0,8">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <!-- Posição Numérica (1º, 2º, 3º, 4º) -->
+                                                    <Border Grid.Column="0"
+                                                            Width="32"
+                                                            Height="32"
+                                                            CornerRadius="6"
+                                                            Background="#1F00E5FF"
+                                                            BorderBrush="#4400E5FF"
+                                                            BorderThickness="1"
+                                                            VerticalAlignment="Center"
+                                                            Margin="0,0,14,0">
+                                                        <TextBlock Text="{Binding PositionNumber, StringFormat={}{0}º}"
+                                                                   FontWeight="Bold"
+                                                                   FontSize="13"
+                                                                   Foreground="#00B8D4"
+                                                                   HorizontalAlignment="Center"
+                                                                   VerticalAlignment="Center" />
+                                                    </Border>
+
+                                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding DisplayTitle}"
+                                                                   FontWeight="SemiBold"
+                                                                   FontSize="14"
+                                                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                        <TextBlock Text="{Binding Key, StringFormat=Identificador do Bloco: {0}}"
+                                                                   FontSize="11.5"
+                                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                    </StackPanel>
+
+                                                    <StackPanel Grid.Column="2"
+                                                                Orientation="Horizontal"
+                                                                VerticalAlignment="Center">
+                                                        <ui:Button Content="Subir (▲)"
+                                                                   Appearance="Secondary"
+                                                                   Margin="0,0,6,0"
+                                                                   IsEnabled="{Binding CanMoveUp}"
+                                                                   Command="{Binding Parent.MoveOverlaySectionUpCommand}"
+                                                                   CommandParameter="{Binding}" />
+                                                        <ui:Button Content="Descer (▼)"
+                                                                   Appearance="Secondary"
+                                                                   IsEnabled="{Binding CanMoveDown}"
+                                                                   Command="{Binding Parent.MoveOverlaySectionDownCommand}"
+                                                                   CommandParameter="{Binding}" />
+                                                    </StackPanel>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- ======================================================================= -->
+                <!-- 6. RODAPÉ (ÍCONE DE ENGRENAGEM): "CONFIGURAÇÕES" DO APP E DO OVERLAY   -->
                 <!-- ======================================================================= -->
                 <ScrollViewer Visibility="{Binding IsSettingsTabSelected, Converter={StaticResource BoolToVis}}"
                               VerticalScrollBarVisibility="Auto"
@@ -1441,17 +1928,17 @@
                         <TextBlock Text="Configurações do Aplicativo e Overlay"
                                    FontSize="22"
                                    FontWeight="Bold"
-                                   Foreground="#FFFFFF" />
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                         <TextBlock Text="Personalize o comportamento do Overlay flutuante em jogos, atalhos globais e inicialização com o Windows"
                                    FontSize="13"
-                                   Opacity="0.7"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                    Margin="0,2,0,18" />
 
                         <!-- ==================== CONTROLE GERAL ==================== -->
                         <TextBlock Text="Controle Geral"
                                    FontSize="16"
                                    FontWeight="SemiBold"
-                                   Foreground="#FFFFFF"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                                    Margin="0,0,0,10" />
 
                         <!-- Mostrar / Ocultar Overlay -->
@@ -1491,7 +1978,7 @@
                                 <StackPanel>
                                     <TextBlock Text="Modo Compacto (Apenas FPS, CPU % e GPU %)"
                                                FontWeight="SemiBold"
-                                               Foreground="#00E5FF"
+                                               Foreground="#00B8D4"
                                                FontSize="14" />
                                     <TextBlock Text="Exibe exclusivamente FPS, uso de CPU e uso de GPU com espaçamento reduzido"
                                                FontSize="12"
@@ -1522,7 +2009,7 @@
                                 <TextBlock Text="Ctrl + Shift + O"
                                            FontFamily="Consolas"
                                            FontWeight="Bold"
-                                           Foreground="#00E5FF"
+                                           Foreground="#00B8D4"
                                            FontSize="13" />
                             </Border>
                         </ui:CardControl>
@@ -1564,7 +2051,7 @@
                                     <TextBlock Text="Opacidade do Fundo do Overlay"
                                                FontWeight="SemiBold"
                                                FontSize="14" />
-                                    <TextBlock Text="Ajusta a transparência do card escuro (10% a 100%)"
+                                    <TextBlock Text="Ajusta a transparência do card do Overlay (10% a 100%)"
                                                FontSize="12"
                                                Opacity="0.7" />
                                 </StackPanel>
@@ -1593,7 +2080,7 @@
                         <TextBlock Text="Orientação e Alinhamento na Tela"
                                    FontSize="16"
                                    FontWeight="SemiBold"
-                                   Foreground="#FFFFFF"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                                    Margin="0,8,0,10" />
 
                         <!-- Orientação Horizontal vs Vertical -->
@@ -1603,7 +2090,7 @@
                                     <TextBlock Text="Orientação Horizontal (Barra em Linha)"
                                                FontWeight="SemiBold"
                                                FontSize="14" />
-                                    <TextBlock Text="Organiza as métricas lado a lado em linha com separadores discretos"
+                                    <TextBlock Text="Organiza os blocos de hardware lado a lado em linha com separadores discretos"
                                                FontSize="12"
                                                Opacity="0.7" />
                                 </StackPanel>
@@ -1612,12 +2099,7 @@
                         </ui:CardControl>
 
                         <!-- Grade de Botões de Alinhamento Rápido (6 Posições) -->
-                        <Border Background="#12FFFFFF"
-                                BorderBrush="#1FFFFFFF"
-                                BorderThickness="1"
-                                CornerRadius="8"
-                                Padding="14,12"
-                                Margin="0,0,0,8">
+                        <Border Style="{StaticResource TelemetryCardBorderStyle}">
                             <StackPanel>
                                 <TextBlock Text="Predefinições Rápidas de Alinhamento"
                                            FontWeight="SemiBold"
@@ -1625,7 +2107,7 @@
                                            Margin="0,0,0,4" />
                                 <TextBlock Text="Posicione o Overlay instantaneamente em qualquer canto ou centro da tela:"
                                            FontSize="12"
-                                           Opacity="0.7"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                            Margin="0,0,0,10" />
 
                                 <UniformGrid Columns="3"
@@ -1697,7 +2179,7 @@
                         <TextBlock Text="Sensores Exibidos no Overlay — Desempenho (ETW)"
                                    FontSize="16"
                                    FontWeight="SemiBold"
-                                   Foreground="#FFFFFF"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                                    Margin="0,8,0,10" />
 
                         <ui:CardControl Margin="0,0,0,16">
@@ -1718,7 +2200,7 @@
                         <TextBlock Text="Métricas de CPU no Overlay"
                                    FontSize="16"
                                    FontWeight="SemiBold"
-                                   Foreground="#FFFFFF"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                                    Margin="0,8,0,10" />
 
                         <ui:CardControl Margin="0,0,0,8">
@@ -1761,7 +2243,7 @@
                         <TextBlock Text="Métricas de GPU no Overlay (NVIDIA / AMD / Intel)"
                                    FontSize="16"
                                    FontWeight="SemiBold"
-                                   Foreground="#FFFFFF"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                                    Margin="0,8,0,10" />
 
                         <ui:CardControl Margin="0,0,0,8">
@@ -1791,7 +2273,7 @@
                             <ui:ToggleSwitch IsChecked="{Binding ShowGpuClock, Mode=TwoWay}" />
                         </ui:CardControl>
 
-                        <ui:CardControl Margin="0,0,0,16">
+                        <ui:CardControl Margin="0,0,0,8">
                             <ui:CardControl.Header>
                                 <TextBlock Text="GPU Consumo (Watts)"
                                            FontWeight="Medium"
@@ -1800,11 +2282,25 @@
                             <ui:ToggleSwitch IsChecked="{Binding ShowGpuPower, Mode=TwoWay}" />
                         </ui:CardControl>
 
+                        <ui:CardControl Margin="0,0,0,16">
+                            <ui:CardControl.Header>
+                                <StackPanel>
+                                    <TextBlock Text="GPU Uso de VRAM (GB / %)"
+                                               FontWeight="Medium"
+                                               FontSize="14" />
+                                    <TextBlock Text="Exibe a memória de vídeo em uso no bloco da GPU (ex: 6.2 / 8.0 GB (78%))"
+                                               FontSize="12"
+                                               Opacity="0.7" />
+                                </StackPanel>
+                            </ui:CardControl.Header>
+                            <ui:ToggleSwitch IsChecked="{Binding ShowGpuVram, Mode=TwoWay}" />
+                        </ui:CardControl>
+
                         <!-- ==================== MÉTRICAS DE RAM NO OVERLAY ==================== -->
                         <TextBlock Text="Memória RAM no Overlay"
                                    FontSize="16"
                                    FontWeight="SemiBold"
-                                   Foreground="#FFFFFF"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                                    Margin="0,8,0,10" />
 
                         <ui:CardControl Margin="0,0,0,8">

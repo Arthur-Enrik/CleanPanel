@@ -1,5 +1,7 @@
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 
 namespace HardwareOverlayApp.Helpers;
 
@@ -9,14 +11,14 @@ public static class IconGeneratorHelper
     private static extern bool DestroyIcon(IntPtr hIcon);
 
     /// <summary>
-    /// Garante que o arquivo físico Assets/app.ico exista no disco.
+    /// Gera e garante que o arquivo físico Assets/app.ico contenha a nova logo oficial do CleanPanel em alta definição (múltiplas resoluções).
     /// </summary>
-    public static void EnsureIconFileExists(string? filePath = null)
+    public static void EnsureIconFileExists(string? filePath = null, bool forceOverwrite = true)
     {
         try
         {
             string targetPath = filePath ?? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "app.ico");
-            if (File.Exists(targetPath))
+            if (!forceOverwrite && File.Exists(targetPath))
                 return;
 
             string? directory = Path.GetDirectoryName(targetPath);
@@ -25,21 +27,20 @@ public static class IconGeneratorHelper
                 Directory.CreateDirectory(directory);
             }
 
-            using System.Drawing.Bitmap bitmap = RenderModernIconBitmap(64);
-            SaveBitmapAsIco(bitmap, targetPath);
+            SaveMultiResolutionIco(targetPath, [256, 64, 32, 16]);
         }
         catch
         {
-            // Evita falha na inicialização caso o diretório seja somente leitura
+            // Evita falha na inicialização caso o diretório de instalação seja somente leitura
         }
     }
 
     /// <summary>
-    /// Cria um System.Drawing.Icon em memória para uso no NotifyIcon da bandeja do sistema.
+    /// Cria um System.Drawing.Icon em alta definição para uso no NotifyIcon da bandeja do sistema (System Tray).
     /// </summary>
     public static System.Drawing.Icon CreateTrayIcon()
     {
-        using System.Drawing.Bitmap bitmap = RenderModernIconBitmap(64);
+        using System.Drawing.Bitmap bitmap = RenderCleanPanelLogoBitmap(64);
         IntPtr hIcon = bitmap.GetHicon();
 
         try
@@ -53,7 +54,39 @@ public static class IconGeneratorHelper
         }
     }
 
-    private static System.Drawing.Bitmap RenderModernIconBitmap(int size)
+    /// <summary>
+    /// Cria um ImageSource do WPF em alta definição com a nova logo do CleanPanel para a janela principal e TitleBar.
+    /// </summary>
+    public static ImageSource? CreateWindowIconSource(int size = 128)
+    {
+        try
+        {
+            using System.Drawing.Bitmap bitmap = RenderCleanPanelLogoBitmap(size);
+            using var ms = new MemoryStream();
+            bitmap.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+            ms.Position = 0;
+
+            var bitmapImage = new BitmapImage();
+            bitmapImage.BeginInit();
+            bitmapImage.CacheOption = BitmapCacheOption.OnLoad;
+            bitmapImage.StreamSource = ms;
+            bitmapImage.EndInit();
+            bitmapImage.Freeze();
+            return bitmapImage;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Renderiza a logo minimalista do CleanPanel em estilo Fluent Design / Glassmorphism:
+    /// - Base squircle em gradiente escuro profundo (#0F172A -> #1E293B) com borda iluminada.
+    /// - 3 camadas translúcidas sobrepostas representando painéis limpos.
+    /// - Barras de telemetria em gradiente Azul Celeste (#38BDF8) para Ciano/Verde (#2DD4BF).
+    /// </summary>
+    public static System.Drawing.Bitmap RenderCleanPanelLogoBitmap(int size)
     {
         var bitmap = new System.Drawing.Bitmap(size, size, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
         using var g = System.Drawing.Graphics.FromImage(bitmap);
@@ -61,85 +94,191 @@ public static class IconGeneratorHelper
         g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
         g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
         g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
+        g.CompositingQuality = System.Drawing.Drawing2D.CompositingQuality.HighQuality;
         g.Clear(System.Drawing.Color.Transparent);
 
-        float margin = 3f;
-        float rectSize = size - (margin * 2f);
-        float radius = 14f;
+        float s = size / 256f;
 
-        using (System.Drawing.Drawing2D.GraphicsPath bgPath = CreateRoundedRectangle(margin, margin, rectSize, rectSize, radius))
+        // 1. Base Squircle (#0F172A -> #1E293B)
+        float baseMargin = 12f * s;
+        float baseSize = size - (baseMargin * 2f);
+        float baseRadius = 54f * s;
+
+        using (System.Drawing.Drawing2D.GraphicsPath squirclePath = CreateRoundedRectangle(baseMargin, baseMargin, baseSize, baseSize, baseRadius))
         {
-            // Fundo escuro arredondado (#181824)
-            using var bgBrush = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(255, 24, 24, 36));
-            g.FillPath(bgBrush, bgPath);
+            using var baseGradBrush = new System.Drawing.Drawing2D.LinearGradientBrush(
+                new System.Drawing.PointF(baseMargin, baseMargin),
+                new System.Drawing.PointF(size - baseMargin, size - baseMargin),
+                System.Drawing.Color.FromArgb(255, 15, 23, 42),   // #0F172A
+                System.Drawing.Color.FromArgb(255, 30, 41, 59));  // #1E293B
 
-            // Borda neon ciano (#00E5FF)
-            using var borderPen = new System.Drawing.Pen(System.Drawing.Color.FromArgb(255, 0, 229, 255), 2.5f);
-            g.DrawPath(borderPen, bgPath);
+            g.FillPath(baseGradBrush, squirclePath);
+
+            // Brilho sutil de iluminação no topo do squircle
+            using var borderGradBrush = new System.Drawing.Drawing2D.LinearGradientBrush(
+                new System.Drawing.PointF(baseMargin, baseMargin),
+                new System.Drawing.PointF(size - baseMargin, size - baseMargin),
+                System.Drawing.Color.FromArgb(180, 56, 189, 248), // #38BDF8
+                System.Drawing.Color.FromArgb(90, 45, 212, 191)); // #2DD4BF
+
+            using var baseBorderPen = new System.Drawing.Pen(borderGradBrush, Math.Max(1.5f, 4.5f * s));
+            g.DrawPath(baseBorderPen, squirclePath);
         }
 
-        // Desenho central: moldura discreta de chip + gráfico de pulso em gradiente Ciano (#00E5FF) para Verde (#00FF87)
-        using var gradientBrush = new System.Drawing.Drawing2D.LinearGradientBrush(
-            new System.Drawing.PointF(10f, 32f),
-            new System.Drawing.PointF(54f, 32f),
-            System.Drawing.Color.FromArgb(255, 0, 229, 255),
-            System.Drawing.Color.FromArgb(255, 0, 255, 135));
+        // 2. Camada Traseira (Painel Translúcido 1 - Topo Direito)
+        float backX = 68f * s;
+        float backY = 40f * s;
+        float backW = 142f * s;
+        float backH = 112f * s;
+        float cardRadius = 24f * s;
 
-        using var pulsePen = new System.Drawing.Pen(gradientBrush, 3.8f)
+        using (System.Drawing.Drawing2D.GraphicsPath backCardPath = CreateRoundedRectangle(backX, backY, backW, backH, cardRadius))
         {
-            StartCap = System.Drawing.Drawing2D.LineCap.Round,
-            EndCap = System.Drawing.Drawing2D.LineCap.Round,
-            LineJoin = System.Drawing.Drawing2D.LineJoin.Round
-        };
+            using var backFill = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(42, 56, 189, 248));
+            using var backPen = new System.Drawing.Pen(System.Drawing.Color.FromArgb(85, 56, 189, 248), Math.Max(1f, 2.5f * s));
+            g.FillPath(backFill, backCardPath);
+            g.DrawPath(backPen, backCardPath);
+        }
 
-        System.Drawing.PointF[] pulsePoints =
-        [
-            new(12f, 36f),
-            new(21f, 36f),
-            new(26f, 20f),
-            new(33f, 46f),
-            new(40f, 26f),
-            new(45f, 36f),
-            new(52f, 36f)
-        ];
+        // 3. Camada Intermediária (Painel Translúcido 2 - Centro Glassmorphism)
+        float midX = 54f * s;
+        float midY = 58f * s;
+        float midW = 146f * s;
+        float midH = 122f * s;
 
-        g.DrawLines(pulsePen, pulsePoints);
+        using (System.Drawing.Drawing2D.GraphicsPath midCardPath = CreateRoundedRectangle(midX, midY, midW, midH, cardRadius))
+        {
+            using var midFill = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(55, 30, 41, 59));
+            using var midPen = new System.Drawing.Pen(System.Drawing.Color.FromArgb(105, 148, 163, 184), Math.Max(1f, 2.5f * s));
+            g.FillPath(midFill, midCardPath);
+            g.DrawPath(midPen, midCardPath);
+        }
+
+        // 4. Camada Principal Frontal (Painel Limpo Principal)
+        float frontX = 40f * s;
+        float frontY = 78f * s;
+        float frontW = 156f * s;
+        float frontH = 134f * s;
+
+        using (System.Drawing.Drawing2D.GraphicsPath frontCardPath = CreateRoundedRectangle(frontX, frontY, frontW, frontH, cardRadius))
+        {
+            using var frontGradFill = new System.Drawing.Drawing2D.LinearGradientBrush(
+                new System.Drawing.PointF(frontX, frontY),
+                new System.Drawing.PointF(frontX + frontW, frontY + frontH),
+                System.Drawing.Color.FromArgb(238, 17, 27, 48),
+                System.Drawing.Color.FromArgb(245, 15, 23, 42));
+
+            g.FillPath(frontGradFill, frontCardPath);
+
+            using var frontBorderGrad = new System.Drawing.Drawing2D.LinearGradientBrush(
+                new System.Drawing.PointF(frontX, frontY),
+                new System.Drawing.PointF(frontX + frontW, frontY + frontH),
+                System.Drawing.Color.FromArgb(210, 56, 189, 248), // #38BDF8
+                System.Drawing.Color.FromArgb(180, 45, 212, 191)); // #2DD4BF
+
+            using var frontPen = new System.Drawing.Pen(frontBorderGrad, Math.Max(1.2f, 3.2f * s));
+            g.DrawPath(frontPen, frontCardPath);
+        }
+
+        // 5. Cabeçalho minimalista dentro do Painel Frontal (ponto neon + pílula de título)
+        float dotSize = 11f * s;
+        float headerY = 98f * s;
+        using (var cyanBrush = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(255, 45, 212, 191)))
+        {
+            g.FillEllipse(cyanBrush, 60f * s, headerY, dotSize, dotSize);
+        }
+
+        using (var titlePillBrush = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(130, 148, 163, 184)))
+        using (System.Drawing.Drawing2D.GraphicsPath pillPath = CreateRoundedRectangle(79f * s, headerY + (2f * s), 58f * s, 7f * s, 3.5f * s))
+        {
+            g.FillPath(titlePillBrush, pillPath);
+        }
+
+        // 6. Três Barras de Telemetria Minimalistas em Gradiente (#38BDF8 -> #2DD4BF)
+        float barStartX = 60f * s;
+        float barMaxWidth = 116f * s;
+        float barHeight = Math.Max(2f, 13f * s);
+        float barRadius = barHeight / 2f;
+
+        float[] barYPositions = [124f * s, 151f * s, 178f * s];
+        float[] barFillRatios = [0.78f, 0.94f, 0.60f];
+
+        using var trackBrush = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(55, 255, 255, 255));
+        using var telemetryGradBrush = new System.Drawing.Drawing2D.LinearGradientBrush(
+            new System.Drawing.PointF(barStartX, 0f),
+            new System.Drawing.PointF(barStartX + barMaxWidth, 0f),
+            System.Drawing.Color.FromArgb(255, 56, 189, 248),  // #38BDF8 (Azul Celeste)
+            System.Drawing.Color.FromArgb(255, 45, 212, 191)); // #2DD4BF (Ciano / Verde Água)
+
+        for (int i = 0; i < barYPositions.Length; i++)
+        {
+            float y = barYPositions[i];
+            float fillW = Math.Max(barHeight, barMaxWidth * barFillRatios[i]);
+
+            // Trilha de fundo
+            using (System.Drawing.Drawing2D.GraphicsPath trackPath = CreateRoundedRectangle(barStartX, y, barMaxWidth, barHeight, barRadius))
+            {
+                g.FillPath(trackBrush, trackPath);
+            }
+
+            // Barra ativa em gradiente
+            using (System.Drawing.Drawing2D.GraphicsPath activePath = CreateRoundedRectangle(barStartX, y, fillW, barHeight, barRadius))
+            {
+                g.FillPath(telemetryGradBrush, activePath);
+            }
+        }
 
         return bitmap;
     }
 
-    private static void SaveBitmapAsIco(System.Drawing.Bitmap bitmap, string filePath)
+    private static void SaveMultiResolutionIco(string filePath, int[] sizes)
     {
-        using var pngStream = new MemoryStream();
-        bitmap.Save(pngStream, System.Drawing.Imaging.ImageFormat.Png);
-        byte[] pngBytes = pngStream.ToArray();
+        var frames = new List<(int Size, byte[] PngBytes)>(sizes.Length);
+
+        foreach (int sz in sizes)
+        {
+            using System.Drawing.Bitmap bmp = RenderCleanPanelLogoBitmap(sz);
+            using var ms = new MemoryStream();
+            bmp.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+            frames.Add((sz, ms.ToArray()));
+        }
 
         using var fs = new FileStream(filePath, FileMode.Create, FileAccess.Write);
         using var bw = new BinaryWriter(fs);
 
-        // Cabeçalho ICONDIR (6 bytes)
-        bw.Write((short)0);      // Reservado (0)
-        bw.Write((short)1);      // Tipo: 1 = Ícone (.ico)
-        bw.Write((short)1);      // Quantidade de imagens: 1
+        // ICONDIR Header (6 bytes)
+        bw.Write((short)0);
+        bw.Write((short)1);
+        bw.Write((short)frames.Count);
 
-        // Entrada ICONDIRENTRY (16 bytes)
-        bw.Write((byte)bitmap.Width);   // Largura
-        bw.Write((byte)bitmap.Height);  // Altura
-        bw.Write((byte)0);              // Paleta de cores (0 = sem paleta)
-        bw.Write((byte)0);              // Reservado
-        bw.Write((short)1);             // Planos de cor
-        bw.Write((short)32);            // Bits por pixel (32bpp ARGB)
-        bw.Write(pngBytes.Length);      // Tamanho do payload PNG
-        bw.Write(22);                   // Offset dos dados (6 + 16 = 22)
+        int dataOffset = 6 + (16 * frames.Count);
 
-        // Dados da imagem PNG
-        bw.Write(pngBytes);
+        // ICONDIRENTRY (16 bytes por resolução)
+        foreach (var (sz, pngBytes) in frames)
+        {
+            bw.Write((byte)(sz >= 256 ? 0 : sz));
+            bw.Write((byte)(sz >= 256 ? 0 : sz));
+            bw.Write((byte)0);
+            bw.Write((byte)0);
+            bw.Write((short)1);
+            bw.Write((short)32);
+            bw.Write(pngBytes.Length);
+            bw.Write(dataOffset);
+
+            dataOffset += pngBytes.Length;
+        }
+
+        // Payloads PNG
+        foreach (var (_, pngBytes) in frames)
+        {
+            bw.Write(pngBytes);
+        }
     }
 
     private static System.Drawing.Drawing2D.GraphicsPath CreateRoundedRectangle(
         float x, float y, float width, float height, float radius)
     {
-        float diameter = radius * 2f;
+        float diameter = Math.Min(radius * 2f, Math.Min(width, height));
         var path = new System.Drawing.Drawing2D.GraphicsPath();
 
         path.AddArc(x, y, diameter, diameter, 180, 90);

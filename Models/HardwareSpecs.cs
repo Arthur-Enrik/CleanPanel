@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.IO;
 using System.Management;
+using System.Text.RegularExpressions;
 using CommunityToolkit.Mvvm.ComponentModel;
 using LibreHardwareMonitor.Hardware;
 using Microsoft.Win32;
@@ -22,6 +23,7 @@ public class HardwareSpecs
 
     // Processador (CPU)
     public string CpuName { get; set; } = "Processador Desconhecido";
+    public string CpuShortName { get; set; } = "CPU";
     public int CpuPhysicalCores { get; set; } = Math.Max(1, Environment.ProcessorCount / 2);
     public int CpuLogicalThreads { get; set; } = Environment.ProcessorCount;
     public string CpuCoresThreadsSummary => $"{CpuPhysicalCores} Núcleos Físicos / {CpuLogicalThreads} Threads Lógicos";
@@ -30,6 +32,7 @@ public class HardwareSpecs
     public float TotalRamGb { get; set; }
 
     // GPUs detectadas (estático + híbrido)
+    public string PrimaryGpuShortName { get; set; } = "GPU";
     public List<GpuSpecInfo> Gpus { get; set; } = [];
 
     // Mapeamento estático de partições lógicas (ex: "C:") para modelo do disco físico e capacidade
@@ -173,6 +176,7 @@ public class HardwareSpecs
         }
 
         specs.CpuName = !string.IsNullOrWhiteSpace(cpuName) ? cpuName : "Processador x64";
+        specs.CpuShortName = GetShortHardwareName(specs.CpuName, isGpu: false);
         specs.CpuPhysicalCores = physicalCores;
         specs.CpuLogicalThreads = logicalProcessors;
     }
@@ -333,6 +337,7 @@ public class HardwareSpecs
                     {
                         Id = hw.Identifier?.ToString() ?? $"gpu_{index}",
                         Name = gpuName,
+                        ShortName = GetShortHardwareName(gpuName, isGpu: true),
                         Vendor = vendor,
                         HardwareType = hw.HardwareType,
                         TotalVramGb = vramGb,
@@ -363,6 +368,7 @@ public class HardwareSpecs
                 {
                     Id = $"wmi_gpu_{idx++}",
                     Name = kvp.Key,
+                    ShortName = GetShortHardwareName(kvp.Key, isGpu: true),
                     Vendor = kvp.Key.Contains("NVIDIA", StringComparison.OrdinalIgnoreCase) ? "NVIDIA"
                            : kvp.Key.Contains("AMD", StringComparison.OrdinalIgnoreCase) || kvp.Key.Contains("Radeon", StringComparison.OrdinalIgnoreCase) ? "AMD"
                            : "Intel",
@@ -375,6 +381,75 @@ public class HardwareSpecs
                 });
             }
         }
+
+        // Seleciona o nome curto da GPU primária (priorizando dedicada NVIDIA/AMD)
+        GpuSpecInfo? primaryGpu = specs.Gpus
+            .OrderBy(g => g.HardwareType switch
+            {
+                HardwareType.GpuNvidia => 0,
+                HardwareType.GpuAmd => 1,
+                HardwareType.GpuIntel => 2,
+                _ => 3
+            })
+            .FirstOrDefault();
+
+        if (primaryGpu is not null && !string.IsNullOrWhiteSpace(primaryGpu.ShortName))
+        {
+            specs.PrimaryGpuShortName = primaryGpu.ShortName;
+        }
+    }
+
+    /// <summary>
+    /// Formata o nome bruto de CPU ou GPU removendo termos comerciais desnecessários:
+    /// Ex CPU: "13th Gen Intel(R) Core(TM) i9-13900K" -> "Intel Core i9-13900K"
+    /// Ex GPU: "NVIDIA GeForce RTX 4070" -> "RTX 4070", "AMD Radeon RX 7600" -> "RX 7600"
+    /// Executado APENAS UMA VEZ na inicialização do aplicativo.
+    /// </summary>
+    public static string GetShortHardwareName(string? rawName, bool isGpu)
+    {
+        if (string.IsNullOrWhiteSpace(rawName))
+            return isGpu ? "GPU" : "CPU";
+
+        string cleaned = rawName.Trim();
+
+        // Remove marcas registradas e símbolos comerciais
+        cleaned = Regex.Replace(cleaned, @"\((R|TM|C)\)|®|™|©", string.Empty, RegexOptions.IgnoreCase);
+
+        if (isGpu)
+        {
+            cleaned = Regex.Replace(cleaned, @"\bNVIDIA\s+GeForce\b", string.Empty, RegexOptions.IgnoreCase);
+            cleaned = Regex.Replace(cleaned, @"\bNVIDIA\b", string.Empty, RegexOptions.IgnoreCase);
+            cleaned = Regex.Replace(cleaned, @"\bAMD\s+Radeon\b", string.Empty, RegexOptions.IgnoreCase);
+            cleaned = Regex.Replace(cleaned, @"\bAMD\b", string.Empty, RegexOptions.IgnoreCase);
+            cleaned = Regex.Replace(cleaned, @"\bSeries\b", string.Empty, RegexOptions.IgnoreCase);
+            cleaned = Regex.Replace(cleaned, @"\bLaptop\s+GPU\b", "Laptop", RegexOptions.IgnoreCase);
+
+            string withoutGraphics = Regex.Replace(cleaned, @"\bGraphics\b", string.Empty, RegexOptions.IgnoreCase).Trim();
+            if (!string.IsNullOrWhiteSpace(withoutGraphics) &&
+                !withoutGraphics.Equals("Intel", StringComparison.OrdinalIgnoreCase))
+            {
+                cleaned = withoutGraphics;
+            }
+        }
+        else
+        {
+            // Limpeza de sufixos e prefixos comerciais de CPU
+            cleaned = Regex.Replace(cleaned, @"\b\d+(st|nd|rd|th)\s+Gen\b", string.Empty, RegexOptions.IgnoreCase);
+            cleaned = Regex.Replace(cleaned, @"\bCPU\s*@\s*[\d\.]+\s*[GM]Hz\b", string.Empty, RegexOptions.IgnoreCase);
+            cleaned = Regex.Replace(cleaned, @"@\s*[\d\.]+\s*[GM]Hz\b", string.Empty, RegexOptions.IgnoreCase);
+            cleaned = Regex.Replace(cleaned, @"\bwith\s+Radeon.*$", string.Empty, RegexOptions.IgnoreCase);
+            cleaned = Regex.Replace(cleaned, @"\bw/\s+Radeon.*$", string.Empty, RegexOptions.IgnoreCase);
+            cleaned = Regex.Replace(cleaned, @"\b\d+-Core\s+Processor\b", string.Empty, RegexOptions.IgnoreCase);
+            cleaned = Regex.Replace(cleaned, @"\bProcessor\b", string.Empty, RegexOptions.IgnoreCase);
+            cleaned = Regex.Replace(cleaned, @"\bCPU\b", string.Empty, RegexOptions.IgnoreCase);
+        }
+
+        // Normaliza espaços múltiplos
+        cleaned = Regex.Replace(cleaned, @"\s{2,}", " ").Trim(' ', '-', ',');
+
+        return string.IsNullOrWhiteSpace(cleaned)
+            ? (isGpu ? "GPU" : "CPU")
+            : cleaned;
     }
 
     public static (float? VramGb, bool IsShared) ResolveTotalVramForGpu(
@@ -588,6 +663,7 @@ public class GpuSpecInfo
 {
     public string Id { get; set; } = string.Empty;
     public string Name { get; set; } = "GPU Desconhecida";
+    public string ShortName { get; set; } = "GPU";
     public string Vendor { get; set; } = "GPU";
     public HardwareType HardwareType { get; set; }
     public float? TotalVramGb { get; set; }

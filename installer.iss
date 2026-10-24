@@ -7,7 +7,7 @@
 #endif
 
 #ifndef MyAppVersion
-  #define MyAppVersion "0.1v"
+  #define MyAppVersion "1.1.0"
 #endif
 
 #define MyAppPublisher "CleanPanel Contributors"

@@ -56,8 +56,8 @@ if (-not $IsccPath) {
 
 Write-Host "      ISCC.exe encontrado em: $IsccPath" -ForegroundColor Green
 
-# Ler versao do CleanPanel.csproj (padrao 0.1v)
-$AppVersion = "0.1v"
+# Ler versao do CleanPanel.csproj (padrao 1.1.0)
+$AppVersion = "1.1.0"
 if (Test-Path $CsprojPath) {
     [xml]$CsprojXml = Get-Content $CsprojPath
     $InfoVersionNode = $CsprojXml.Project.PropertyGroup.InformationalVersion | Where-Object { $_ } | Select-Object -First 1

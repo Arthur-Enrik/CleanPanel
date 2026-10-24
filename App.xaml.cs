@@ -21,6 +21,16 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        if (e.Args.Any(arg => arg.Equals("--generate-icon", StringComparison.OrdinalIgnoreCase)))
+        {
+            IconGeneratorHelper.EnsureIconFileExists();
+            string repoAssetIcon = System.IO.Path.GetFullPath(
+                System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "Assets", "app.ico"));
+            IconGeneratorHelper.EnsureIconFileExists(repoAssetIcon, forceOverwrite: true);
+            Shutdown(0);
+            return;
+        }
+
         // Garante que o executável só possa ser aberto como Administrador
         if (!IsRunningAsAdministrator())
         {

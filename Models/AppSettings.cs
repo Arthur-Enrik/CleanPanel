@@ -14,6 +14,18 @@ public class AppSettings
     public bool SmartFullscreenOnly { get; set; } = false;
     public bool IsHorizontalLayout { get; set; } = false;
 
+    // Tema do Aplicativo: "Dark", "Light" ou "Auto"
+    public string AppTheme { get; set; } = "Dark";
+
+    // Personalização de Cores do Overlay (Hex)
+    public string OverlayBackgroundColorHex { get; set; } = "#141418";
+    public string OverlayBorderColorHex { get; set; } = "#33FFFFFF";
+    public string OverlayHeaderColorHex { get; set; } = "#00E5FF";
+    public string OverlayValueTextColorHex { get; set; } = "#FFFFFF";
+
+    // Ordem personalizável dos blocos de sensores no Overlay
+    public List<string> OverlaySectionOrder { get; set; } = ["FPS", "CPU", "GPU", "RAM"];
+
     // FPS
     public bool ShowFps { get; set; } = true;
 
@@ -26,6 +38,7 @@ public class AppSettings
     // GPU
     public bool ShowGpuTemp { get; set; } = true;
     public bool ShowGpuLoad { get; set; } = true;
+    public bool ShowGpuVram { get; set; } = true;
     public bool ShowGpuClock { get; set; } = true;
     public bool ShowGpuPower { get; set; } = true;
 

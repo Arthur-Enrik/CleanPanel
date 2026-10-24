@@ -1,13 +1,13 @@
 # CleanPanel — Monitor de Hardware, Diagnóstico e FPS para Windows 11
 
-**CleanPanel** é um software completo de monitoramento, diagnóstico de hardware e telemetria de jogos em tempo real desenvolvido em **C# 12**, **.NET 8** e **WPF (WPF-UI)**. Combina um **Painel Principal estilo Gerenciador de Tarefas do Windows 11 / HWiNFO moderno** com um **Overlay flutuante** ultraleve e de baixíssimo impacto para jogos.
+**CleanPanel** (v1.1.0) é um software completo de monitoramento, diagnóstico de hardware e telemetria de jogos em tempo real desenvolvido em **C# 12**, **.NET 8** e **WPF (WPF-UI)**. Combina um **Painel Principal estilo Gerenciador de Tarefas do Windows 11 / HWiNFO moderno** com um **Overlay flutuante** altamente personalizável e de baixíssimo impacto para jogos.
 
 ---
 
 ## Principais Funcionalidades
 
 ### 1. Interface Principal Estilo Task Manager (Windows 11 Fluent Design + Mica)
-A janela principal do **CleanPanel** conta com navegação lateral moderna dividida em **4 seções de telemetria no topo** e um **ícone de engrenagem no rodapé para Configurações**:
+A janela principal do **CleanPanel** conta com navegação lateral moderna dividida em **4 seções de telemetria**, **1 seção dedicada de Personalização Visual** e um **ícone de engrenagem no rodapé para Configurações**:
 
 - **Aba "Visão Geral" (Resumo do Sistema)**:
   - **Card do Sistema Operacional**: Nome corrigido para Windows 11 (detecção via `CurrentBuild >= 22000` no Registro), Edição/DisplayVersion e Build completa.
@@ -25,33 +25,46 @@ A janela principal do **CleanPanel** conta com navegação lateral moderna divid
 - **Aba "Sistema & Armazenamento"**:
   - Uso detalhado de Memória RAM com barra visual de ocupação.
   - Lista de Unidades de Armazenamento combinando partições lógicas (`System.IO.DriveInfo`) e sensores térmicos físicos (`HardwareType.Storage` do LibreHardwareMonitor), exibindo Espaço Ocupado vs. Total e a Temperatura física atual de cada SSD/HDD (com fallback automático para `"Sem sensor"`).
+- **Aba "Personalização" (Temas do App, Cores e Ordem do Overlay)**:
+  - **Tema do Aplicativo (`Dark`, `Light` e `Auto`)**: Alterne entre `Escuro (Dark)`, `Claro (Light)` e `Automático (Seguir o Windows)` com sincronização dinâmica via `ApplicationThemeManager` e monitoramento do Registro do Windows (`AppsUseLightTheme`). Todos os cards e textos usam recursos dinâmicos (`DynamicResource`) para legibilidade perfeita em ambos os modos.
+  - **Personalização de Cores do Overlay em Tempo Real**: Customize a **Cor do Fundo** (`#141418`), **Cor da Borda** (`#33FFFFFF`), **Cor de Destaque dos Títulos de Hardware** (`#00E5FF`) e **Cor do Texto/Valores das Métricas** (`#FFFFFF`) usando códigos Hex (`#RRGGBB` / `#AARRGGBB`), amostras rápidas ou 6 temas predefinidos (`Ciano Clean`, `Verde Esmeralda`, `Âmbar Dourado`, `Rubi Carmesim`, `Roxo Synthwave`, `Claro Minimalista`), com botão `"Restaurar Cores Padrão"`.
+  - **Ordenação Dinâmica dos Blocos no Overlay**: Reorganize em tempo real a ordem de exibição de `FPS`, `CPU`, `GPU` e `RAM` através dos botões `"Subir (▲)"` e `"Descer (▼)"`.
 - **Rodapé com Ícone de Engrenagem — "Configurações"**:
-  - Reúne todas as configurações do aplicativo e do Overlay flutuante: Mostrar/Ocultar Overlay, Modo Compacto, Exibição Inteligente em Tela Cheia, Atalho Global (`Ctrl + Shift + O`), Modo Travado (Click-Through), Iniciar com o Windows como Administrador (`CleanPanelAutoStart`), Opacidade, Orientação Horizontal/Vertical, Alinhamento Rápido em 6 posições e seleção individual de sensores do Overlay.
+  - Reúne todas as configurações do aplicativo e do Overlay flutuante: Mostrar/Ocultar Overlay, Modo Compacto, Exibição Inteligente em Tela Cheia, Atalho Global (`Ctrl + Shift + O`), Modo Travado (Click-Through), Iniciar com o Windows como Administrador (`CleanPanelAutoStart`), Opacidade, Orientação Horizontal/Vertical, Alinhamento Rápido em 6 posições e seleção individual de sensores (incluindo o novo toggle de **GPU Uso de VRAM (GB / %)**).
 
 ---
 
-### 2. Engenharia de Performance e Baixo Consumo de CPU/Memória (Deep Optimization)
+### 2. Novo Layout do Overlay Agrupado por Hardware + Uso de VRAM
+- **Modelos Reais como Cabeçalhos de Grupo (`GetShortHardwareName`)**:
+  - O Overlay agrupa as métricas abaixo do nome real e limpo do componente do usuário (ex: `Intel Core i9-13900K`, `AMD Ryzen 5 5600`, `RTX 5060`, `RX 7600`), formatado e cacheado uma única vez na inicialização.
+- **Monitoramento de VRAM no Overlay**:
+  - Exibe o consumo de memória de vídeo em tempo real no formato `VRAM: 6.2 / 8.0 GB (78%)` (ou `VRAM: 1.4 GB` em GPUs integradas com memória compartilhada).
+- **Nova Logo Exclusiva CleanPanel**:
+  - Ícone multi-resolução (`256x256`, `64x64`, `32x32`, `16x16`) com base *Squircle* em azul-noite (`#0F172A` -> `#1E293B`), painéis translúcidos sobrepostos estilo *Glassmorphism* e barras minimalistas de telemetria em gradiente Ciano/Esmeralda (`#38BDF8` -> `#2DD4BF`).
+
+---
+
+### 3. Engenharia de Performance e Baixo Consumo de CPU/Memória (Deep Optimization)
 O **CleanPanel** foi arquitetado para ter impacto virtualmente zero durante sessões de jogos competitivos:
 
 - **Cache de Referências Diretas de Sensores (Zero LINQ no Loop de 1s)**:
-  - Na inicialização do `HardwareMonitorService`, todas as referências diretas dos objetos `ISensor` (`_cpuTempSensor`, `_cpuLoadSensor`, `_gpuTempSensor`, `_cpuCoreClockSensors`, pares de núcleos `_cachedCpuCores`, GPUs `_cachedGpus` e discos `_cachedStorages`) são mapeadas uma única vez e armazenadas em memória.
-  - No loop de 1 segundo do `PeriodicTimer`, o serviço executa apenas `hardware.Update()` nos componentes necessários e lê diretamente a propriedade `.Value` dos ponteiros `ISensor` cacheados — eliminando buscas de strings, Regex e alocações de LINQ (`.FirstOrDefault`, `.Where`, `.Contains`) que gerariam pressão no *Garbage Collector* (GC).
+  - Na inicialização do `HardwareMonitorService`, todas as referências diretas dos objetos `ISensor` (`_cpuTempSensor`, `_cpuLoadSensor`, `_gpuTempSensor`, `_gpuVramUsedSensor`, `_cpuCoreClockSensors`, pares de núcleos `_cachedCpuCores`, GPUs `_cachedGpus` e discos `_cachedStorages`) são mapeadas uma única vez e armazenadas em memória.
+  - No loop de 1 segundo do `PeriodicTimer`, o serviço executa apenas `hardware.Update()` nos componentes necessários e lê diretamente a propriedade `.Value` dos ponteiros `ISensor` cacheados.
+- **Brushes Congelados (`SolidColorBrush.Freeze()`)**:
+  - Todos os pincéis de cores customizadas do Overlay são congelados (`brush.Freeze()`) imediatamente após a conversão do código Hex, reduzindo o overhead de renderização do WPF para zero no loop de telemetria.
 - **Otimização Extrema no Capturador de FPS (`CleanPanelFpsSession`)**:
-  - Eventos ETW (`Present_Start`) disparam centenas de vezes por segundo. Para evitar chamadas P/Invoke (`GetForegroundProcessId()`) a cada quadro renderizado, o PID da janela ativa é atualizado apenas **1 vez por segundo** no loop principal e armazenado em uma variável `volatile int _activeForegroundPid`.
-  - A primeira instrução do callback `OnEtwEvent` é uma comparação inteira direta em `O(1)` (`if (data.ProcessID != _activeForegroundPid) return;`), com zero alocações de memória no caminho crítico.
+  - O PID da janela ativa é atualizado apenas **1 vez por segundo** em `volatile int _activeForegroundPid`.
+  - A primeira instrução do callback `OnEtwEvent` é uma comparação inteira direta em `O(1)` (`if (data.ProcessID != _activeForegroundPid) return;`).
 - **Debounce Assíncrono na Persistência (`SettingsService`)**:
-  - Alterações contínuas (como arrastar o Slider de Opacidade ou reposicionar o Overlay) passam por um *Debounce* assíncrono de **300 ms** com `CancellationTokenSource`, consolidando dezenas de eventos de UI em uma única gravação em disco (`settings.json`), além de `FlushImmediate()` garantido no encerramento.
-- **Redução de Redesenho na UI Thread (`DispatcherPriority.Background`)**:
-  - Todas as métricas numéricas são pré-arredondadas (`Math.Round`) em background antes de serem atribuídas às propriedades observáveis. Quando o valor arredondado permanece igual ao segundo anterior, o `CommunityToolkit.Mvvm` ignora notificações redundantes de `PropertyChanged`, poupando ciclos de layout e renderização do WPF.
-  - As atualizações da interface utilizam `Dispatcher.InvokeAsync(..., DispatcherPriority.Background)` para nunca interferir na fluidez do mouse ou animações da janela.
+  - Alterações contínuas de configuração passam por um *Debounce* assíncrono de **300 ms** com `CancellationTokenSource` e `FlushImmediate()` garantido no encerramento.
 - **Polling Seletivo Sob Demanda**:
-  - Quando a janela principal está fechada ou minimizada na bandeja do sistema (*System Tray*), os sensores pesados (núcleos individuais da CPU, tensões SuperIO da placa-mãe e SMART/temperatura dos SSDs/HDDs) ficam suspensos, atualizando apenas os sensores leves exigidos pelo Overlay flutuante.
+  - Quando a janela principal está fechada ou minimizada na bandeja do sistema (*System Tray*), os sensores pesados exclusivos da janela principal ficam suspensos, atualizando apenas os sensores leves exigidos pelo Overlay flutuante.
 
 ---
 
-### 3. Blindagem Total e Tolerância a Falhas (Fault Tolerance & Sensor Fallback)
+### 4. Blindagem Total e Tolerância a Falhas (Fault Tolerance & Sensor Fallback)
 - **Validação Estrita de Sensores**: Todo valor `float?` passa pelo validador `IsValidSensorValue`, descartando leituras nulas, `NaN`, `Infinity` ou `<= 0`.
-- **Exibição Graciosa na UI (Sem Zeros Falsos)**: Sensores não suportados pelo hardware (ex: placa-mãe sem VCore, iGPU sem Fan RPM/Watts, SSD SATA sem sensor térmico) exibem `"N/D"` ou `"Sem sensor"` em vez de zeros falsos (`0 W`, `0.00 V` ou `0 °C`).
+- **Exibição Graciosa na UI (Sem Zeros Falsos)**: Sensores não suportados pelo hardware exibem `"N/D"` ou `"Sem sensor"` em vez de zeros falsos.
 - **Isolamento de Exceções (`try/catch` Independentes)**: Leituras de `CPU`, `GPU`, `RAM`, `Storage`, `Motherboard`, `WMI` e `Registry` são isoladas individualmente.
 
 ---

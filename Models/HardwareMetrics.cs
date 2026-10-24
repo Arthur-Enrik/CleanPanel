@@ -18,6 +18,8 @@ public class HardwareMetrics
     public float GpuLoad { get; set; }
     public float GpuClock { get; set; }
     public float GpuPower { get; set; }
+    public float GpuVramUsedGb { get; set; }
+    public float? GpuVramTotalGb { get; set; }
 
     // RAM
     public float RamUsagePercent { get; set; }

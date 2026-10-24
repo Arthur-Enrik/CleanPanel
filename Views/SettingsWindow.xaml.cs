@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Windows;
+using HardwareOverlayApp.Helpers;
 using HardwareOverlayApp.ViewModels;
 using Wpf.Ui.Controls;
 
@@ -13,6 +14,15 @@ public partial class SettingsWindow : FluentWindow
     public SettingsWindow(MainViewModel viewModel)
     {
         InitializeComponent();
+
+        try
+        {
+            Icon = IconGeneratorHelper.CreateWindowIconSource(128);
+        }
+        catch
+        {
+            // Fallback seguro caso o ícone dinâmico não possa ser criado
+        }
 
         _viewModel = viewModel;
         DataContext = _viewModel;

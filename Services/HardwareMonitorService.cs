@@ -41,6 +41,9 @@ public class HardwareMonitorService : IDisposable
     private ISensor? _gpuLoadSensor;
     private ISensor? _gpuClockSensor;
     private ISensor? _gpuPowerSensor;
+    private ISensor? _gpuVramUsedSensor;
+    private bool _gpuVramUsedIsMb = true;
+    private float? _gpuPrimaryTotalVramGb;
     private readonly List<CachedGpuSensors> _cachedGpus = [];
 
     // Referências diretas de sensores de RAM
@@ -460,6 +463,8 @@ public class HardwareMonitorService : IDisposable
         _gpuLoadSensor = null;
         _gpuClockSensor = null;
         _gpuPowerSensor = null;
+        _gpuVramUsedSensor = null;
+        _gpuPrimaryTotalVramGb = null;
 
         for (int i = 0; i < _gpuHardwares.Count; i++)
         {
@@ -584,6 +589,9 @@ public class HardwareMonitorService : IDisposable
                 _gpuLoadSensor = coreLoad;
                 _gpuClockSensor = coreClock;
                 _gpuPowerSensor = power;
+                _gpuVramUsedSensor = vramUsedSensor;
+                _gpuVramUsedIsMb = vramUsedIsMb;
+                _gpuPrimaryTotalVramGb = spec?.IsIntegratedOrSharedVram == false ? spec.TotalVramGb : null;
             }
         }
     }
@@ -888,6 +896,15 @@ public class HardwareMonitorService : IDisposable
 
         if (IsValidSensorValue(_gpuPowerSensor, out float primaryPower))
             metrics.GpuPower = primaryPower;
+
+        if (IsValidSensorValue(_gpuVramUsedSensor, out float primaryVramRaw))
+        {
+            metrics.GpuVramUsedGb = _gpuVramUsedIsMb || primaryVramRaw > 128f
+                ? primaryVramRaw / 1024f
+                : primaryVramRaw;
+        }
+
+        metrics.GpuVramTotalGb = _gpuPrimaryTotalVramGb;
 
         if (!readDetailed)
             return;
