@@ -20,7 +20,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public const string DefaultHeaderColorHex = "#00E5FF";
     public const string DefaultValueTextColorHex = "#FFFFFF";
 
-    private static readonly string[] DefaultSectionKeys = ["FPS", "CPU", "GPU", "RAM"];
+    private static readonly string[] DefaultSectionKeys = ["CPU", "GPU", "RAM", "FPS"];
 
     private readonly SettingsService _settingsService;
     private readonly HardwareMonitorService _hardwareMonitorService;
@@ -696,6 +696,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var orderedKeys = new List<string>();
         if (savedOrder is not null)
         {
+            // Migração da ordem legada: se o FPS estava na primeira posição (ordem antiga padrão), move-o para o final
+            if (savedOrder.Count > 0 && string.Equals(savedOrder[0], "FPS", StringComparison.OrdinalIgnoreCase))
+            {
+                var migrated = new List<string>(savedOrder);
+                migrated.RemoveAt(0);
+                migrated.Add("FPS");
+                savedOrder = migrated;
+            }
+
             foreach (string key in savedOrder)
             {
                 string upper = key.Trim().ToUpperInvariant();
@@ -1278,11 +1287,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     partial void OnIsCompactModeChanged(bool value)
     {
-        if (value)
-        {
-            IsHorizontalLayout = true;
-            OnPropertyChanged(nameof(IsHorizontalLayout));
-        }
+        IsHorizontalLayout = value;
+        OnPropertyChanged(nameof(IsHorizontalLayout));
 
         UpdatePollingAndSmartVisibilityState();
         SaveSettings();
