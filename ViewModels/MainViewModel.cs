@@ -20,7 +20,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public const string DefaultHeaderColorHex = "#00E5FF";
     public const string DefaultValueTextColorHex = "#FFFFFF";
 
-    private static readonly string[] DefaultSectionKeys = ["FPS", "CPU", "GPU", "RAM"];
+    private static readonly string[] DefaultSectionKeys = ["CPU", "GPU", "RAM", "FPS"];
 
     private readonly SettingsService _settingsService;
     private readonly HardwareMonitorService _hardwareMonitorService;
@@ -118,10 +118,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private string _overlayValueTextColorHex = DefaultValueTextColorHex;
 
     [ObservableProperty]
-    private SolidColorBrush _overlayBackgroundBrush = CreateFrozenBrush(DefaultBackgroundColorHex, Color.FromRgb(20, 20, 24));
+    private SolidColorBrush _overlayBackgroundBrush = CreateFrozenBrushWithAlpha(DefaultBackgroundColorHex, 0.85, Color.FromRgb(20, 20, 24));
 
     [ObservableProperty]
-    private SolidColorBrush _overlayBorderBrush = CreateFrozenBrush(DefaultBorderColorHex, Color.FromArgb(51, 255, 255, 255));
+    private SolidColorBrush _overlayBorderBrush = CreateFrozenBorderBrush(DefaultBorderColorHex, 0.85, Color.FromArgb(51, 255, 255, 255));
 
     [ObservableProperty]
     private SolidColorBrush _overlayHeaderBrush = CreateFrozenBrush(DefaultHeaderColorHex, Color.FromRgb(0, 229, 255));
@@ -545,24 +545,32 @@ public partial class MainViewModel : ObservableObject, IDisposable
         return brush;
     }
 
-    private void UpdateOverlayBackgroundAndBorderBrushes()
+    public static SolidColorBrush CreateFrozenBrushWithAlpha(string? hexColor, double opacity, Color fallbackColor)
     {
-        Color baseColor = ParseHexColor(OverlayBackgroundColorHex, Color.FromRgb(20, 20, 24));
-        byte alpha = (byte)Math.Clamp(OverlayOpacity * 255.0, 20, 255);
+        Color baseColor = ParseHexColor(hexColor, fallbackColor);
+        byte alpha = (byte)Math.Clamp(opacity * 255.0, 20, 255);
         Color finalBgColor = Color.FromArgb(alpha, baseColor.R, baseColor.G, baseColor.B);
+        var brush = new SolidColorBrush(finalBgColor);
+        brush.Freeze();
+        return brush;
+    }
 
-        var bgBrush = new SolidColorBrush(finalBgColor);
-        bgBrush.Freeze();
-        OverlayBackgroundBrush = bgBrush;
-
-        Color baseBorderColor = ParseHexColor(OverlayBorderColorHex, Color.FromArgb(51, 255, 255, 255));
+    public static SolidColorBrush CreateFrozenBorderBrush(string? hexColor, double opacity, Color fallbackColor)
+    {
+        Color baseBorderColor = ParseHexColor(hexColor, fallbackColor);
+        byte alpha = (byte)Math.Clamp(opacity * 255.0, 20, 255);
         double borderRatio = baseBorderColor.A >= 250 ? 0.35 : (baseBorderColor.A / 255.0);
         byte borderAlpha = (byte)Math.Clamp(alpha * Math.Max(0.18, borderRatio), 15, 255);
         Color finalBorderColor = Color.FromArgb(borderAlpha, baseBorderColor.R, baseBorderColor.G, baseBorderColor.B);
+        var brush = new SolidColorBrush(finalBorderColor);
+        brush.Freeze();
+        return brush;
+    }
 
-        var borderBrush = new SolidColorBrush(finalBorderColor);
-        borderBrush.Freeze();
-        OverlayBorderBrush = borderBrush;
+    public void UpdateOverlayBackgroundAndBorderBrushes()
+    {
+        OverlayBackgroundBrush = CreateFrozenBrushWithAlpha(OverlayBackgroundColorHex, OverlayOpacity, Color.FromRgb(20, 20, 24));
+        OverlayBorderBrush = CreateFrozenBorderBrush(OverlayBorderColorHex, OverlayOpacity, Color.FromArgb(51, 255, 255, 255));
     }
 
     private void OnHardwareSpecsInitialized(HardwareSpecs specs)
@@ -619,7 +627,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         IsCompactMode = settings.IsCompactMode;
         SmartFullscreenOnly = settings.SmartFullscreenOnly;
-        IsHorizontalLayout = settings.IsHorizontalLayout;
+        IsHorizontalLayout = settings.IsCompactMode ? false : settings.IsHorizontalLayout;
 
         AppTheme = string.IsNullOrWhiteSpace(settings.AppTheme) ? "Dark" : settings.AppTheme;
 
@@ -677,6 +685,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
                     orderedKeys.Add(upper);
                 }
             }
+        }
+
+        // Se a ordem salva possuir FPS na primeira posição (ordem padrão legada),
+        // migra automaticamente o FPS para o final ([CPU, GPU, RAM, FPS]).
+        if (orderedKeys.Count >= 2 && orderedKeys[0] == "FPS")
+        {
+            orderedKeys.RemoveAt(0);
+            orderedKeys.Add("FPS");
         }
 
         foreach (string defaultKey in DefaultSectionKeys)
@@ -1245,6 +1261,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     partial void OnIsCompactModeChanged(bool value)
     {
+        if (value)
+        {
+            IsHorizontalLayout = false;
+        }
         UpdatePollingAndSmartVisibilityState();
         SaveSettings();
     }
@@ -1255,7 +1275,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
         SaveSettings();
     }
 
-    partial void OnIsHorizontalLayoutChanged(bool value) => SaveSettings();
+    partial void OnIsHorizontalLayoutChanged(bool value)
+    {
+        if (value && IsCompactMode)
+        {
+            IsCompactMode = false;
+        }
+        SaveSettings();
+    }
 
     partial void OnShowFpsChanged(bool value)
     {

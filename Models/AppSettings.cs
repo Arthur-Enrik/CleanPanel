@@ -25,7 +25,7 @@ public class AppSettings
     public string OverlayValueTextColorHex { get; set; } = "#FFFFFF";
 
     // Ordem personalizável dos blocos de sensores no Overlay
-    public List<string> OverlaySectionOrder { get; set; } = ["FPS", "CPU", "GPU", "RAM"];
+    public List<string> OverlaySectionOrder { get; set; } = ["CPU", "GPU", "RAM", "FPS"];
 
     // FPS
     public bool ShowFps { get; set; } = true;
