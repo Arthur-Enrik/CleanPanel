@@ -21,6 +21,10 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        // Garante que o diretório de trabalho seja sempre a pasta do executável,
+        // mesmo ao iniciar pelo Agendador de Tarefas do Windows (schtasks no logon aponta para System32).
+        System.IO.Directory.SetCurrentDirectory(AppDomain.CurrentDomain.BaseDirectory);
+
         if (e.Args.Any(arg => arg.Equals("--generate-icon", StringComparison.OrdinalIgnoreCase)))
         {
             IconGeneratorHelper.EnsureIconFileExists();

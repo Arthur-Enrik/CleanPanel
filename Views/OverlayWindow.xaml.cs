@@ -31,11 +31,19 @@ public partial class OverlayWindow : Window
 
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
         Deactivated += OnWindowDeactivated;
+        Loaded += OnWindowLoaded;
+    }
+
+    private void OnWindowLoaded(object sender, RoutedEventArgs e)
+    {
+        _viewModel.UpdateOverlayBrushes();
     }
 
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
+
+        _viewModel.UpdateOverlayBrushes();
 
         IntPtr hwnd = new WindowInteropHelper(this).Handle;
         if (hwnd == IntPtr.Zero)

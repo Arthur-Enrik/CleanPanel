@@ -118,7 +118,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private string _overlayValueTextColorHex = DefaultValueTextColorHex;
 
     [ObservableProperty]
-    private SolidColorBrush _overlayBackgroundBrush = CreateFrozenBrush(DefaultBackgroundColorHex, Color.FromRgb(20, 20, 24));
+    private SolidColorBrush _overlayBackgroundBrush = CreateFrozenBrush("#D9141418", Color.FromArgb(216, 20, 20, 24));
 
     [ObservableProperty]
     private SolidColorBrush _overlayBorderBrush = CreateFrozenBrush(DefaultBorderColorHex, Color.FromArgb(51, 255, 255, 255));
@@ -448,6 +448,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _hardwareMonitorService.SpecsInitialized += OnHardwareSpecsInitialized;
         _hardwareMonitorService.HeartbeatTick += OnHeartbeatTick;
         _hardwareMonitorService.MetricsUpdated += OnHardwareMetricsUpdated;
+
+        // Chamada explícita para garantir brushes de opacidade e cores 100% atualizados no final da inicialização
+        UpdateOverlayBrushes();
     }
 
     public void SetMainWindowVisible(bool isVisible)
@@ -545,8 +548,19 @@ public partial class MainViewModel : ObservableObject, IDisposable
         return brush;
     }
 
-    private void UpdateOverlayBackgroundAndBorderBrushes()
+    public void UpdateOverlayBrushes()
     {
+        if (Application.Current?.Dispatcher is { } dispatcher && !dispatcher.CheckAccess())
+        {
+            dispatcher.Invoke(UpdateOverlayBrushes);
+            return;
+        }
+
+        if (double.IsNaN(OverlayOpacity) || OverlayOpacity <= 0.05 || OverlayOpacity > 1.0)
+        {
+            OverlayOpacity = 0.80;
+        }
+
         Color baseColor = ParseHexColor(OverlayBackgroundColorHex, Color.FromRgb(20, 20, 24));
         byte alpha = (byte)Math.Clamp(OverlayOpacity * 255.0, 20, 255);
         Color finalBgColor = Color.FromArgb(alpha, baseColor.R, baseColor.G, baseColor.B);
@@ -611,7 +625,20 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         IsOverlayVisible = settings.IsOverlayVisible;
         IsOverlayLocked = settings.IsOverlayLocked;
-        OverlayOpacity = Math.Clamp(Math.Round(settings.OverlayOpacity, 2), 0.1, 1.0);
+
+        double rawOpacity = settings.OverlayOpacity;
+        if (double.IsNaN(rawOpacity) || rawOpacity <= 0.05 || rawOpacity > 1.0)
+        {
+            if (rawOpacity > 1.0 && rawOpacity <= 100.0)
+            {
+                rawOpacity /= 100.0;
+            }
+            else
+            {
+                rawOpacity = 0.80;
+            }
+        }
+        OverlayOpacity = Math.Clamp(Math.Round(rawOpacity, 2), 0.10, 1.0);
         OverlayScale = Math.Clamp(Math.Round(settings.OverlayScale <= 0 ? 1.0 : settings.OverlayScale, 2), 0.70, 2.00);
         OverlayLeft = Math.Round(settings.OverlayLeft);
         OverlayTop = Math.Round(settings.OverlayTop);
@@ -619,7 +646,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         IsCompactMode = settings.IsCompactMode;
         SmartFullscreenOnly = settings.SmartFullscreenOnly;
-        IsHorizontalLayout = settings.IsHorizontalLayout;
+        IsHorizontalLayout = settings.IsCompactMode || settings.IsHorizontalLayout;
 
         AppTheme = string.IsNullOrWhiteSpace(settings.AppTheme) ? "Dark" : settings.AppTheme;
 
@@ -657,7 +684,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     private void RefreshFrozenColorBrushes()
     {
-        UpdateOverlayBackgroundAndBorderBrushes();
+        UpdateOverlayBrushes();
         OverlayHeaderBrush = CreateFrozenBrush(OverlayHeaderColorHex, Color.FromRgb(0, 229, 255));
         OverlayValueTextBrush = CreateFrozenBrush(OverlayValueTextColorHex, Colors.White);
     }
@@ -1196,13 +1223,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     partial void OnOverlayBackgroundColorHexChanged(string value)
     {
-        UpdateOverlayBackgroundAndBorderBrushes();
+        UpdateOverlayBrushes();
         SaveSettings();
     }
 
     partial void OnOverlayBorderColorHexChanged(string value)
     {
-        UpdateOverlayBackgroundAndBorderBrushes();
+        UpdateOverlayBrushes();
         SaveSettings();
     }
 
@@ -1228,7 +1255,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     partial void OnOverlayOpacityChanged(double value)
     {
-        UpdateOverlayBackgroundAndBorderBrushes();
+        if (double.IsNaN(value) || value <= 0.05 || value > 1.0)
+        {
+            OverlayOpacity = 0.80;
+            return;
+        }
+
+        UpdateOverlayBrushes();
         SaveSettings();
     }
 
@@ -1245,6 +1278,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     partial void OnIsCompactModeChanged(bool value)
     {
+        if (value)
+        {
+            IsHorizontalLayout = true;
+            OnPropertyChanged(nameof(IsHorizontalLayout));
+        }
+
         UpdatePollingAndSmartVisibilityState();
         SaveSettings();
     }

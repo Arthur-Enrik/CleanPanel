@@ -39,12 +39,20 @@ public class SettingsService : IDisposable
             var settings = JsonSerializer.Deserialize<AppSettings>(json, JsonOptions) ?? new AppSettings();
 
             // Normaliza caso um arquivo antigo tenha salvo em escala 10..100
-            if (settings.OverlayOpacity > 1.0)
+            if (settings.OverlayOpacity > 1.0 && settings.OverlayOpacity <= 100.0)
             {
                 settings.OverlayOpacity /= 100.0;
             }
 
-            settings.OverlayOpacity = Math.Clamp(settings.OverlayOpacity, 0.1, 1.0);
+            // Fallback seguro de 0.80 se o valor for inválido, corrompido ou <= 0.05
+            if (double.IsNaN(settings.OverlayOpacity) || settings.OverlayOpacity <= 0.05 || settings.OverlayOpacity > 1.0)
+            {
+                settings.OverlayOpacity = 0.80;
+            }
+            else
+            {
+                settings.OverlayOpacity = Math.Clamp(settings.OverlayOpacity, 0.1, 1.0);
+            }
             return settings;
         }
         catch
@@ -127,7 +135,15 @@ public class SettingsService : IDisposable
     {
         try
         {
-            settings.OverlayOpacity = Math.Clamp(Math.Round(settings.OverlayOpacity, 2), 0.1, 1.0);
+            if (double.IsNaN(settings.OverlayOpacity) || settings.OverlayOpacity <= 0.05 || settings.OverlayOpacity > 1.0)
+            {
+                settings.OverlayOpacity = 0.80;
+            }
+            else
+            {
+                settings.OverlayOpacity = Math.Clamp(Math.Round(settings.OverlayOpacity, 2), 0.1, 1.0);
+            }
+
             string json = JsonSerializer.Serialize(settings, JsonOptions);
             File.WriteAllText(_settingsFilePath, json);
         }
