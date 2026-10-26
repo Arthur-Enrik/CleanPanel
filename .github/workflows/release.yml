@@ -1,0 +1,47 @@
+name: Gerar Instalador e Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Baixar Código
+        uses: actions/checkout@v4
+
+      - name: Configurar .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Publicar C# em Release
+        run: dotnet publish -c Release -o ./publish
+
+      - name: Instalar Inno Setup
+        run: choco install innosetup -y
+
+      - name: Compilar Instalador com Versão Dinâmica
+        shell: pwsh
+        run: |
+          $rawTag = "${{ github.ref_name }}"
+          $version = if ($rawTag -match '^v?(.*)$') { $matches[1] } else { "1.0.0" }
+          Write-Host "Compilando instalador para versao: $version"
+
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          & $iscc /DMyAppVersion="$version" /DMyBuildFolder="../publish" installer/setup.iss
+
+      - name: Publicar Release no GitHub
+        uses: softprops/action-gh-release@v2
+        with:
+          files: installer/Output/*.exe
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

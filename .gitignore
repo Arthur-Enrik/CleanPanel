@@ -4,12 +4,10 @@
 [Ll]og/
 [Ll]ogs/
 
-## Publish & Installer Output Directories
+## Publish & Build Directories
 [Pp]ublish/
-[Oo]utput/
 [Dd]ist/
 out/
-*_Setup.exe
 
 ## Visual Studio Cache and User Files
 .vs/
@@ -35,3 +33,7 @@ settings.json
 project.lock.json
 project.fragment.lock.json
 artifacts/
+
+# Ignorar arquivos gerados pelo Inno Setup
+installer/Output/
+*.exe

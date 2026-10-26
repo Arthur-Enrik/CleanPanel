@@ -45,6 +45,29 @@
                     <DataTemplate DataType="{x:Type vm:OverlaySectionItemViewModel}">
                         <StackPanel>
 
+                            <!-- [BLOCO FPS] -->
+                            <StackPanel Visibility="{Binding IsFpsSection, Converter={StaticResource BoolToVis}}">
+                                <Grid Visibility="{Binding Parent.EffectiveShowFps, Converter={StaticResource BoolToVis}}"
+                                      Margin="0,2,0,3">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0"
+                                               Text="FPS:"
+                                               Foreground="{Binding Parent.OverlayHeaderBrush}"
+                                               FontWeight="Bold"
+                                               FontSize="13.5" />
+                                    <TextBlock Grid.Column="1"
+                                               Text="{Binding Parent.FpsValueText}"
+                                               Foreground="{Binding Parent.OverlayValueTextBrush}"
+                                               FontWeight="Bold"
+                                               FontSize="13.5"
+                                               Margin="12,0,0,0"
+                                               HorizontalAlignment="Right" />
+                                </Grid>
+                            </StackPanel>
+
                             <!-- [BLOCO PROCESSADOR (CPU)] -->
                             <StackPanel Visibility="{Binding IsCpuSection, Converter={StaticResource BoolToVis}}">
                                 <StackPanel Visibility="{Binding Parent.ShowCpuSection, Converter={StaticResource BoolToVis}}"
@@ -340,38 +363,6 @@
                                 </StackPanel>
                             </StackPanel>
 
-                            <!-- [BLOCO FPS COM DESTAQUE NA ÚLTIMA POSIÇÃO] -->
-                            <StackPanel Visibility="{Binding IsFpsSection, Converter={StaticResource BoolToVis}}">
-                                <Border Visibility="{Binding Parent.EffectiveShowFps, Converter={StaticResource BoolToVis}}"
-                                        Background="#18FFB900"
-                                        BorderBrush="#40FFB900"
-                                        BorderThickness="1"
-                                        CornerRadius="6"
-                                        Padding="8,3"
-                                        Margin="0,4,0,2">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Grid.Column="0"
-                                                   Text="FPS"
-                                                   Foreground="#FFB900"
-                                                   FontWeight="Bold"
-                                                   FontSize="18"
-                                                   VerticalAlignment="Center" />
-                                        <TextBlock Grid.Column="1"
-                                                   Text="{Binding Parent.FpsValueText}"
-                                                   Foreground="#FFB900"
-                                                   FontWeight="Bold"
-                                                   FontSize="24"
-                                                   Margin="12,0,0,0"
-                                                   HorizontalAlignment="Right"
-                                                   VerticalAlignment="Center" />
-                                    </Grid>
-                                </Border>
-                            </StackPanel>
-
                         </StackPanel>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
@@ -389,6 +380,23 @@
                 <ItemsControl.ItemTemplate>
                     <DataTemplate DataType="{x:Type vm:OverlaySectionItemViewModel}">
                         <StackPanel Orientation="Horizontal">
+
+                            <!-- FPS Horizontal -->
+                            <StackPanel Orientation="Horizontal"
+                                        Visibility="{Binding IsFpsSection, Converter={StaticResource BoolToVis}}">
+                                <StackPanel Orientation="Horizontal"
+                                            Visibility="{Binding Parent.EffectiveShowFps, Converter={StaticResource BoolToVis}}"
+                                            Margin="6,2,10,2">
+                                    <TextBlock Text="FPS: "
+                                               Foreground="{Binding Parent.OverlayHeaderBrush}"
+                                               FontWeight="Bold"
+                                               FontSize="13" />
+                                    <TextBlock Text="{Binding Parent.FpsValueText}"
+                                               Foreground="{Binding Parent.OverlayValueTextBrush}"
+                                               FontWeight="Bold"
+                                               FontSize="13" />
+                                </StackPanel>
+                            </StackPanel>
 
                             <!-- CPU Horizontal -->
                             <StackPanel Orientation="Horizontal"
@@ -520,32 +528,6 @@
                                                FontWeight="Bold"
                                                FontSize="13" />
                                 </StackPanel>
-                            </StackPanel>
-
-                            <!-- [BLOCO FPS HORIZONTAL COM DESTAQUE NA ÚLTIMA POSIÇÃO] -->
-                            <StackPanel Orientation="Horizontal"
-                                        Visibility="{Binding IsFpsSection, Converter={StaticResource BoolToVis}}">
-                                <Border Visibility="{Binding Parent.EffectiveShowFps, Converter={StaticResource BoolToVis}}"
-                                        Background="#18FFB900"
-                                        BorderBrush="#40FFB900"
-                                        BorderThickness="1"
-                                        CornerRadius="6"
-                                        Padding="8,2"
-                                        Margin="6,2,6,2"
-                                        VerticalAlignment="Center">
-                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <TextBlock Text="FPS "
-                                                   Foreground="#FFB900"
-                                                   FontWeight="Bold"
-                                                   FontSize="16"
-                                                   VerticalAlignment="Center" />
-                                        <TextBlock Text="{Binding Parent.FpsValueText}"
-                                                   Foreground="#FFB900"
-                                                   FontWeight="Bold"
-                                                   FontSize="22"
-                                                   VerticalAlignment="Center" />
-                                    </StackPanel>
-                                </Border>
                             </StackPanel>
 
                         </StackPanel>

@@ -2,7 +2,6 @@ using System.ComponentModel;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
-using System.Windows.Threading;
 using HardwareOverlayApp.Helpers;
 using HardwareOverlayApp.ViewModels;
 
@@ -30,10 +29,6 @@ public partial class OverlayWindow : Window
         Top = _viewModel.OverlayTop;
         UpdateCursor();
 
-        _viewModel.UpdateOverlayBackgroundAndBorderBrushes();
-        Loaded += OnWindowLoaded;
-        ContentRendered += OnWindowContentRendered;
-
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
         Deactivated += OnWindowDeactivated;
     }
@@ -52,27 +47,6 @@ public partial class OverlayWindow : Window
         WindowWin32Helper.SetClickThrough(this, _viewModel.IsOverlayLocked);
         WindowWin32Helper.RegisterToggleOverlayHotKey(hwnd);
         WindowWin32Helper.ForceTopMost(this);
-
-        _viewModel.UpdateOverlayBackgroundAndBorderBrushes();
-    }
-
-    private void OnWindowLoaded(object sender, RoutedEventArgs e)
-    {
-        _viewModel.UpdateOverlayBackgroundAndBorderBrushes();
-        InvalidateVisual();
-
-        // Elimina condição de corrida do DWM durante inicialização com o Windows (--minimized)
-        Dispatcher.InvokeAsync(() =>
-        {
-            _viewModel.UpdateOverlayBackgroundAndBorderBrushes();
-            InvalidateVisual();
-        }, DispatcherPriority.ApplicationIdle);
-    }
-
-    private void OnWindowContentRendered(object? sender, EventArgs e)
-    {
-        _viewModel.UpdateOverlayBackgroundAndBorderBrushes();
-        InvalidateVisual();
     }
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -169,8 +143,6 @@ public partial class OverlayWindow : Window
 
         _viewModel.OverlaySizeProvider = null;
         _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
-        Loaded -= OnWindowLoaded;
-        ContentRendered -= OnWindowContentRendered;
         Deactivated -= OnWindowDeactivated;
         base.OnClosed(e);
     }

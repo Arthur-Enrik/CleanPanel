@@ -7,14 +7,10 @@ namespace HardwareOverlayApp.Helpers;
 
 public static class WindowWin32Helper
 {
-    private const int GWL_STYLE = -16;
     private const int GWL_EXSTYLE = -20;
-    private const int WS_CAPTION = 0x00C00000;
     private const int WS_EX_TRANSPARENT = 0x00000020;
     private const int WS_EX_TOOLWINDOW = 0x00000080;
     private const int WS_EX_LAYERED = 0x00080000;
-
-    private const int DWMWA_EXTENDED_FRAME_BOUNDS = 9;
 
     public const int WM_HOTKEY = 0x0312;
     public const int HOTKEY_ID_TOGGLE_OVERLAY = 9001;
@@ -92,12 +88,6 @@ public static class WindowWin32Helper
 
     [DllImport("user32.dll")]
     private static extern bool IsIconic(IntPtr hWnd);
-
-    [DllImport("user32.dll")]
-    private static extern bool IsZoomed(IntPtr hWnd);
-
-    [DllImport("dwmapi.dll")]
-    private static extern int DwmGetWindowAttribute(IntPtr hwnd, int dwAttribute, out RECT pvAttribute, int cbAttribute);
 
     /// <summary>
     /// Configura o estilo estendido da janela para ocultar do Alt+Tab (WS_EX_TOOLWINDOW)
@@ -178,8 +168,8 @@ public static class WindowWin32Helper
     }
 
     /// <summary>
-    /// Verifica se a janela atualmente em primeiro plano está estritamente em modo Tela Cheia Real (Exclusive / Borderless Fullscreen).
-    /// Rejeita janelas comuns maximizadas (como Chrome, Edge, Explorador de Arquivos) e elementos do Shell do Windows.
+    /// Verifica se a janela atualmente em primeiro plano está em modo Tela Cheia (Fullscreen / Borderless Fullscreen).
+    /// Ignora a área de trabalho e a barra de tarefas do Windows.
     /// </summary>
     public static bool IsForegroundWindowFullScreen()
     {
@@ -196,44 +186,28 @@ public static class WindowWin32Helper
             if (pid == 0 || pid == (uint)Environment.ProcessId)
                 return false;
 
-            var classNameBuilder = new StringBuilder(128);
+            var classNameBuilder = new StringBuilder(64);
             int charsCopied = GetClassName(hwnd, classNameBuilder, classNameBuilder.Capacity);
-            string className = charsCopied > 0 ? classNameBuilder.ToString() : string.Empty;
-
-            // 1. Ignorar elementos do Shell do Windows e Área de Trabalho
-            if (className.Equals("Progman", StringComparison.OrdinalIgnoreCase) ||
-                className.Equals("WorkerW", StringComparison.OrdinalIgnoreCase) ||
-                className.Equals("Shell_TrayWnd", StringComparison.OrdinalIgnoreCase) ||
-                className.Equals("Shell_SecondaryTrayWnd", StringComparison.OrdinalIgnoreCase) ||
-                className.Equals("Windows.UI.Core.CoreWindow", StringComparison.OrdinalIgnoreCase) ||
-                className.Equals("DV2ControlHost", StringComparison.OrdinalIgnoreCase) ||
-                className.Equals("XamlExplorerHostIslandWindow", StringComparison.OrdinalIgnoreCase))
+            if (charsCopied > 0)
             {
-                return false;
-            }
-
-            int style = GetWindowLong(hwnd, GWL_STYLE);
-
-            // 2. Janelas com barra de título padrão (WS_CAPTION) NUNCA estão em tela cheia real (Exclusive ou Borderless)
-            if ((style & WS_CAPTION) == WS_CAPTION)
-            {
-                return false;
-            }
-
-            // 3. Rejeitar janelas comuns de navegador e Explorador de Arquivos em estado maximizado comum (IsZoomed)
-            if (IsZoomed(hwnd))
-            {
-                if (className.Equals("CabinetWClass", StringComparison.OrdinalIgnoreCase) ||
-                    className.Equals("ExploreWClass", StringComparison.OrdinalIgnoreCase) ||
-                    className.Equals("Chrome_WidgetWin_1", StringComparison.OrdinalIgnoreCase) ||
-                    className.Equals("MozillaWindowClass", StringComparison.OrdinalIgnoreCase) ||
-                    className.Equals("ApplicationFrameWindow", StringComparison.OrdinalIgnoreCase))
+                string className = classNameBuilder.ToString();
+                if (className.Equals("Progman", StringComparison.OrdinalIgnoreCase) ||
+                    className.Equals("WorkerW", StringComparison.OrdinalIgnoreCase) ||
+                    className.Equals("Shell_TrayWnd", StringComparison.OrdinalIgnoreCase) ||
+                    className.Equals("Shell_SecondaryTrayWnd", StringComparison.OrdinalIgnoreCase))
                 {
                     return false;
                 }
             }
 
-            // 4. Obter dimensões do monitor da janela
+            if (!GetWindowRect(hwnd, out RECT windowRect))
+                return false;
+
+            int windowWidth = windowRect.Right - windowRect.Left;
+            int windowHeight = windowRect.Bottom - windowRect.Top;
+            if (windowWidth <= 0 || windowHeight <= 0)
+                return false;
+
             IntPtr hMonitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
             if (hMonitor == IntPtr.Zero)
                 return false;
@@ -248,33 +222,10 @@ public static class WindowWin32Helper
 
             RECT monitorRect = monitorInfo.rcMonitor;
 
-            // 5. Obter dimensões reais da janela (preferindo DwmGetWindowAttribute para limites visuais sem margens ocultas)
-            RECT targetRect;
-            if (DwmGetWindowAttribute(hwnd, DWMWA_EXTENDED_FRAME_BOUNDS, out RECT frameRect, Marshal.SizeOf<RECT>()) == 0 &&
-                frameRect.Right > frameRect.Left && frameRect.Bottom > frameRect.Top)
-            {
-                targetRect = frameRect;
-            }
-            else
-            {
-                if (!GetWindowRect(hwnd, out RECT winRect))
-                    return false;
-                targetRect = winRect;
-            }
-
-            int windowWidth = targetRect.Right - targetRect.Left;
-            int windowHeight = targetRect.Bottom - targetRect.Top;
-            int monitorWidth = monitorRect.Right - monitorRect.Left;
-            int monitorHeight = monitorRect.Bottom - monitorRect.Top;
-
-            if (windowWidth < monitorWidth || windowHeight < monitorHeight)
-                return false;
-
-            // 6. Critério estrito de Fullscreen: cobrir ou ultrapassar perfeitamente a área física do monitor
-            return targetRect.Left <= monitorRect.Left &&
-                   targetRect.Top <= monitorRect.Top &&
-                   targetRect.Right >= monitorRect.Right &&
-                   targetRect.Bottom >= monitorRect.Bottom;
+            return windowRect.Left <= monitorRect.Left &&
+                   windowRect.Top <= monitorRect.Top &&
+                   windowRect.Right >= monitorRect.Right &&
+                   windowRect.Bottom >= monitorRect.Bottom;
         }
         catch
         {
