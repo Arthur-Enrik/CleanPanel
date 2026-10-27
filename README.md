@@ -17,8 +17,9 @@ A janela principal do **CleanPanel** conta com navegação lateral moderna divid
   - **Card de Armazenamento**: Resumo de todas as partições fixas, capacidade total, espaço usado/livre e temperatura física atual de cada disco.
 - **Aba "Processador (CPU)" (Detalhes Avançados e Per-Core Telemetry)**:
   - Especificações completas do processador (Nome, Núcleos Físicos e Threads Lógicos).
+  - **Suporte Nativo a CPUs Híbridas Intel (12ª geração Alder Lake e superiores)**: Detecção automática da topologia de núcleos via Win32 `GetLogicalProcessorInformationEx` (`RelationProcessorCore`), discriminando contagem de núcleos físicos de Performance (`P-Cores`) e de Eficiência (`E-Cores`), exibindo resumo detalhado (ex: `10 Núcleos (6 P-Cores + 4 E-Cores) • 16 Threads`).
   - **Métricas Globais**: Uso Total (%), Temperatura (°C), Consumo Elétrico (W), Tensão VCore (V) e Clock Médio/Máximo (MHz).
-  - **Grade de Núcleos (Per-Core Telemetry)**: Grid exibindo cada núcleo/thread individualmente com sua barra de Uso (%) e Clock atual (MHz) em tempo real.
+  - **Grade de Núcleos (Per-Core Telemetry)**: Grid exibindo cada núcleo/thread individualmente com sua identificação (`Núcleo #N (P-Core)` / `(E-Core)`), barra de Uso (%) e Clock atual (MHz) em tempo real.
 - **Aba "Placa de Vídeo (GPU)" (Suporte Multi-GPU e Sensores Avançados)**:
   - **Seletor Multi-GPU (`ComboBox`)**: Permite alternar instantaneamente entre múltiplas GPUs (ex: GPU Integrada + GPU Dedicada).
   - **Métricas em Tempo Real da GPU Selecionada**: Uso do Core (%), Temperatura Core e Hot Spot (°C), Clock do Core e da Memória (MHz), Uso de VRAM (Usado / Total em GB), Consumo (W) e Velocidade dos Fans (RPM / %).
@@ -30,7 +31,8 @@ A janela principal do **CleanPanel** conta com navegação lateral moderna divid
   - **Personalização de Cores do Overlay em Tempo Real**: Customize a **Cor do Fundo** (`#141418`), **Cor da Borda** (`#33FFFFFF`), **Cor de Destaque dos Títulos de Hardware** (`#00E5FF`) e **Cor do Texto/Valores das Métricas** (`#FFFFFF`) usando códigos Hex (`#RRGGBB` / `#AARRGGBB`), amostras rápidas ou 6 temas predefinidos (`Ciano Clean`, `Verde Esmeralda`, `Âmbar Dourado`, `Rubi Carmesim`, `Roxo Synthwave`, `Claro Minimalista`), com botão `"Restaurar Cores Padrão"`.
   - **Ordenação Dinâmica dos Blocos no Overlay**: Reorganize em tempo real a ordem de exibição de `FPS`, `CPU`, `GPU` e `RAM` através dos botões `"Subir (▲)"` e `"Descer (▼)"`.
 - **Rodapé com Ícone de Engrenagem — "Configurações"**:
-  - Reúne todas as configurações do aplicativo e do Overlay flutuante: Mostrar/Ocultar Overlay, Modo Compacto, Exibição Inteligente em Tela Cheia, Atalho Global (`Ctrl + Shift + O`), Modo Travado (Click-Through), Iniciar com o Windows como Administrador (`CleanPanelAutoStart`), Opacidade, Orientação Horizontal/Vertical, Alinhamento Rápido em 6 posições e seleção individual de sensores (incluindo o novo toggle de **GPU Uso de VRAM (GB / %)**).
+  - Reúne todas as configurações do aplicativo e do Overlay flutuante: Mostrar/Ocultar Overlay, Modo Compacto, Exibição Inteligente em Tela Cheia, Atalho Global (`Ctrl + Shift + O`), Modo Travado (Click-Through), Iniciar com o Windows como Administrador (`CleanPanelAutoStart`), Opacidade, Orientação Horizontal/Vertical, Alinhamento Rápido em 6 posições e seleção individual de sensores (incluindo o toggle de **GPU Uso de VRAM (GB / %)** e **Separar P-Cores e E-Cores (Intel)**).
+  - **Separação Opcional de P-Cores e E-Cores (Intel)**: Quando ativada em processadores Intel híbridos, exibe no Overlay o Uso (%) e Clock (MHz) divididos (`Uso P-Cores: XX%` / `Uso E-Cores: XX%` e `Clock P-Cores: XXXX MHz` / `Clock E-Cores: XXXX MHz`), e no Modo Compacto horizontal/vertical `CPU P: XX% | E: XX%`. Se desativada ou em CPUs AMD / Intel legadas, o funcionamento permanece no modo padrão unificado com zero regressão.
 
 ---
 

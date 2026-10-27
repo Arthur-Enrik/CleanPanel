@@ -35,6 +35,7 @@ public class AppSettings
     public bool ShowCpuLoad { get; set; } = true;
     public bool ShowCpuClock { get; set; } = true;
     public bool ShowCpuPower { get; set; } = true;
+    public bool SplitIntelHybridCores { get; set; } = false;
 
     // GPU
     public bool ShowGpuTemp { get; set; } = true;

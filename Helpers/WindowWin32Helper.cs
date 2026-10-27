@@ -73,6 +73,22 @@ public static class WindowWin32Helper
         "notepad"
     };
 
+    private enum LOGICAL_PROCESSOR_RELATIONSHIP
+    {
+        RelationProcessorCore = 0,
+        RelationNumaNode = 1,
+        RelationCache = 2,
+        RelationProcessorPackage = 3,
+        RelationGroup = 4,
+        RelationAll = 0xffff
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool GetLogicalProcessorInformationEx(
+        LOGICAL_PROCESSOR_RELATIONSHIP RelationshipType,
+        IntPtr Buffer,
+        ref int ReturnedLength);
+
     [DllImport("user32.dll", EntryPoint = "GetWindowLong")]
     private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
 
@@ -336,6 +352,64 @@ public static class WindowWin32Helper
         catch
         {
             return false;
+        }
+    }
+
+    /// <summary>
+    /// Consulta a topologia física de núcleos da CPU via Win32 (GetLogicalProcessorInformationEx)
+    /// identificando se existem núcleos híbridos (P-Cores com EfficiencyClass > 0 e E-Cores com EfficiencyClass == 0).
+    /// </summary>
+    public static (bool isHybrid, List<byte> efficiencyClasses) GetCpuCoreTopology()
+    {
+        var efficiencyClasses = new List<byte>();
+        try
+        {
+            int length = 0;
+            GetLogicalProcessorInformationEx(LOGICAL_PROCESSOR_RELATIONSHIP.RelationProcessorCore, IntPtr.Zero, ref length);
+            if (length <= 0)
+                return (false, efficiencyClasses);
+
+            IntPtr buffer = Marshal.AllocHGlobal(length);
+            try
+            {
+                if (!GetLogicalProcessorInformationEx(LOGICAL_PROCESSOR_RELATIONSHIP.RelationProcessorCore, buffer, ref length))
+                    return (false, efficiencyClasses);
+
+                int offset = 0;
+                while (offset < length)
+                {
+                    IntPtr currentPtr = IntPtr.Add(buffer, offset);
+                    int relationship = Marshal.ReadInt32(currentPtr, 0);
+                    int size = Marshal.ReadInt32(currentPtr, 4);
+                    if (size <= 0)
+                        break;
+
+                    if (relationship == (int)LOGICAL_PROCESSOR_RELATIONSHIP.RelationProcessorCore)
+                    {
+                        // In PROCESSOR_RELATIONSHIP:
+                        // Offset 8: BYTE Flags
+                        // Offset 9: BYTE EfficiencyClass
+                        byte efficiencyClass = Marshal.ReadByte(currentPtr, 9);
+                        efficiencyClasses.Add(efficiencyClass);
+                    }
+
+                    offset += size;
+                }
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(buffer);
+            }
+
+            bool hasPCores = efficiencyClasses.Any(c => c > 0);
+            bool hasECores = efficiencyClasses.Any(c => c == 0);
+            bool isHybrid = hasPCores && hasECores;
+
+            return (isHybrid, efficiencyClasses);
+        }
+        catch
+        {
+            return (false, efficiencyClasses);
         }
     }
 }

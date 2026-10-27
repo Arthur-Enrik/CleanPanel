@@ -3,6 +3,7 @@ using System.IO;
 using System.Management;
 using System.Text.RegularExpressions;
 using CommunityToolkit.Mvvm.ComponentModel;
+using HardwareOverlayApp.Helpers;
 using LibreHardwareMonitor.Hardware;
 using Microsoft.Win32;
 
@@ -26,7 +27,12 @@ public class HardwareSpecs
     public string CpuShortName { get; set; } = "CPU";
     public int CpuPhysicalCores { get; set; } = Math.Max(1, Environment.ProcessorCount / 2);
     public int CpuLogicalThreads { get; set; } = Environment.ProcessorCount;
-    public string CpuCoresThreadsSummary => $"{CpuPhysicalCores} Núcleos Físicos / {CpuLogicalThreads} Threads Lógicos";
+    public bool IsIntelHybridCpu { get; set; }
+    public int PCoreCount { get; set; }
+    public int ECoreCount { get; set; }
+    public string CpuCoresThreadsSummary => IsIntelHybridCpu && PCoreCount > 0 && ECoreCount > 0
+        ? $"{CpuPhysicalCores} Núcleos ({PCoreCount}P + {ECoreCount}E) / {CpuLogicalThreads} Threads Lógicos"
+        : $"{CpuPhysicalCores} Núcleos Físicos / {CpuLogicalThreads} Threads Lógicos";
 
     // Memória RAM Total
     public float TotalRamGb { get; set; }
@@ -173,6 +179,19 @@ public class HardwareSpecs
         if (physicalCores <= 0)
         {
             physicalCores = Math.Max(1, logicalProcessors / 2);
+        }
+
+        // 4. Detecção de CPU Híbrida Intel via Win32 (GetLogicalProcessorInformationEx)
+        var (isHybrid, effClasses) = WindowWin32Helper.GetCpuCoreTopology();
+        specs.IsIntelHybridCpu = isHybrid;
+        if (isHybrid && effClasses.Count > 0)
+        {
+            specs.PCoreCount = effClasses.Count(c => c > 0);
+            specs.ECoreCount = effClasses.Count(c => c == 0);
+            if (physicalCores < effClasses.Count)
+            {
+                physicalCores = effClasses.Count;
+            }
         }
 
         specs.CpuName = !string.IsNullOrWhiteSpace(cpuName) ? cpuName : "Processador x64";

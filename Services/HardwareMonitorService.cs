@@ -36,6 +36,12 @@ public class HardwareMonitorService : IDisposable
     private readonly List<ISensor> _cpuCoreClockSensors = [];
     private readonly List<CachedCpuCoreSensors> _cachedCpuCores = [];
 
+    // Referências de sensores dedicadas para CPUs Híbridas Intel (P-Cores e E-Cores)
+    private readonly List<ISensor> _pCoreLoadSensors = [];
+    private readonly List<ISensor> _eCoreLoadSensors = [];
+    private readonly List<ISensor> _pCoreClockSensors = [];
+    private readonly List<ISensor> _eCoreClockSensors = [];
+
     // Referências diretas da GPU Primária (Overlay) e lista Multi-GPU cacheada
     private ISensor? _gpuTempSensor;
     private ISensor? _gpuLoadSensor;
@@ -59,6 +65,8 @@ public class HardwareMonitorService : IDisposable
     public event Action? HeartbeatTick;
 
     public HardwareSpecs StaticSpecs => _staticSpecs;
+    public bool IsIntelHybridCpu { get; private set; }
+    public bool SplitIntelHybridCores { get; set; }
 
     public bool IsPollingSuspended
     {
@@ -274,11 +282,24 @@ public class HardwareMonitorService : IDisposable
     {
         _cpuCoreClockSensors.Clear();
         _cachedCpuCores.Clear();
+        _pCoreLoadSensors.Clear();
+        _eCoreLoadSensors.Clear();
+        _pCoreClockSensors.Clear();
+        _eCoreClockSensors.Clear();
+        IsIntelHybridCpu = false;
 
         if (_cpuHardware is null)
             return;
 
         IReadOnlyList<ISensor> sensors = _cpuHardware.Sensors;
+
+        // Detecção de arquitetura híbrida Intel via Win32 e LibreHardwareMonitor
+        var (isHybridWin32, effClasses) = WindowWin32Helper.GetCpuCoreTopology();
+        bool hasExplicitPCoreNames = sensors.Any(s => s.Name.Contains("P-Core", StringComparison.OrdinalIgnoreCase) || s.Name.Contains("PCore", StringComparison.OrdinalIgnoreCase));
+        bool hasExplicitECoreNames = sensors.Any(s => s.Name.Contains("E-Core", StringComparison.OrdinalIgnoreCase) || s.Name.Contains("ECore", StringComparison.OrdinalIgnoreCase));
+        bool isIntelCpu = string.IsNullOrWhiteSpace(_cpuHardware.Name) || _cpuHardware.Name.Contains("Intel", StringComparison.OrdinalIgnoreCase);
+
+        IsIntelHybridCpu = (isHybridWin32 && isIntelCpu) || (hasExplicitPCoreNames && hasExplicitECoreNames);
 
         // Temperatura de CPU: "Core (Tctl/Tdie)", "CPU Package", "Package", "Core Average", "Core Max" ou 1º disponível
         _cpuTempSensor = ResolveSensorReferenceByAliases(
@@ -376,13 +397,94 @@ public class HardwareMonitorService : IDisposable
                 matchedClock = _cpuCoreClockSensors[i];
             }
 
+            // Identifica se é P-Core ou E-Core para o DisplayName e para as listas cacheadas
+            string typeTag = string.Empty;
+            if (IsIntelHybridCpu)
+            {
+                bool isPCore = false;
+                bool isECore = false;
+
+                if (loadSensor.Name.Contains("P-Core", StringComparison.OrdinalIgnoreCase) || loadSensor.Name.Contains("PCore", StringComparison.OrdinalIgnoreCase))
+                {
+                    isPCore = true;
+                }
+                else if (loadSensor.Name.Contains("E-Core", StringComparison.OrdinalIgnoreCase) || loadSensor.Name.Contains("ECore", StringComparison.OrdinalIgnoreCase))
+                {
+                    isECore = true;
+                }
+                else if (coreNum >= 1 && coreNum <= effClasses.Count)
+                {
+                    isPCore = effClasses[coreNum - 1] > 0;
+                    isECore = effClasses[coreNum - 1] == 0;
+                }
+                else if (i < effClasses.Count)
+                {
+                    isPCore = effClasses[i] > 0;
+                    isECore = effClasses[i] == 0;
+                }
+
+                if (isPCore)
+                {
+                    typeTag = " (P-Core)";
+                    _pCoreLoadSensors.Add(loadSensor);
+                    if (matchedClock is not null && !_pCoreClockSensors.Contains(matchedClock))
+                    {
+                        _pCoreClockSensors.Add(matchedClock);
+                    }
+                }
+                else if (isECore)
+                {
+                    typeTag = " (E-Core)";
+                    _eCoreLoadSensors.Add(loadSensor);
+                    if (matchedClock is not null && !_eCoreClockSensors.Contains(matchedClock))
+                    {
+                        _eCoreClockSensors.Add(matchedClock);
+                    }
+                }
+            }
+
             _cachedCpuCores.Add(new CachedCpuCoreSensors
             {
                 CoreIndex = i + 1,
-                DisplayName = FormatCoreDisplayName(loadSensor.Name, i + 1),
+                DisplayName = FormatCoreDisplayName(loadSensor.Name, i + 1) + typeTag,
                 LoadSensor = loadSensor,
                 ClockSensor = matchedClock
             });
+        }
+
+        // Garante preenchimento de clocks caso não tenham sido mapeados 1:1 nos sensores de Load
+        if (IsIntelHybridCpu && (_pCoreClockSensors.Count == 0 || _eCoreClockSensors.Count == 0))
+        {
+            _pCoreClockSensors.Clear();
+            _eCoreClockSensors.Clear();
+
+            for (int i = 0; i < _cpuCoreClockSensors.Count; i++)
+            {
+                ISensor clk = _cpuCoreClockSensors[i];
+                int cNum = ExtractCoreNumber(clk.Name);
+                if (clk.Name.Contains("P-Core", StringComparison.OrdinalIgnoreCase) || clk.Name.Contains("PCore", StringComparison.OrdinalIgnoreCase))
+                {
+                    _pCoreClockSensors.Add(clk);
+                }
+                else if (clk.Name.Contains("E-Core", StringComparison.OrdinalIgnoreCase) || clk.Name.Contains("ECore", StringComparison.OrdinalIgnoreCase))
+                {
+                    _eCoreClockSensors.Add(clk);
+                }
+                else if (cNum >= 1 && cNum <= effClasses.Count)
+                {
+                    if (effClasses[cNum - 1] > 0)
+                        _pCoreClockSensors.Add(clk);
+                    else
+                        _eCoreClockSensors.Add(clk);
+                }
+                else if (i < effClasses.Count)
+                {
+                    if (effClasses[i] > 0)
+                        _pCoreClockSensors.Add(clk);
+                    else
+                        _eCoreClockSensors.Add(clk);
+                }
+            }
         }
 
         if (_cachedCpuCores.Count == 0 && _cpuCoreClockSensors.Count > 0)
@@ -849,6 +951,76 @@ public class HardwareMonitorService : IDisposable
         {
             metrics.CpuClock = clockSum / clockCount;
             metrics.CpuMaxClock = maxClock;
+        }
+
+        // Métricas de arquitetura híbrida Intel (P-Cores vs E-Cores)
+        if (IsIntelHybridCpu && (SplitIntelHybridCores || readDetailed))
+        {
+            metrics.IsHybridCpu = true;
+
+            // Média de Uso dos P-Cores
+            if (_pCoreLoadSensors.Count > 0)
+            {
+                float pLoadSum = 0f;
+                int pLoadCount = 0;
+                for (int i = 0; i < _pCoreLoadSensors.Count; i++)
+                {
+                    if (IsValidLoadSensorValue(_pCoreLoadSensors[i], out float l))
+                    {
+                        pLoadSum += l;
+                        pLoadCount++;
+                    }
+                }
+                metrics.CpuPCoreLoad = pLoadCount > 0 ? (pLoadSum / pLoadCount) : 0f;
+            }
+
+            // Média de Uso dos E-Cores
+            if (_eCoreLoadSensors.Count > 0)
+            {
+                float eLoadSum = 0f;
+                int eLoadCount = 0;
+                for (int i = 0; i < _eCoreLoadSensors.Count; i++)
+                {
+                    if (IsValidLoadSensorValue(_eCoreLoadSensors[i], out float l))
+                    {
+                        eLoadSum += l;
+                        eLoadCount++;
+                    }
+                }
+                metrics.CpuECoreLoad = eLoadCount > 0 ? (eLoadSum / eLoadCount) : 0f;
+            }
+
+            // Média de Clock dos P-Cores
+            if (_pCoreClockSensors.Count > 0)
+            {
+                float pClockSum = 0f;
+                int pClockCount = 0;
+                for (int i = 0; i < _pCoreClockSensors.Count; i++)
+                {
+                    if (IsValidSensorValue(_pCoreClockSensors[i], out float c) && c > 100f)
+                    {
+                        pClockSum += c;
+                        pClockCount++;
+                    }
+                }
+                metrics.CpuPCoreClock = pClockCount > 0 ? (pClockSum / pClockCount) : 0f;
+            }
+
+            // Média de Clock dos E-Cores
+            if (_eCoreClockSensors.Count > 0)
+            {
+                float eClockSum = 0f;
+                int eClockCount = 0;
+                for (int i = 0; i < _eCoreClockSensors.Count; i++)
+                {
+                    if (IsValidSensorValue(_eCoreClockSensors[i], out float c) && c > 100f)
+                    {
+                        eClockSum += c;
+                        eClockCount++;
+                    }
+                }
+                metrics.CpuECoreClock = eClockCount > 0 ? (eClockSum / eClockCount) : 0f;
+            }
         }
 
         if (!readDetailed)

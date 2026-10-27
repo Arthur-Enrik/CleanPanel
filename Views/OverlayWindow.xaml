@@ -58,8 +58,8 @@
                                                    FontSize="12.5"
                                                    Margin="0,0,0,2" />
 
-                                        <!-- Uso: -->
-                                        <Grid Visibility="{Binding Parent.EffectiveShowCpuLoad, Converter={StaticResource BoolToVis}}"
+                                        <!-- Uso (Padrão / Não Híbrido) -->
+                                        <Grid Visibility="{Binding Parent.ShowNormalCpuLoad, Converter={StaticResource BoolToVis}}"
                                               Margin="6,1,0,1">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />
@@ -72,6 +72,48 @@
                                                        FontSize="12.5" />
                                             <TextBlock Grid.Column="1"
                                                        Text="{Binding Parent.CpuLoadText}"
+                                                       Foreground="{Binding Parent.OverlayValueTextBrush}"
+                                                       FontWeight="Bold"
+                                                       FontSize="12.5"
+                                                       Margin="12,0,0,0"
+                                                       HorizontalAlignment="Right" />
+                                        </Grid>
+
+                                        <!-- Uso P-Cores (Híbrido Intel) -->
+                                        <Grid Visibility="{Binding Parent.ShowHybridCpuLoad, Converter={StaticResource BoolToVis}}"
+                                              Margin="6,1,0,1">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0"
+                                                       Text="Uso P-Cores:"
+                                                       Foreground="{Binding Parent.OverlayValueTextBrush}"
+                                                       Opacity="0.78"
+                                                       FontSize="12.5" />
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding Parent.CpuPCoreLoadText}"
+                                                       Foreground="{Binding Parent.OverlayValueTextBrush}"
+                                                       FontWeight="Bold"
+                                                       FontSize="12.5"
+                                                       Margin="12,0,0,0"
+                                                       HorizontalAlignment="Right" />
+                                        </Grid>
+
+                                        <!-- Uso E-Cores (Híbrido Intel) -->
+                                        <Grid Visibility="{Binding Parent.ShowHybridCpuLoad, Converter={StaticResource BoolToVis}}"
+                                              Margin="6,1,0,1">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0"
+                                                       Text="Uso E-Cores:"
+                                                       Foreground="{Binding Parent.OverlayValueTextBrush}"
+                                                       Opacity="0.78"
+                                                       FontSize="12.5" />
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding Parent.CpuECoreLoadText}"
                                                        Foreground="{Binding Parent.OverlayValueTextBrush}"
                                                        FontWeight="Bold"
                                                        FontSize="12.5"
@@ -100,8 +142,8 @@
                                                        HorizontalAlignment="Right" />
                                         </Grid>
 
-                                        <!-- Clock: -->
-                                        <Grid Visibility="{Binding Parent.EffectiveShowCpuClock, Converter={StaticResource BoolToVis}}"
+                                        <!-- Clock (Padrão / Não Híbrido) -->
+                                        <Grid Visibility="{Binding Parent.ShowNormalCpuClock, Converter={StaticResource BoolToVis}}"
                                               Margin="6,1,0,1">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />
@@ -114,6 +156,48 @@
                                                        FontSize="12.5" />
                                             <TextBlock Grid.Column="1"
                                                        Text="{Binding Parent.CpuClockText}"
+                                                       Foreground="{Binding Parent.OverlayValueTextBrush}"
+                                                       FontWeight="Bold"
+                                                       FontSize="12.5"
+                                                       Margin="12,0,0,0"
+                                                       HorizontalAlignment="Right" />
+                                        </Grid>
+
+                                        <!-- Clock P-Cores (Híbrido Intel) -->
+                                        <Grid Visibility="{Binding Parent.ShowHybridCpuClock, Converter={StaticResource BoolToVis}}"
+                                              Margin="6,1,0,1">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0"
+                                                       Text="Clock P-Cores:"
+                                                       Foreground="{Binding Parent.OverlayValueTextBrush}"
+                                                       Opacity="0.78"
+                                                       FontSize="12.5" />
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding Parent.CpuPCoreClockText}"
+                                                       Foreground="{Binding Parent.OverlayValueTextBrush}"
+                                                       FontWeight="Bold"
+                                                       FontSize="12.5"
+                                                       Margin="12,0,0,0"
+                                                       HorizontalAlignment="Right" />
+                                        </Grid>
+
+                                        <!-- Clock E-Cores (Híbrido Intel) -->
+                                        <Grid Visibility="{Binding Parent.ShowHybridCpuClock, Converter={StaticResource BoolToVis}}"
+                                              Margin="6,1,0,1">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0"
+                                                       Text="Clock E-Cores:"
+                                                       Foreground="{Binding Parent.OverlayValueTextBrush}"
+                                                       Opacity="0.78"
+                                                       FontSize="12.5" />
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding Parent.CpuECoreClockText}"
                                                        Foreground="{Binding Parent.OverlayValueTextBrush}"
                                                        FontWeight="Bold"
                                                        FontSize="12.5"
@@ -151,12 +235,12 @@
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Grid.Column="0"
-                                                   Text="CPU:"
+                                                   Text="{Binding Parent.EffectiveCompactCpuHeader}"
                                                    Foreground="{Binding Parent.OverlayHeaderBrush}"
                                                    FontWeight="Bold"
                                                    FontSize="13" />
                                         <TextBlock Grid.Column="1"
-                                                   Text="{Binding Parent.CpuLoadText}"
+                                                   Text="{Binding Parent.EffectiveCompactCpuLoadText}"
                                                    Foreground="{Binding Parent.OverlayValueTextBrush}"
                                                    FontWeight="Bold"
                                                    FontSize="13"
@@ -397,11 +481,28 @@
                                                FontSize="13"
                                                Margin="0,0,8,0" />
 
+                                    <!-- Uso (Padrão / Não Híbrido) -->
                                     <StackPanel Orientation="Horizontal"
-                                                Visibility="{Binding Parent.EffectiveShowCpuLoad, Converter={StaticResource BoolToVis}}"
+                                                Visibility="{Binding Parent.ShowNormalCpuLoad, Converter={StaticResource BoolToVis}}"
                                                 Margin="0,0,8,0">
                                         <TextBlock Text="Uso: " Foreground="{Binding Parent.OverlayValueTextBrush}" Opacity="0.78" FontSize="13" />
                                         <TextBlock Text="{Binding Parent.CpuLoadText}" Foreground="{Binding Parent.OverlayValueTextBrush}" FontWeight="Bold" FontSize="13" />
+                                    </StackPanel>
+
+                                    <!-- Uso P-Cores (Híbrido Intel) -->
+                                    <StackPanel Orientation="Horizontal"
+                                                Visibility="{Binding Parent.ShowHybridCpuLoad, Converter={StaticResource BoolToVis}}"
+                                                Margin="0,0,8,0">
+                                        <TextBlock Text="Uso P-Cores: " Foreground="{Binding Parent.OverlayValueTextBrush}" Opacity="0.78" FontSize="13" />
+                                        <TextBlock Text="{Binding Parent.CpuPCoreLoadText}" Foreground="{Binding Parent.OverlayValueTextBrush}" FontWeight="Bold" FontSize="13" />
+                                    </StackPanel>
+
+                                    <!-- Uso E-Cores (Híbrido Intel) -->
+                                    <StackPanel Orientation="Horizontal"
+                                                Visibility="{Binding Parent.ShowHybridCpuLoad, Converter={StaticResource BoolToVis}}"
+                                                Margin="0,0,8,0">
+                                        <TextBlock Text="Uso E-Cores: " Foreground="{Binding Parent.OverlayValueTextBrush}" Opacity="0.78" FontSize="13" />
+                                        <TextBlock Text="{Binding Parent.CpuECoreLoadText}" Foreground="{Binding Parent.OverlayValueTextBrush}" FontWeight="Bold" FontSize="13" />
                                     </StackPanel>
 
                                     <StackPanel Orientation="Horizontal"
@@ -411,11 +512,28 @@
                                         <TextBlock Text="{Binding Parent.CpuTemperatureText}" Foreground="{Binding Parent.OverlayValueTextBrush}" FontWeight="Bold" FontSize="13" />
                                     </StackPanel>
 
+                                    <!-- Clock (Padrão / Não Híbrido) -->
                                     <StackPanel Orientation="Horizontal"
-                                                Visibility="{Binding Parent.EffectiveShowCpuClock, Converter={StaticResource BoolToVis}}"
+                                                Visibility="{Binding Parent.ShowNormalCpuClock, Converter={StaticResource BoolToVis}}"
                                                 Margin="0,0,8,0">
                                         <TextBlock Text="Clock: " Foreground="{Binding Parent.OverlayValueTextBrush}" Opacity="0.78" FontSize="13" />
                                         <TextBlock Text="{Binding Parent.CpuClockText}" Foreground="{Binding Parent.OverlayValueTextBrush}" FontWeight="Bold" FontSize="13" />
+                                    </StackPanel>
+
+                                    <!-- Clock P-Cores (Híbrido Intel) -->
+                                    <StackPanel Orientation="Horizontal"
+                                                Visibility="{Binding Parent.ShowHybridCpuClock, Converter={StaticResource BoolToVis}}"
+                                                Margin="0,0,8,0">
+                                        <TextBlock Text="Clock P-Cores: " Foreground="{Binding Parent.OverlayValueTextBrush}" Opacity="0.78" FontSize="13" />
+                                        <TextBlock Text="{Binding Parent.CpuPCoreClockText}" Foreground="{Binding Parent.OverlayValueTextBrush}" FontWeight="Bold" FontSize="13" />
+                                    </StackPanel>
+
+                                    <!-- Clock E-Cores (Híbrido Intel) -->
+                                    <StackPanel Orientation="Horizontal"
+                                                Visibility="{Binding Parent.ShowHybridCpuClock, Converter={StaticResource BoolToVis}}"
+                                                Margin="0,0,8,0">
+                                        <TextBlock Text="Clock E-Cores: " Foreground="{Binding Parent.OverlayValueTextBrush}" Opacity="0.78" FontSize="13" />
+                                        <TextBlock Text="{Binding Parent.CpuECoreClockText}" Foreground="{Binding Parent.OverlayValueTextBrush}" FontWeight="Bold" FontSize="13" />
                                     </StackPanel>
 
                                     <StackPanel Orientation="Horizontal"
@@ -430,8 +548,8 @@
                                 <StackPanel Orientation="Horizontal"
                                             Visibility="{Binding Parent.IsCompactMode, Converter={StaticResource BoolToVis}}"
                                             Margin="6,2,10,2">
-                                    <TextBlock Text="CPU: " Foreground="{Binding Parent.OverlayHeaderBrush}" FontWeight="Bold" FontSize="13" />
-                                    <TextBlock Text="{Binding Parent.CpuLoadText}" Foreground="{Binding Parent.OverlayValueTextBrush}" FontWeight="Bold" FontSize="13" />
+                                    <TextBlock Text="{Binding Parent.EffectiveCompactCpuHeaderWithSpace}" Foreground="{Binding Parent.OverlayHeaderBrush}" FontWeight="Bold" FontSize="13" />
+                                    <TextBlock Text="{Binding Parent.EffectiveCompactCpuLoadText}" Foreground="{Binding Parent.OverlayValueTextBrush}" FontWeight="Bold" FontSize="13" />
                                 </StackPanel>
                             </StackPanel>
 

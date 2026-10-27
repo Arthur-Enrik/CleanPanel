@@ -171,6 +171,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private string _cpuTemperatureText = "N/D";
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(EffectiveCompactCpuLoadText))]
     private string _cpuLoadText = "0 %";
 
     [ObservableProperty]
@@ -190,6 +191,35 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     private string _cpuVoltageText = "N/D";
+
+    // Métricas dedicadas para CPU Híbrida Intel (P-Cores e E-Cores)
+    [ObservableProperty]
+    private float _cpuPCoreLoad;
+
+    [ObservableProperty]
+    private float _cpuECoreLoad;
+
+    [ObservableProperty]
+    private float _cpuPCoreClock;
+
+    [ObservableProperty]
+    private float _cpuECoreClock;
+
+    [ObservableProperty]
+    private string _cpuPCoreLoadText = "N/D";
+
+    [ObservableProperty]
+    private string _cpuECoreLoadText = "N/D";
+
+    [ObservableProperty]
+    private string _cpuPCoreClockText = "N/D";
+
+    [ObservableProperty]
+    private string _cpuECoreClockText = "N/D";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(EffectiveCompactCpuLoadText))]
+    private string _cpuHybridCompactLoadText = "N/D";
 
     [ObservableProperty]
     private string _gpuTemperatureText = "N/D";
@@ -321,6 +351,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [NotifyPropertyChangedFor(nameof(ShowCpuSection))]
     [NotifyPropertyChangedFor(nameof(ShowCpuRow1))]
     [NotifyPropertyChangedFor(nameof(ShowCpuRow1Pipe))]
+    [NotifyPropertyChangedFor(nameof(ShowNormalCpuLoad))]
+    [NotifyPropertyChangedFor(nameof(ShowHybridCpuLoad))]
     private bool _showCpuLoad;
 
     [ObservableProperty]
@@ -328,6 +360,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [NotifyPropertyChangedFor(nameof(ShowCpuSection))]
     [NotifyPropertyChangedFor(nameof(ShowCpuRow2))]
     [NotifyPropertyChangedFor(nameof(ShowCpuRow2Pipe))]
+    [NotifyPropertyChangedFor(nameof(ShowNormalCpuClock))]
+    [NotifyPropertyChangedFor(nameof(ShowHybridCpuClock))]
     private bool _showCpuClock;
 
     [ObservableProperty]
@@ -336,6 +370,29 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [NotifyPropertyChangedFor(nameof(ShowCpuRow2))]
     [NotifyPropertyChangedFor(nameof(ShowCpuRow2Pipe))]
     private bool _showCpuPower;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowHybridCpuMetrics))]
+    [NotifyPropertyChangedFor(nameof(ShowNormalCpuLoad))]
+    [NotifyPropertyChangedFor(nameof(ShowNormalCpuClock))]
+    [NotifyPropertyChangedFor(nameof(ShowHybridCpuLoad))]
+    [NotifyPropertyChangedFor(nameof(ShowHybridCpuClock))]
+    [NotifyPropertyChangedFor(nameof(EffectiveCompactCpuLoadText))]
+    [NotifyPropertyChangedFor(nameof(EffectiveCompactCpuHeader))]
+    [NotifyPropertyChangedFor(nameof(EffectiveCompactCpuHeaderWithSpace))]
+    private bool _splitIntelHybridCores;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowHybridCpuMetrics))]
+    [NotifyPropertyChangedFor(nameof(ShowNormalCpuLoad))]
+    [NotifyPropertyChangedFor(nameof(ShowNormalCpuClock))]
+    [NotifyPropertyChangedFor(nameof(ShowHybridCpuLoad))]
+    [NotifyPropertyChangedFor(nameof(ShowHybridCpuClock))]
+    [NotifyPropertyChangedFor(nameof(IsNonHybridCpu))]
+    [NotifyPropertyChangedFor(nameof(EffectiveCompactCpuLoadText))]
+    [NotifyPropertyChangedFor(nameof(EffectiveCompactCpuHeader))]
+    [NotifyPropertyChangedFor(nameof(EffectiveCompactCpuHeaderWithSpace))]
+    private bool _isIntelHybridCpu;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(EffectiveShowGpuTemp))]
@@ -410,6 +467,17 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     public bool ShowGpuSection => EffectiveShowGpuTemp || EffectiveShowGpuLoad || EffectiveShowGpuVram || EffectiveShowGpuClock || EffectiveShowGpuPower;
 
+    // Propriedades computadas para CPU Híbrida Intel (P-Cores vs E-Cores)
+    public bool IsNonHybridCpu => !IsIntelHybridCpu;
+    public bool ShowHybridCpuMetrics => SplitIntelHybridCores && IsIntelHybridCpu;
+    public bool ShowNormalCpuLoad => !ShowHybridCpuMetrics && EffectiveShowCpuLoad;
+    public bool ShowNormalCpuClock => !ShowHybridCpuMetrics && EffectiveShowCpuClock;
+    public bool ShowHybridCpuLoad => ShowHybridCpuMetrics && EffectiveShowCpuLoad;
+    public bool ShowHybridCpuClock => ShowHybridCpuMetrics && EffectiveShowCpuClock;
+    public string EffectiveCompactCpuHeader => ShowHybridCpuMetrics ? "CPU" : "CPU:";
+    public string EffectiveCompactCpuHeaderWithSpace => ShowHybridCpuMetrics ? "CPU " : "CPU: ";
+    public string EffectiveCompactCpuLoadText => ShowHybridCpuMetrics ? CpuHybridCompactLoadText : CpuLoadText;
+
     // Visibilidades auxiliares para as linhas agrupadas do Overlay Vertical
     public bool ShowCpuRow1 => EffectiveShowCpuLoad || EffectiveShowCpuTemp;
     public bool ShowCpuRow1Pipe => EffectiveShowCpuLoad && EffectiveShowCpuTemp;
@@ -435,10 +503,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _startupService = startupService;
         _exitApplicationAction = exitApplicationAction;
 
+        IsIntelHybridCpu = _hardwareMonitorService.IsIntelHybridCpu;
+
         _isInitializing = true;
         AppSettings settings = _settingsService.Load();
         ApplySettings(settings);
         _isInitializing = false;
+
+        _hardwareMonitorService.SplitIntelHybridCores = SplitIntelHybridCores;
 
         ApplyApplicationTheme(AppTheme);
         SystemEvents.UserPreferenceChanged += OnSystemUserPreferenceChanged;
@@ -593,6 +665,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             CpuPhysicalCores = specs.CpuPhysicalCores;
             CpuLogicalThreads = specs.CpuLogicalThreads;
             CpuCoresThreadsSummary = specs.CpuCoresThreadsSummary;
+            IsIntelHybridCpu = specs.IsIntelHybridCpu;
 
             if (specs.TotalRamGb > 0f)
             {
@@ -672,6 +745,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         ShowCpuLoad = settings.ShowCpuLoad;
         ShowCpuClock = settings.ShowCpuClock;
         ShowCpuPower = settings.ShowCpuPower;
+        SplitIntelHybridCores = settings.SplitIntelHybridCores;
+        _hardwareMonitorService.SplitIntelHybridCores = settings.SplitIntelHybridCores;
 
         ShowGpuTemp = settings.ShowGpuTemp;
         ShowGpuLoad = settings.ShowGpuLoad;
@@ -917,6 +992,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
         double roundedCpuPower = Math.Round(metrics.CpuPower, 1);
         double? roundedCpuVcore = metrics.CpuVoltageVcore is > 0f ? Math.Round(metrics.CpuVoltageVcore.Value, 3) : null;
 
+        double roundedPCoreLoad = Math.Clamp(Math.Round(metrics.CpuPCoreLoad), 0.0, 100.0);
+        double roundedECoreLoad = Math.Clamp(Math.Round(metrics.CpuECoreLoad), 0.0, 100.0);
+        int roundedPCoreClock = (int)Math.Round(metrics.CpuPCoreClock);
+        int roundedECoreClock = (int)Math.Round(metrics.CpuECoreClock);
+
         int roundedGpuTemp = (int)Math.Round(metrics.GpuTemperature);
         int roundedGpuLoad = (int)Math.Clamp(Math.Round(metrics.GpuLoad), 0.0, 100.0);
         int roundedGpuClock = (int)Math.Round(metrics.GpuClock);
@@ -959,6 +1039,22 @@ public partial class MainViewModel : ObservableObject, IDisposable
             CpuVoltageText = roundedCpuVcore is > 0.0
                 ? string.Create(CultureInfo.InvariantCulture, $"{roundedCpuVcore.Value:0.000} V")
                 : "N/D";
+
+            if (metrics.IsHybridCpu)
+            {
+                CpuPCoreLoad = (float)roundedPCoreLoad;
+                CpuECoreLoad = (float)roundedECoreLoad;
+                CpuPCoreClock = roundedPCoreClock;
+                CpuECoreClock = roundedECoreClock;
+
+                CpuPCoreLoadText = $"{roundedPCoreLoad:0}%";
+                CpuECoreLoadText = $"{roundedECoreLoad:0}%";
+
+                CpuPCoreClockText = roundedPCoreClock > 0 ? $"{roundedPCoreClock} MHz" : "N/D";
+                CpuECoreClockText = roundedECoreClock > 0 ? $"{roundedECoreClock} MHz" : "N/D";
+
+                CpuHybridCompactLoadText = $"P: {roundedPCoreLoad:0}% | E: {roundedECoreLoad:0}%";
+            }
 
             // GPU Primária do Overlay
             GpuTemperatureText = roundedGpuTemp > 0 ? $"{roundedGpuTemp} °C" : "N/D";
@@ -1210,6 +1306,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             ShowCpuLoad = ShowCpuLoad,
             ShowCpuClock = ShowCpuClock,
             ShowCpuPower = ShowCpuPower,
+            SplitIntelHybridCores = SplitIntelHybridCores,
             ShowGpuTemp = ShowGpuTemp,
             ShowGpuLoad = ShowGpuLoad,
             ShowGpuVram = ShowGpuVram,
@@ -1312,6 +1409,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
     partial void OnShowCpuLoadChanged(bool value) => SaveSettings();
     partial void OnShowCpuClockChanged(bool value) => SaveSettings();
     partial void OnShowCpuPowerChanged(bool value) => SaveSettings();
+    partial void OnSplitIntelHybridCoresChanged(bool value)
+    {
+        _hardwareMonitorService.SplitIntelHybridCores = value;
+        SaveSettings();
+    }
     partial void OnShowGpuTempChanged(bool value) => SaveSettings();
     partial void OnShowGpuLoadChanged(bool value) => SaveSettings();
     partial void OnShowGpuVramChanged(bool value) => SaveSettings();

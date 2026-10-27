@@ -13,6 +13,13 @@ public class HardwareMetrics
     public float CpuPower { get; set; }
     public float? CpuVoltageVcore { get; set; }
 
+    // CPU Híbrida Intel (P-Cores vs E-Cores)
+    public bool IsHybridCpu { get; set; }
+    public float CpuPCoreLoad { get; set; }
+    public float CpuECoreLoad { get; set; }
+    public float CpuPCoreClock { get; set; }
+    public float CpuECoreClock { get; set; }
+
     // GPU Primária (para o Overlay flutuante)
     public float GpuTemperature { get; set; }
     public float GpuLoad { get; set; }

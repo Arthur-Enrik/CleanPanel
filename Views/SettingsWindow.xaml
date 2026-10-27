@@ -2297,13 +2297,45 @@
                             <ui:ToggleSwitch IsChecked="{Binding ShowCpuClock, Mode=TwoWay}" />
                         </ui:CardControl>
 
-                        <ui:CardControl Margin="0,0,0,16">
+                        <ui:CardControl Margin="0,0,0,8">
                             <ui:CardControl.Header>
                                 <TextBlock Text="CPU Consumo (Watts)"
                                            FontWeight="Medium"
                                            FontSize="14" />
                             </ui:CardControl.Header>
                             <ui:ToggleSwitch IsChecked="{Binding ShowCpuPower, Mode=TwoWay}" />
+                        </ui:CardControl>
+
+                        <ui:CardControl Margin="0,0,0,16">
+                            <ui:CardControl.Header>
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="Separar P-Cores e E-Cores (Intel)"
+                                                   FontWeight="Medium"
+                                                   FontSize="14" />
+                                        <Border Visibility="{Binding IsNonHybridCpu, Converter={StaticResource BoolToVis}}"
+                                                Background="#22EF4444"
+                                                BorderBrush="#44EF4444"
+                                                BorderThickness="1"
+                                                CornerRadius="4"
+                                                Padding="6,1"
+                                                Margin="8,0,0,0"
+                                                VerticalAlignment="Center">
+                                            <TextBlock Text="CPU atual não possui arquitetura híbrida P/E"
+                                                       FontSize="11"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="#EF4444" />
+                                        </Border>
+                                    </StackPanel>
+                                    <TextBlock Text="Exibe Uso (%) e Clock (MHz) separados entre Núcleos de Performance e Eficiência para CPUs Intel 12ª geração ou superior."
+                                               FontSize="12"
+                                               Opacity="0.7"
+                                               Margin="0,2,0,0"
+                                               TextWrapping="Wrap" />
+                                </StackPanel>
+                            </ui:CardControl.Header>
+                            <ui:ToggleSwitch IsChecked="{Binding SplitIntelHybridCores, Mode=TwoWay}"
+                                             IsEnabled="{Binding IsIntelHybridCpu}" />
                         </ui:CardControl>
 
                         <!-- ==================== MÉTRICAS DE GPU NO OVERLAY ==================== -->
