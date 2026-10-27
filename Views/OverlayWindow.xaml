@@ -121,27 +121,6 @@
                                                        HorizontalAlignment="Right" />
                                         </Grid>
 
-                                        <!-- Temp: -->
-                                        <Grid Visibility="{Binding Parent.EffectiveShowCpuTemp, Converter={StaticResource BoolToVis}}"
-                                              Margin="6,1,0,1">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Grid.Column="0"
-                                                       Text="Temp:"
-                                                       Foreground="{Binding Parent.OverlayValueTextBrush}"
-                                                       Opacity="0.78"
-                                                       FontSize="12.5" />
-                                            <TextBlock Grid.Column="1"
-                                                       Text="{Binding Parent.CpuTemperatureText}"
-                                                       Foreground="{Binding Parent.OverlayValueTextBrush}"
-                                                       FontWeight="Bold"
-                                                       FontSize="12.5"
-                                                       Margin="12,0,0,0"
-                                                       HorizontalAlignment="Right" />
-                                        </Grid>
-
                                         <!-- Clock (Padrão / Não Híbrido) -->
                                         <Grid Visibility="{Binding Parent.ShowNormalCpuClock, Converter={StaticResource BoolToVis}}"
                                               Margin="6,1,0,1">
@@ -198,6 +177,27 @@
                                                        FontSize="12.5" />
                                             <TextBlock Grid.Column="1"
                                                        Text="{Binding Parent.CpuECoreClockText}"
+                                                       Foreground="{Binding Parent.OverlayValueTextBrush}"
+                                                       FontWeight="Bold"
+                                                       FontSize="12.5"
+                                                       Margin="12,0,0,0"
+                                                       HorizontalAlignment="Right" />
+                                        </Grid>
+
+                                        <!-- Temp: -->
+                                        <Grid Visibility="{Binding Parent.EffectiveShowCpuTemp, Converter={StaticResource BoolToVis}}"
+                                              Margin="6,1,0,1">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0"
+                                                       Text="Temp:"
+                                                       Foreground="{Binding Parent.OverlayValueTextBrush}"
+                                                       Opacity="0.78"
+                                                       FontSize="12.5" />
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding Parent.CpuTemperatureText}"
                                                        Foreground="{Binding Parent.OverlayValueTextBrush}"
                                                        FontWeight="Bold"
                                                        FontSize="12.5"
@@ -284,48 +284,6 @@
                                                        HorizontalAlignment="Right" />
                                         </Grid>
 
-                                        <!-- Temp: -->
-                                        <Grid Visibility="{Binding Parent.EffectiveShowGpuTemp, Converter={StaticResource BoolToVis}}"
-                                              Margin="6,1,0,1">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Grid.Column="0"
-                                                       Text="Temp:"
-                                                       Foreground="{Binding Parent.OverlayValueTextBrush}"
-                                                       Opacity="0.78"
-                                                       FontSize="12.5" />
-                                            <TextBlock Grid.Column="1"
-                                                       Text="{Binding Parent.GpuTemperatureText}"
-                                                       Foreground="{Binding Parent.OverlayValueTextBrush}"
-                                                       FontWeight="Bold"
-                                                       FontSize="12.5"
-                                                       Margin="12,0,0,0"
-                                                       HorizontalAlignment="Right" />
-                                        </Grid>
-
-                                        <!-- VRAM: -->
-                                        <Grid Visibility="{Binding Parent.EffectiveShowGpuVram, Converter={StaticResource BoolToVis}}"
-                                              Margin="6,1,0,1">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Grid.Column="0"
-                                                       Text="VRAM:"
-                                                       Foreground="{Binding Parent.OverlayValueTextBrush}"
-                                                       Opacity="0.78"
-                                                       FontSize="12.5" />
-                                            <TextBlock Grid.Column="1"
-                                                       Text="{Binding Parent.GpuVramText}"
-                                                       Foreground="{Binding Parent.OverlayValueTextBrush}"
-                                                       FontWeight="Bold"
-                                                       FontSize="12.5"
-                                                       Margin="12,0,0,0"
-                                                       HorizontalAlignment="Right" />
-                                        </Grid>
-
                                         <!-- Clock: -->
                                         <Grid Visibility="{Binding Parent.EffectiveShowGpuClock, Converter={StaticResource BoolToVis}}"
                                               Margin="6,1,0,1">
@@ -347,6 +305,27 @@
                                                        HorizontalAlignment="Right" />
                                         </Grid>
 
+                                        <!-- Temp: -->
+                                        <Grid Visibility="{Binding Parent.EffectiveShowGpuTemp, Converter={StaticResource BoolToVis}}"
+                                              Margin="6,1,0,1">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0"
+                                                       Text="Temp:"
+                                                       Foreground="{Binding Parent.OverlayValueTextBrush}"
+                                                       Opacity="0.78"
+                                                       FontSize="12.5" />
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding Parent.GpuTemperatureText}"
+                                                       Foreground="{Binding Parent.OverlayValueTextBrush}"
+                                                       FontWeight="Bold"
+                                                       FontSize="12.5"
+                                                       Margin="12,0,0,0"
+                                                       HorizontalAlignment="Right" />
+                                        </Grid>
+
                                         <!-- Consumo: -->
                                         <Grid Visibility="{Binding Parent.EffectiveShowGpuPower, Converter={StaticResource BoolToVis}}"
                                               Margin="6,1,0,1">
@@ -361,6 +340,27 @@
                                                        FontSize="12.5" />
                                             <TextBlock Grid.Column="1"
                                                        Text="{Binding Parent.GpuPowerText}"
+                                                       Foreground="{Binding Parent.OverlayValueTextBrush}"
+                                                       FontWeight="Bold"
+                                                       FontSize="12.5"
+                                                       Margin="12,0,0,0"
+                                                       HorizontalAlignment="Right" />
+                                        </Grid>
+
+                                        <!-- VRAM: -->
+                                        <Grid Visibility="{Binding Parent.EffectiveShowGpuVram, Converter={StaticResource BoolToVis}}"
+                                              Margin="6,1,0,1">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0"
+                                                       Text="VRAM:"
+                                                       Foreground="{Binding Parent.OverlayValueTextBrush}"
+                                                       Opacity="0.78"
+                                                       FontSize="12.5" />
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding Parent.GpuVramText}"
                                                        Foreground="{Binding Parent.OverlayValueTextBrush}"
                                                        FontWeight="Bold"
                                                        FontSize="12.5"
@@ -505,13 +505,6 @@
                                         <TextBlock Text="{Binding Parent.CpuECoreLoadText}" Foreground="{Binding Parent.OverlayValueTextBrush}" FontWeight="Bold" FontSize="13" />
                                     </StackPanel>
 
-                                    <StackPanel Orientation="Horizontal"
-                                                Visibility="{Binding Parent.EffectiveShowCpuTemp, Converter={StaticResource BoolToVis}}"
-                                                Margin="0,0,8,0">
-                                        <TextBlock Text="Temp: " Foreground="{Binding Parent.OverlayValueTextBrush}" Opacity="0.78" FontSize="13" />
-                                        <TextBlock Text="{Binding Parent.CpuTemperatureText}" Foreground="{Binding Parent.OverlayValueTextBrush}" FontWeight="Bold" FontSize="13" />
-                                    </StackPanel>
-
                                     <!-- Clock (Padrão / Não Híbrido) -->
                                     <StackPanel Orientation="Horizontal"
                                                 Visibility="{Binding Parent.ShowNormalCpuClock, Converter={StaticResource BoolToVis}}"
@@ -534,6 +527,13 @@
                                                 Margin="0,0,8,0">
                                         <TextBlock Text="Clock E-Cores: " Foreground="{Binding Parent.OverlayValueTextBrush}" Opacity="0.78" FontSize="13" />
                                         <TextBlock Text="{Binding Parent.CpuECoreClockText}" Foreground="{Binding Parent.OverlayValueTextBrush}" FontWeight="Bold" FontSize="13" />
+                                    </StackPanel>
+
+                                    <StackPanel Orientation="Horizontal"
+                                                Visibility="{Binding Parent.EffectiveShowCpuTemp, Converter={StaticResource BoolToVis}}"
+                                                Margin="0,0,8,0">
+                                        <TextBlock Text="Temp: " Foreground="{Binding Parent.OverlayValueTextBrush}" Opacity="0.78" FontSize="13" />
+                                        <TextBlock Text="{Binding Parent.CpuTemperatureText}" Foreground="{Binding Parent.OverlayValueTextBrush}" FontWeight="Bold" FontSize="13" />
                                     </StackPanel>
 
                                     <StackPanel Orientation="Horizontal"
@@ -575,20 +575,6 @@
                                     </StackPanel>
 
                                     <StackPanel Orientation="Horizontal"
-                                                Visibility="{Binding Parent.EffectiveShowGpuTemp, Converter={StaticResource BoolToVis}}"
-                                                Margin="0,0,8,0">
-                                        <TextBlock Text="Temp: " Foreground="{Binding Parent.OverlayValueTextBrush}" Opacity="0.78" FontSize="13" />
-                                        <TextBlock Text="{Binding Parent.GpuTemperatureText}" Foreground="{Binding Parent.OverlayValueTextBrush}" FontWeight="Bold" FontSize="13" />
-                                    </StackPanel>
-
-                                    <StackPanel Orientation="Horizontal"
-                                                Visibility="{Binding Parent.EffectiveShowGpuVram, Converter={StaticResource BoolToVis}}"
-                                                Margin="0,0,8,0">
-                                        <TextBlock Text="VRAM: " Foreground="{Binding Parent.OverlayValueTextBrush}" Opacity="0.78" FontSize="13" />
-                                        <TextBlock Text="{Binding Parent.GpuVramText}" Foreground="{Binding Parent.OverlayValueTextBrush}" FontWeight="Bold" FontSize="13" />
-                                    </StackPanel>
-
-                                    <StackPanel Orientation="Horizontal"
                                                 Visibility="{Binding Parent.EffectiveShowGpuClock, Converter={StaticResource BoolToVis}}"
                                                 Margin="0,0,8,0">
                                         <TextBlock Text="Clock: " Foreground="{Binding Parent.OverlayValueTextBrush}" Opacity="0.78" FontSize="13" />
@@ -596,10 +582,24 @@
                                     </StackPanel>
 
                                     <StackPanel Orientation="Horizontal"
+                                                Visibility="{Binding Parent.EffectiveShowGpuTemp, Converter={StaticResource BoolToVis}}"
+                                                Margin="0,0,8,0">
+                                        <TextBlock Text="Temp: " Foreground="{Binding Parent.OverlayValueTextBrush}" Opacity="0.78" FontSize="13" />
+                                        <TextBlock Text="{Binding Parent.GpuTemperatureText}" Foreground="{Binding Parent.OverlayValueTextBrush}" FontWeight="Bold" FontSize="13" />
+                                    </StackPanel>
+
+                                    <StackPanel Orientation="Horizontal"
                                                 Visibility="{Binding Parent.EffectiveShowGpuPower, Converter={StaticResource BoolToVis}}"
-                                                Margin="0,0,4,0">
+                                                Margin="0,0,8,0">
                                         <TextBlock Text="Consumo: " Foreground="{Binding Parent.OverlayValueTextBrush}" Opacity="0.78" FontSize="13" />
                                         <TextBlock Text="{Binding Parent.GpuPowerText}" Foreground="{Binding Parent.OverlayValueTextBrush}" FontWeight="Bold" FontSize="13" />
+                                    </StackPanel>
+
+                                    <StackPanel Orientation="Horizontal"
+                                                Visibility="{Binding Parent.EffectiveShowGpuVram, Converter={StaticResource BoolToVis}}"
+                                                Margin="0,0,4,0">
+                                        <TextBlock Text="VRAM: " Foreground="{Binding Parent.OverlayValueTextBrush}" Opacity="0.78" FontSize="13" />
+                                        <TextBlock Text="{Binding Parent.GpuVramText}" Foreground="{Binding Parent.OverlayValueTextBrush}" FontWeight="Bold" FontSize="13" />
                                     </StackPanel>
                                 </WrapPanel>
 
