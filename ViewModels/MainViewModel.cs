@@ -15,10 +15,19 @@ namespace HardwareOverlayApp.ViewModels;
 
 public partial class MainViewModel : ObservableObject, IDisposable
 {
-    public const string DefaultBackgroundColorHex = "#141418";
-    public const string DefaultBorderColorHex = "#33FFFFFF";
-    public const string DefaultHeaderColorHex = "#00E5FF";
-    public const string DefaultValueTextColorHex = "#FFFFFF";
+    public const string DefaultAccentColorHex = "#FAFAFA";
+    public const string DefaultBackgroundColorHex = "#09090B";
+    public const string DefaultBorderColorHex = "#2E2E32";
+    public const string DefaultHeaderColorHex = "#FAFAFA";
+    public const string DefaultValueTextColorHex = "#FAFAFA";
+
+    // Pincéis pré-alocados e congelados para alertas térmicos (zero alocação por tick)
+    private static readonly SolidColorBrush ThermalNormalBrush = CreateFrozenBrush("#FFFFFF", Colors.White);
+    private static readonly SolidColorBrush ThermalWarningBrush = CreateFrozenBrush("#FACC15", Color.FromRgb(250, 204, 21));
+    private static readonly SolidColorBrush ThermalCriticalBrush = CreateFrozenBrush("#EF4444", Color.FromRgb(239, 68, 68));
+
+    private int _lastCpuTemp;
+    private int _lastGpuTemp;
 
     private static readonly string[] DefaultSectionKeys = ["CPU", "GPU", "RAM", "FPS"];
 
@@ -104,7 +113,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
         set { if (value) AppTheme = "Auto"; }
     }
 
-    // ==================== CORES PERSONALIZADAS DO OVERLAY (COM BRUSHES CONGELADOS) ====================
+    // ==================== CORES MONOCROMÁTICAS, ACCENT, ALERTAS TÉRMICOS E ATALHOS ====================
+    [ObservableProperty]
+    private string _accentColorHex = DefaultAccentColorHex;
+
     [ObservableProperty]
     private string _overlayBackgroundColorHex = DefaultBackgroundColorHex;
 
@@ -118,16 +130,52 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private string _overlayValueTextColorHex = DefaultValueTextColorHex;
 
     [ObservableProperty]
-    private SolidColorBrush _overlayBackgroundBrush = CreateFrozenBrush("#D9141418", Color.FromArgb(216, 20, 20, 24));
+    private SolidColorBrush _overlayBackgroundBrush = CreateFrozenBrush("#D909090B", Color.FromArgb(217, 9, 9, 11));
 
     [ObservableProperty]
-    private SolidColorBrush _overlayBorderBrush = CreateFrozenBrush(DefaultBorderColorHex, Color.FromArgb(51, 255, 255, 255));
+    private SolidColorBrush _overlayBorderBrush = CreateFrozenBrush(DefaultBorderColorHex, Color.FromRgb(46, 46, 50));
 
     [ObservableProperty]
-    private SolidColorBrush _overlayHeaderBrush = CreateFrozenBrush(DefaultHeaderColorHex, Color.FromRgb(0, 229, 255));
+    private SolidColorBrush _overlayHeaderBrush = CreateFrozenBrush(DefaultHeaderColorHex, Color.FromRgb(250, 250, 250));
 
     [ObservableProperty]
-    private SolidColorBrush _overlayValueTextBrush = CreateFrozenBrush(DefaultValueTextColorHex, Colors.White);
+    private SolidColorBrush _overlayValueTextBrush = CreateFrozenBrush(DefaultValueTextColorHex, Color.FromRgb(250, 250, 250));
+
+    [ObservableProperty]
+    private bool _enableThermalColorAlerts = true;
+
+    [ObservableProperty]
+    private double _tempWarningThreshold = 70.0;
+
+    [ObservableProperty]
+    private double _tempCriticalThreshold = 85.0;
+
+    [ObservableProperty]
+    private SolidColorBrush _cpuTempBrush = ThermalNormalBrush;
+
+    [ObservableProperty]
+    private SolidColorBrush _gpuTempBrush = ThermalNormalBrush;
+
+    [ObservableProperty]
+    private uint _toggleOverlayHotkeyModifiers = WindowWin32Helper.MOD_CONTROL | WindowWin32Helper.MOD_SHIFT;
+
+    [ObservableProperty]
+    private uint _toggleOverlayHotkeyKey = WindowWin32Helper.VK_O;
+
+    [ObservableProperty]
+    private string _toggleOverlayHotkeyDisplay = "Ctrl + Shift + O";
+
+    [ObservableProperty]
+    private uint _toggleCompactModeHotkeyModifiers = WindowWin32Helper.MOD_CONTROL | WindowWin32Helper.MOD_SHIFT;
+
+    [ObservableProperty]
+    private uint _toggleCompactModeHotkeyKey = WindowWin32Helper.VK_C;
+
+    [ObservableProperty]
+    private string _toggleCompactModeHotkeyDisplay = "Ctrl + Shift + C";
+
+    [ObservableProperty]
+    private string _hotkeyStatusMessage = string.Empty;
 
     // ==================== ORDEM PERSONALIZÁVEL DAS SEÇÕES DO OVERLAY ====================
     public ObservableCollection<OverlaySectionItemViewModel> OverlaySections { get; } = [];
@@ -512,7 +560,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         _hardwareMonitorService.SplitIntelHybridCores = SplitIntelHybridCores;
 
-        ApplyApplicationTheme(AppTheme);
+        ApplyApplicationTheme(AppTheme, AccentColorHex);
         SystemEvents.UserPreferenceChanged += OnSystemUserPreferenceChanged;
 
         UpdatePollingAndSmartVisibilityState();
@@ -538,12 +586,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
         {
             Application.Current?.Dispatcher.InvokeAsync(() =>
             {
-                ApplyApplicationTheme("Auto");
+                ApplyApplicationTheme("Auto", AccentColorHex);
             }, DispatcherPriority.Background);
         }
     }
 
-    public static void ApplyApplicationTheme(string? themeSetting)
+    public static void ApplyApplicationTheme(string? themeSetting, string? accentHex = null)
     {
         try
         {
@@ -558,12 +606,109 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 targetTheme = IsWindowsInLightTheme() ? ApplicationTheme.Light : ApplicationTheme.Dark;
             }
 
+            bool isLight = targetTheme == ApplicationTheme.Light;
+            Color accentColor = ResolveEffectiveAccentColor(accentHex, isLight);
+
             ApplicationThemeManager.Apply(targetTheme);
+
+            try
+            {
+                ApplicationAccentColorManager.Apply(accentColor, targetTheme, false);
+            }
+            catch
+            {
+                // Ignora falhas de atualização de acento no runtime
+            }
+
+            ApplyMonochromeThemeResources(isLight, accentColor);
         }
         catch
         {
             // Fallback seguro caso a troca de tema ocorra antes da janela estar pronta
         }
+    }
+
+    private static Color ResolveEffectiveAccentColor(string? accentHex, bool isLightTheme)
+    {
+        Color parsed = ParseHexColor(accentHex, Color.FromRgb(250, 250, 250));
+
+        if (isLightTheme && parsed.R >= 235 && parsed.G >= 235 && parsed.B >= 235)
+        {
+            return Color.FromRgb(9, 9, 11);
+        }
+
+        if (!isLightTheme && parsed.R <= 25 && parsed.G <= 25 && parsed.B <= 25)
+        {
+            return Color.FromRgb(250, 250, 250);
+        }
+
+        return Color.FromRgb(parsed.R, parsed.G, parsed.B);
+    }
+
+    private static void ApplyMonochromeThemeResources(bool isLight, Color accentColor)
+    {
+        ResourceDictionary? resources = Application.Current?.Resources;
+        if (resources is null)
+            return;
+
+        Color bgColor = isLight ? Color.FromRgb(250, 250, 250) : Color.FromRgb(9, 9, 11);
+        Color cardColor = isLight ? Color.FromRgb(255, 255, 255) : Color.FromRgb(17, 17, 20);
+        Color subCardColor = isLight ? Color.FromRgb(244, 244, 245) : Color.FromRgb(24, 24, 27);
+        Color hoverColor = isLight ? Color.FromRgb(236, 236, 239) : Color.FromRgb(32, 32, 36);
+        Color borderColor = isLight ? Color.FromRgb(228, 228, 231) : Color.FromRgb(39, 39, 42);
+        Color primaryTextColor = isLight ? Color.FromRgb(9, 9, 11) : Color.FromRgb(250, 250, 250);
+        Color mutedTextColor = isLight ? Color.FromRgb(113, 113, 122) : Color.FromRgb(161, 161, 170);
+
+        double luminance = (0.299 * accentColor.R) + (0.587 * accentColor.G) + (0.114 * accentColor.B);
+        Color accentForegroundColor = luminance > 155.0
+            ? Color.FromRgb(9, 9, 11)
+            : Color.FromRgb(250, 250, 250);
+
+        Color accentMutedColor = Color.FromArgb(isLight ? (byte)24 : (byte)28, accentColor.R, accentColor.G, accentColor.B);
+        Color accentBorderColor = Color.FromArgb(isLight ? (byte)115 : (byte)95, accentColor.R, accentColor.G, accentColor.B);
+
+        var bgBrush = CreateFrozenBrushFromColor(bgColor);
+        var cardBrush = CreateFrozenBrushFromColor(cardColor);
+        var subCardBrush = CreateFrozenBrushFromColor(subCardColor);
+        var hoverBrush = CreateFrozenBrushFromColor(hoverColor);
+        var borderBrush = CreateFrozenBrushFromColor(borderColor);
+        var textPrimaryBrush = CreateFrozenBrushFromColor(primaryTextColor);
+        var textMutedBrush = CreateFrozenBrushFromColor(mutedTextColor);
+        var accentBrush = CreateFrozenBrushFromColor(accentColor);
+        var accentFgBrush = CreateFrozenBrushFromColor(accentForegroundColor);
+        var accentMutedBrush = CreateFrozenBrushFromColor(accentMutedColor);
+        var accentBorderBrush = CreateFrozenBrushFromColor(accentBorderColor);
+
+        resources["AppBackgroundBrush"] = bgBrush;
+        resources["AppCardBackgroundBrush"] = cardBrush;
+        resources["AppSubCardBackgroundBrush"] = subCardBrush;
+        resources["AppBorderBrush"] = borderBrush;
+        resources["AppTextPrimaryBrush"] = textPrimaryBrush;
+        resources["AppTextMutedBrush"] = textMutedBrush;
+        resources["AppAccentBrush"] = accentBrush;
+        resources["AppAccentForegroundBrush"] = accentFgBrush;
+        resources["AppAccentMutedBackgroundBrush"] = accentMutedBrush;
+        resources["AppAccentBorderBrush"] = accentBorderBrush;
+
+        // Sobrescrita dos tokens do WPF-UI para manter estética Shadcn/Linear 100% consistente
+        resources["ApplicationBackgroundBrush"] = bgBrush;
+        resources["CardBackgroundFillColorDefaultBrush"] = cardBrush;
+        resources["CardBackgroundFillColorSecondaryBrush"] = subCardBrush;
+        resources["ControlFillColorDefaultBrush"] = subCardBrush;
+        resources["ControlFillColorSecondaryBrush"] = hoverBrush;
+        resources["ControlStrokeColorDefaultBrush"] = borderBrush;
+        resources["CardStrokeColorDefaultBrush"] = borderBrush;
+        resources["TextFillColorPrimaryBrush"] = textPrimaryBrush;
+        resources["TextFillColorSecondaryBrush"] = textMutedBrush;
+        resources["AccentFillColorDefaultBrush"] = accentBrush;
+        resources["AccentTextFillColorPrimaryBrush"] = accentBrush;
+    }
+
+    private static SolidColorBrush CreateFrozenBrushFromColor(Color color)
+    {
+        var brush = new SolidColorBrush(color);
+        brush.Freeze();
+        return brush;
     }
 
     private static bool IsWindowsInLightTheme()
@@ -633,7 +778,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             OverlayOpacity = 0.80;
         }
 
-        Color baseColor = ParseHexColor(OverlayBackgroundColorHex, Color.FromRgb(20, 20, 24));
+        Color baseColor = ParseHexColor(OverlayBackgroundColorHex, Color.FromRgb(9, 9, 11));
         byte alpha = (byte)Math.Clamp(OverlayOpacity * 255.0, 20, 255);
         Color finalBgColor = Color.FromArgb(alpha, baseColor.R, baseColor.G, baseColor.B);
 
@@ -641,9 +786,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
         bgBrush.Freeze();
         OverlayBackgroundBrush = bgBrush;
 
-        Color baseBorderColor = ParseHexColor(OverlayBorderColorHex, Color.FromArgb(51, 255, 255, 255));
-        double borderRatio = baseBorderColor.A >= 250 ? 0.35 : (baseBorderColor.A / 255.0);
-        byte borderAlpha = (byte)Math.Clamp(alpha * Math.Max(0.18, borderRatio), 15, 255);
+        Color baseBorderColor = ParseHexColor(OverlayBorderColorHex, Color.FromRgb(46, 46, 50));
+        byte borderAlpha = baseBorderColor.A >= 250
+            ? alpha
+            : (byte)Math.Clamp(alpha * Math.Max(0.18, baseBorderColor.A / 255.0), 15, 255);
         Color finalBorderColor = Color.FromArgb(borderAlpha, baseBorderColor.R, baseBorderColor.G, baseBorderColor.B);
 
         var borderBrush = new SolidColorBrush(finalBorderColor);
@@ -722,19 +868,73 @@ public partial class MainViewModel : ObservableObject, IDisposable
         IsHorizontalLayout = settings.IsCompactMode || settings.IsHorizontalLayout;
 
         AppTheme = string.IsNullOrWhiteSpace(settings.AppTheme) ? "Dark" : settings.AppTheme;
+        AccentColorHex = string.IsNullOrWhiteSpace(settings.AccentColorHex)
+            ? DefaultAccentColorHex
+            : settings.AccentColorHex;
 
-        OverlayBackgroundColorHex = string.IsNullOrWhiteSpace(settings.OverlayBackgroundColorHex)
+        // Migra defaults legados para o novo esquema monocromático se o usuário usava os valores antigos padrão
+        string rawBgHex = string.IsNullOrWhiteSpace(settings.OverlayBackgroundColorHex) ? DefaultBackgroundColorHex : settings.OverlayBackgroundColorHex;
+        string rawBorderHex = string.IsNullOrWhiteSpace(settings.OverlayBorderColorHex) ? DefaultBorderColorHex : settings.OverlayBorderColorHex;
+        string rawHeaderHex = string.IsNullOrWhiteSpace(settings.OverlayHeaderColorHex) ? DefaultHeaderColorHex : settings.OverlayHeaderColorHex;
+        string rawValueHex = string.IsNullOrWhiteSpace(settings.OverlayValueTextColorHex) ? DefaultValueTextColorHex : settings.OverlayValueTextColorHex;
+
+        OverlayBackgroundColorHex = string.Equals(rawBgHex, "#141418", StringComparison.OrdinalIgnoreCase)
             ? DefaultBackgroundColorHex
-            : settings.OverlayBackgroundColorHex;
-        OverlayBorderColorHex = string.IsNullOrWhiteSpace(settings.OverlayBorderColorHex)
+            : rawBgHex;
+        OverlayBorderColorHex = string.Equals(rawBorderHex, "#33FFFFFF", StringComparison.OrdinalIgnoreCase)
             ? DefaultBorderColorHex
-            : settings.OverlayBorderColorHex;
-        OverlayHeaderColorHex = string.IsNullOrWhiteSpace(settings.OverlayHeaderColorHex)
+            : rawBorderHex;
+        OverlayHeaderColorHex = string.Equals(rawHeaderHex, "#00E5FF", StringComparison.OrdinalIgnoreCase)
             ? DefaultHeaderColorHex
-            : settings.OverlayHeaderColorHex;
-        OverlayValueTextColorHex = string.IsNullOrWhiteSpace(settings.OverlayValueTextColorHex)
+            : rawHeaderHex;
+        OverlayValueTextColorHex = string.Equals(rawValueHex, "#FFFFFF", StringComparison.OrdinalIgnoreCase)
             ? DefaultValueTextColorHex
-            : settings.OverlayValueTextColorHex;
+            : rawValueHex;
+
+        double warnTemp = Math.Clamp(Math.Round(settings.TempWarningThreshold <= 0 ? 70.0 : settings.TempWarningThreshold), 30.0, 110.0);
+        double critTemp = Math.Clamp(Math.Round(settings.TempCriticalThreshold <= 0 ? 85.0 : settings.TempCriticalThreshold), 35.0, 120.0);
+        if (critTemp <= warnTemp)
+        {
+            critTemp = Math.Clamp(warnTemp + 5.0, 35.0, 120.0);
+            if (critTemp <= warnTemp)
+            {
+                warnTemp = Math.Max(30.0, critTemp - 1.0);
+            }
+        }
+
+        EnableThermalColorAlerts = settings.EnableThermalColorAlerts;
+        TempWarningThreshold = warnTemp;
+        TempCriticalThreshold = critTemp;
+
+        if (settings.ToggleOverlayHotkeyModifiers != 0 && settings.ToggleOverlayHotkeyKey != 0)
+        {
+            ToggleOverlayHotkeyModifiers = settings.ToggleOverlayHotkeyModifiers;
+            ToggleOverlayHotkeyKey = settings.ToggleOverlayHotkeyKey;
+            ToggleOverlayHotkeyDisplay = string.IsNullOrWhiteSpace(settings.ToggleOverlayHotkeyDisplay)
+                ? "Ctrl + Shift + O"
+                : settings.ToggleOverlayHotkeyDisplay;
+        }
+        else
+        {
+            ToggleOverlayHotkeyModifiers = WindowWin32Helper.MOD_CONTROL | WindowWin32Helper.MOD_SHIFT;
+            ToggleOverlayHotkeyKey = WindowWin32Helper.VK_O;
+            ToggleOverlayHotkeyDisplay = "Ctrl + Shift + O";
+        }
+
+        if (settings.ToggleCompactModeHotkeyModifiers != 0 && settings.ToggleCompactModeHotkeyKey != 0)
+        {
+            ToggleCompactModeHotkeyModifiers = settings.ToggleCompactModeHotkeyModifiers;
+            ToggleCompactModeHotkeyKey = settings.ToggleCompactModeHotkeyKey;
+            ToggleCompactModeHotkeyDisplay = string.IsNullOrWhiteSpace(settings.ToggleCompactModeHotkeyDisplay)
+                ? "Ctrl + Shift + C"
+                : settings.ToggleCompactModeHotkeyDisplay;
+        }
+        else
+        {
+            ToggleCompactModeHotkeyModifiers = WindowWin32Helper.MOD_CONTROL | WindowWin32Helper.MOD_SHIFT;
+            ToggleCompactModeHotkeyKey = WindowWin32Helper.VK_C;
+            ToggleCompactModeHotkeyDisplay = "Ctrl + Shift + C";
+        }
 
         RefreshFrozenColorBrushes();
         InitializeOverlaySectionsOrder(settings.OverlaySectionOrder);
@@ -760,8 +960,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private void RefreshFrozenColorBrushes()
     {
         UpdateOverlayBrushes();
-        OverlayHeaderBrush = CreateFrozenBrush(OverlayHeaderColorHex, Color.FromRgb(0, 229, 255));
-        OverlayValueTextBrush = CreateFrozenBrush(OverlayValueTextColorHex, Colors.White);
+        OverlayHeaderBrush = CreateFrozenBrush(OverlayHeaderColorHex, Color.FromRgb(250, 250, 250));
+        OverlayValueTextBrush = CreateFrozenBrush(OverlayValueTextColorHex, Color.FromRgb(250, 250, 250));
+        UpdateThermalAlertBrushes(_lastCpuTemp, _lastGpuTemp);
     }
 
     private void InitializeOverlaySectionsOrder(List<string>? savedOrder)
@@ -880,6 +1081,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         switch (preset)
         {
+            case "Monochrome":
+                OverlayBackgroundColorHex = DefaultBackgroundColorHex;
+                OverlayBorderColorHex = DefaultBorderColorHex;
+                OverlayHeaderColorHex = DefaultHeaderColorHex;
+                OverlayValueTextColorHex = DefaultValueTextColorHex;
+                break;
+
             case "CleanCyan":
                 OverlayBackgroundColorHex = "#141418";
                 OverlayBorderColorHex = "#3338BDF8";
@@ -921,6 +1129,147 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 OverlayHeaderColorHex = "#0284C7";
                 OverlayValueTextColorHex = "#0F172A";
                 break;
+        }
+    }
+
+    [RelayCommand]
+    private void SetAccentQuickColor(string? hex)
+    {
+        if (!string.IsNullOrWhiteSpace(hex))
+        {
+            AccentColorHex = hex;
+        }
+    }
+
+    [RelayCommand]
+    private void ResetAccentColor()
+    {
+        AccentColorHex = DefaultAccentColorHex;
+    }
+
+    [RelayCommand]
+    private void ResetThermalThresholds()
+    {
+        EnableThermalColorAlerts = true;
+        TempWarningThreshold = 70.0;
+        TempCriticalThreshold = 85.0;
+    }
+
+    public void RegisterConfiguredHotkeys(IntPtr hwnd)
+    {
+        if (hwnd == IntPtr.Zero)
+            return;
+
+        WindowWin32Helper.SetHotkeyWindowHandle(hwnd);
+        bool overlayOk = WindowWin32Helper.RegisterOrUpdateHotKey(
+            WindowWin32Helper.HOTKEY_ID_TOGGLE_OVERLAY,
+            ToggleOverlayHotkeyModifiers,
+            ToggleOverlayHotkeyKey);
+
+        bool compactOk = WindowWin32Helper.RegisterOrUpdateHotKey(
+            WindowWin32Helper.HOTKEY_ID_TOGGLE_COMPACT,
+            ToggleCompactModeHotkeyModifiers,
+            ToggleCompactModeHotkeyKey);
+
+        UpdateHotkeyStatusMessage(overlayOk, compactOk);
+    }
+
+    public void PauseHotkeysForCapture() => WindowWin32Helper.PauseAllHotkeys();
+
+    public void ResumeHotkeysAfterCapture()
+    {
+        bool allOk = WindowWin32Helper.ResumeAllHotkeys();
+        if (!allOk)
+        {
+            HotkeyStatusMessage = "Um ou mais atalhos estão em conflito com outro aplicativo em execução.";
+        }
+    }
+
+    public bool SetToggleOverlayHotkey(uint modifiers, uint virtualKey, string displayText)
+    {
+        if (modifiers == ToggleCompactModeHotkeyModifiers && virtualKey == ToggleCompactModeHotkeyKey)
+        {
+            HotkeyStatusMessage = "Esse atalho já está atribuído ao Modo Compacto.";
+            return false;
+        }
+
+        ToggleOverlayHotkeyModifiers = modifiers;
+        ToggleOverlayHotkeyKey = virtualKey;
+        ToggleOverlayHotkeyDisplay = displayText;
+
+        bool ok = WindowWin32Helper.RegisterOrUpdateHotKey(
+            WindowWin32Helper.HOTKEY_ID_TOGGLE_OVERLAY,
+            modifiers,
+            virtualKey);
+
+        HotkeyStatusMessage = ok
+            ? "Atalho de exibição do Overlay atualizado."
+            : "Aviso: o atalho foi salvo, mas pode estar em conflito com outro aplicativo.";
+
+        SaveSettings();
+        return ok;
+    }
+
+    public bool SetToggleCompactModeHotkey(uint modifiers, uint virtualKey, string displayText)
+    {
+        if (modifiers == ToggleOverlayHotkeyModifiers && virtualKey == ToggleOverlayHotkeyKey)
+        {
+            HotkeyStatusMessage = "Esse atalho já está atribuído a Mostrar/Ocultar Overlay.";
+            return false;
+        }
+
+        ToggleCompactModeHotkeyModifiers = modifiers;
+        ToggleCompactModeHotkeyKey = virtualKey;
+        ToggleCompactModeHotkeyDisplay = displayText;
+
+        bool ok = WindowWin32Helper.RegisterOrUpdateHotKey(
+            WindowWin32Helper.HOTKEY_ID_TOGGLE_COMPACT,
+            modifiers,
+            virtualKey);
+
+        HotkeyStatusMessage = ok
+            ? "Atalho de Modo Compacto atualizado."
+            : "Aviso: o atalho foi salvo, mas pode estar em conflito com outro aplicativo.";
+
+        SaveSettings();
+        return ok;
+    }
+
+    [RelayCommand]
+    private void ResetToggleOverlayHotkey()
+    {
+        SetToggleOverlayHotkey(
+            WindowWin32Helper.MOD_CONTROL | WindowWin32Helper.MOD_SHIFT,
+            WindowWin32Helper.VK_O,
+            "Ctrl + Shift + O");
+    }
+
+    [RelayCommand]
+    private void ResetToggleCompactModeHotkey()
+    {
+        SetToggleCompactModeHotkey(
+            WindowWin32Helper.MOD_CONTROL | WindowWin32Helper.MOD_SHIFT,
+            WindowWin32Helper.VK_C,
+            "Ctrl + Shift + C");
+    }
+
+    private void UpdateHotkeyStatusMessage(bool overlayOk, bool compactOk)
+    {
+        if (!overlayOk && !compactOk)
+        {
+            HotkeyStatusMessage = "Conflito detectado: ambos os atalhos globais estão ocupados por outro software.";
+        }
+        else if (!overlayOk)
+        {
+            HotkeyStatusMessage = $"Conflito no atalho '{ToggleOverlayHotkeyDisplay}' — escolha outra combinação.";
+        }
+        else if (!compactOk)
+        {
+            HotkeyStatusMessage = $"Conflito no atalho '{ToggleCompactModeHotkeyDisplay}' — escolha outra combinação.";
+        }
+        else
+        {
+            HotkeyStatusMessage = "Atalhos globais registrados e prontos para uso em jogos.";
         }
     }
 
@@ -1018,7 +1367,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
             FpsValueText = $"{metrics.CurrentFps}";
             FpsText = $"{metrics.CurrentFps} FPS";
 
-            // CPU
+            // CPU & Alertas Térmicos
+            UpdateThermalAlertBrushes(roundedCpuTemp, roundedGpuTemp);
             CpuTemperatureText = roundedCpuTemp > 0 ? $"{roundedCpuTemp} °C" : "N/D";
             CpuLoadText = $"{roundedCpuLoad:0}%";
             CpuLoadBarValue = roundedCpuLoad;
@@ -1296,10 +1646,20 @@ public partial class MainViewModel : ObservableObject, IDisposable
             SmartFullscreenOnly = SmartFullscreenOnly,
             IsHorizontalLayout = IsHorizontalLayout,
             AppTheme = AppTheme,
+            AccentColorHex = AccentColorHex,
             OverlayBackgroundColorHex = OverlayBackgroundColorHex,
             OverlayBorderColorHex = OverlayBorderColorHex,
             OverlayHeaderColorHex = OverlayHeaderColorHex,
             OverlayValueTextColorHex = OverlayValueTextColorHex,
+            EnableThermalColorAlerts = EnableThermalColorAlerts,
+            TempWarningThreshold = TempWarningThreshold,
+            TempCriticalThreshold = TempCriticalThreshold,
+            ToggleOverlayHotkeyModifiers = ToggleOverlayHotkeyModifiers,
+            ToggleOverlayHotkeyKey = ToggleOverlayHotkeyKey,
+            ToggleOverlayHotkeyDisplay = ToggleOverlayHotkeyDisplay,
+            ToggleCompactModeHotkeyModifiers = ToggleCompactModeHotkeyModifiers,
+            ToggleCompactModeHotkeyKey = ToggleCompactModeHotkeyKey,
+            ToggleCompactModeHotkeyDisplay = ToggleCompactModeHotkeyDisplay,
             OverlaySectionOrder = OverlaySections.Select(s => s.Key).ToList(),
             ShowFps = ShowFps,
             ShowCpuTemp = ShowCpuTemp,
@@ -1318,11 +1678,55 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _settingsService.Save(settings);
     }
 
+    private SolidColorBrush ResolveTempBrush(int tempC)
+    {
+        if (!EnableThermalColorAlerts)
+            return OverlayValueTextBrush;
+
+        if (tempC <= 0)
+            return ThermalNormalBrush;
+
+        if (tempC >= TempCriticalThreshold)
+            return ThermalCriticalBrush;
+
+        if (tempC >= TempWarningThreshold)
+            return ThermalWarningBrush;
+
+        return ThermalNormalBrush;
+    }
+
+    private void UpdateThermalAlertBrushes(int cpuTemp, int gpuTemp)
+    {
+        _lastCpuTemp = cpuTemp;
+        _lastGpuTemp = gpuTemp;
+
+        SolidColorBrush nextCpuBrush = ResolveTempBrush(cpuTemp);
+        if (!ReferenceEquals(CpuTempBrush, nextCpuBrush))
+        {
+            CpuTempBrush = nextCpuBrush;
+        }
+
+        SolidColorBrush nextGpuBrush = ResolveTempBrush(gpuTemp);
+        if (!ReferenceEquals(GpuTempBrush, nextGpuBrush))
+        {
+            GpuTempBrush = nextGpuBrush;
+        }
+    }
+
     partial void OnAppThemeChanged(string value)
     {
         if (!_isInitializing)
         {
-            ApplyApplicationTheme(value);
+            ApplyApplicationTheme(value, AccentColorHex);
+        }
+        SaveSettings();
+    }
+
+    partial void OnAccentColorHexChanged(string value)
+    {
+        if (!_isInitializing)
+        {
+            ApplyApplicationTheme(AppTheme, value);
         }
         SaveSettings();
     }
@@ -1341,13 +1745,73 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     partial void OnOverlayHeaderColorHexChanged(string value)
     {
-        OverlayHeaderBrush = CreateFrozenBrush(value, Color.FromRgb(0, 229, 255));
+        OverlayHeaderBrush = CreateFrozenBrush(value, Color.FromRgb(250, 250, 250));
         SaveSettings();
     }
 
     partial void OnOverlayValueTextColorHexChanged(string value)
     {
-        OverlayValueTextBrush = CreateFrozenBrush(value, Colors.White);
+        OverlayValueTextBrush = CreateFrozenBrush(value, Color.FromRgb(250, 250, 250));
+        if (!_isInitializing)
+        {
+            UpdateThermalAlertBrushes(_lastCpuTemp, _lastGpuTemp);
+        }
+        SaveSettings();
+    }
+
+    partial void OnEnableThermalColorAlertsChanged(bool value)
+    {
+        if (!_isInitializing)
+        {
+            UpdateThermalAlertBrushes(_lastCpuTemp, _lastGpuTemp);
+        }
+        SaveSettings();
+    }
+
+    partial void OnTempWarningThresholdChanged(double value)
+    {
+        if (_isInitializing)
+            return;
+
+        double clamped = double.IsNaN(value) ? 70.0 : Math.Clamp(Math.Round(value), 30.0, 110.0);
+        if (Math.Abs(clamped - value) > 0.001)
+        {
+            TempWarningThreshold = clamped;
+            return;
+        }
+
+        if (TempCriticalThreshold <= clamped)
+        {
+            double nextCritical = Math.Clamp(clamped + 5.0, 35.0, 120.0);
+            if (nextCritical <= clamped)
+            {
+                nextCritical = Math.Min(120.0, clamped + 1.0);
+            }
+            TempCriticalThreshold = nextCritical;
+        }
+
+        UpdateThermalAlertBrushes(_lastCpuTemp, _lastGpuTemp);
+        SaveSettings();
+    }
+
+    partial void OnTempCriticalThresholdChanged(double value)
+    {
+        if (_isInitializing)
+            return;
+
+        double clamped = double.IsNaN(value) ? 85.0 : Math.Clamp(Math.Round(value), 35.0, 120.0);
+        if (Math.Abs(clamped - value) > 0.001)
+        {
+            TempCriticalThreshold = clamped;
+            return;
+        }
+
+        if (clamped <= TempWarningThreshold)
+        {
+            TempWarningThreshold = Math.Max(30.0, clamped - 1.0);
+        }
+
+        UpdateThermalAlertBrushes(_lastCpuTemp, _lastGpuTemp);
         SaveSettings();
     }
 

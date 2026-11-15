@@ -15,12 +15,13 @@
         ResizeMode="NoResize"
         SizeToContent="WidthAndHeight"
         FontFamily="Consolas"
+        Typography.NumeralAlignment="Tabular"
         MouseLeftButtonDown="Window_MouseLeftButtonDown">
 
     <!-- Border raiz do Overlay: aplica Cor + Alpha direto no Background/BorderBrush (mantendo textos 100% nítidos) e Escala Vetorial via LayoutTransform -->
     <Border Visibility="{Binding EffectiveOverlayVisible, Converter={StaticResource BoolToVis}}"
             Margin="4"
-            CornerRadius="8"
+            CornerRadius="10"
             Background="{Binding OverlayBackgroundBrush}"
             BorderBrush="{Binding OverlayBorderBrush}"
             BorderThickness="1"
@@ -198,7 +199,7 @@
                                                        FontSize="12.5" />
                                             <TextBlock Grid.Column="1"
                                                        Text="{Binding Parent.CpuTemperatureText}"
-                                                       Foreground="{Binding Parent.OverlayValueTextBrush}"
+                                                       Foreground="{Binding Parent.CpuTempBrush}"
                                                        FontWeight="Bold"
                                                        FontSize="12.5"
                                                        Margin="12,0,0,0"
@@ -319,7 +320,7 @@
                                                        FontSize="12.5" />
                                             <TextBlock Grid.Column="1"
                                                        Text="{Binding Parent.GpuTemperatureText}"
-                                                       Foreground="{Binding Parent.OverlayValueTextBrush}"
+                                                       Foreground="{Binding Parent.GpuTempBrush}"
                                                        FontWeight="Bold"
                                                        FontSize="12.5"
                                                        Margin="12,0,0,0"
@@ -533,7 +534,7 @@
                                                 Visibility="{Binding Parent.EffectiveShowCpuTemp, Converter={StaticResource BoolToVis}}"
                                                 Margin="0,0,8,0">
                                         <TextBlock Text="Temp: " Foreground="{Binding Parent.OverlayValueTextBrush}" Opacity="0.78" FontSize="13" />
-                                        <TextBlock Text="{Binding Parent.CpuTemperatureText}" Foreground="{Binding Parent.OverlayValueTextBrush}" FontWeight="Bold" FontSize="13" />
+                                        <TextBlock Text="{Binding Parent.CpuTemperatureText}" Foreground="{Binding Parent.CpuTempBrush}" FontWeight="Bold" FontSize="13" />
                                     </StackPanel>
 
                                     <StackPanel Orientation="Horizontal"
@@ -585,7 +586,7 @@
                                                 Visibility="{Binding Parent.EffectiveShowGpuTemp, Converter={StaticResource BoolToVis}}"
                                                 Margin="0,0,8,0">
                                         <TextBlock Text="Temp: " Foreground="{Binding Parent.OverlayValueTextBrush}" Opacity="0.78" FontSize="13" />
-                                        <TextBlock Text="{Binding Parent.GpuTemperatureText}" Foreground="{Binding Parent.OverlayValueTextBrush}" FontWeight="Bold" FontSize="13" />
+                                        <TextBlock Text="{Binding Parent.GpuTemperatureText}" Foreground="{Binding Parent.GpuTempBrush}" FontWeight="Bold" FontSize="13" />
                                     </StackPanel>
 
                                     <StackPanel Orientation="Horizontal"

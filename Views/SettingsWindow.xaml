@@ -14,15 +14,17 @@
                  MinHeight="600"
                  WindowStartupLocation="CenterScreen"
                  ExtendsContentIntoTitleBar="True"
-                 WindowBackdropType="Mica"
+                 WindowBackdropType="None"
                  WindowCornerPreference="Round"
-                 Foreground="{DynamicResource TextFillColorPrimaryBrush}">
+                 Typography.NumeralAlignment="Tabular"
+                 Background="{DynamicResource AppBackgroundBrush}"
+                 Foreground="{DynamicResource AppTextPrimaryBrush}">
 
     <ui:FluentWindow.Resources>
-        <!-- Estilo moderno de item do Menu Lateral compatível com Modo Claro e Modo Escuro -->
+        <!-- Estilo moderno monocromático (Linear/Shadcn) de item do Menu Lateral -->
         <Style x:Key="SideNavRadioButtonStyle" TargetType="RadioButton">
             <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource AppTextMutedBrush}" />
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="Margin" Value="0,2" />
             <Setter Property="Padding" Value="12,10" />
@@ -32,7 +34,9 @@
                     <ControlTemplate TargetType="RadioButton">
                         <Border x:Name="RootBorder"
                                 Background="{TemplateBinding Background}"
-                                CornerRadius="6"
+                                BorderBrush="Transparent"
+                                BorderThickness="1"
+                                CornerRadius="8"
                                 Padding="{TemplateBinding Padding}">
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -40,13 +44,13 @@
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
 
-                                <!-- Barra indicadora lateral de seleção (Estilo Windows 11) -->
+                                <!-- Barra indicadora lateral de seleção -->
                                 <Border x:Name="ActiveIndicator"
                                         Grid.Column="0"
                                         Width="3"
                                         Height="18"
                                         CornerRadius="1.5"
-                                        Background="#00E5FF"
+                                        Background="{DynamicResource AppAccentBrush}"
                                         Visibility="Hidden"
                                         HorizontalAlignment="Left"
                                         VerticalAlignment="Center" />
@@ -58,13 +62,14 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="RootBorder" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
-                                <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                                <Setter TargetName="RootBorder" Property="Background" Value="{DynamicResource AppSubCardBackgroundBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource AppTextPrimaryBrush}" />
                             </Trigger>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="RootBorder" Property="Background" Value="#1E00E5FF" />
+                                <Setter TargetName="RootBorder" Property="Background" Value="{DynamicResource AppAccentMutedBackgroundBrush}" />
+                                <Setter TargetName="RootBorder" Property="BorderBrush" Value="{DynamicResource AppAccentBorderBrush}" />
                                 <Setter TargetName="ActiveIndicator" Property="Visibility" Value="Visible" />
-                                <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource AppTextPrimaryBrush}" />
                                 <Setter Property="FontWeight" Value="SemiBold" />
                             </Trigger>
                         </ControlTemplate.Triggers>
@@ -73,22 +78,22 @@
             </Setter>
         </Style>
 
-        <!-- Estilo de Card de Painel de Telemetria (Usa DynamicResource do WPF-UI para Temas Claro/Escuro) -->
+        <!-- Card Principal (Linear/Shadcn: borda 1px sutil, CornerRadius 10) -->
         <Style x:Key="TelemetryCardBorderStyle" TargetType="Border">
-            <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+            <Setter Property="Background" Value="{DynamicResource AppCardBackgroundBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="CornerRadius" Value="10" />
             <Setter Property="Padding" Value="16" />
             <Setter Property="Margin" Value="0,0,0,12" />
         </Style>
 
-        <!-- Estilo de Sub-Card Interno / Caixa de Métrica (Adaptável ao Tema Claro/Escuro) -->
+        <!-- Sub-Card Interno / Caixa de Métrica (CornerRadius 10) -->
         <Style x:Key="SubCardBorderStyle" TargetType="Border">
-            <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+            <Setter Property="Background" Value="{DynamicResource AppSubCardBackgroundBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="CornerRadius" Value="10" />
         </Style>
 
         <!-- Estilo de Botão Rápido de Amostra de Cor (Swatch) -->
@@ -102,12 +107,12 @@
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="SwatchBorder"
                                 Background="{TemplateBinding Background}"
-                                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                BorderBrush="{DynamicResource AppBorderBrush}"
                                 BorderThickness="1.5"
                                 CornerRadius="6" />
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="SwatchBorder" Property="BorderBrush" Value="#00E5FF" />
+                                <Setter TargetName="SwatchBorder" Property="BorderBrush" Value="{DynamicResource AppAccentBrush}" />
                                 <Setter TargetName="SwatchBorder" Property="BorderThickness" Value="2" />
                             </Trigger>
                         </ControlTemplate.Triggers>
@@ -117,7 +122,7 @@
         </Style>
     </ui:FluentWindow.Resources>
 
-    <Grid>
+    <Grid Background="{DynamicResource AppBackgroundBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -140,8 +145,8 @@
 
             <!-- ==================== MENU DE NAVEGAÇÃO LATERAL (SIDEBAR) ==================== -->
             <Border Grid.Column="0"
-                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                    Background="{DynamicResource AppCardBackgroundBrush}"
+                    BorderBrush="{DynamicResource AppBorderBrush}"
                     BorderThickness="0,0,1,0"
                     Padding="10,12,10,12">
                 <Grid>
@@ -155,7 +160,7 @@
                     <!-- Cabeçalho de Status Rápido no Menu Lateral -->
                     <Border Grid.Row="0"
                             Style="{StaticResource SubCardBorderStyle}"
-                            CornerRadius="8"
+                            CornerRadius="10"
                             Padding="12,10"
                             Margin="2,0,2,14">
                         <Grid>
@@ -167,11 +172,11 @@
                                 <TextBlock Text="TELEMETRIA ATIVA"
                                            FontSize="10"
                                            FontWeight="Bold"
-                                           Foreground="#00B8D4" />
+                                           Foreground="{DynamicResource AppTextMutedBrush}" />
                                 <TextBlock Text="{Binding FpsText}"
                                            FontSize="16"
                                            FontWeight="Bold"
-                                           Foreground="#F59E0B"
+                                           Foreground="{DynamicResource AppAccentBrush}"
                                            Margin="0,2,0,0" />
                             </StackPanel>
                             <ui:ToggleSwitch Grid.Column="1"
@@ -186,7 +191,7 @@
                         <TextBlock Text="MONITORAMENTO"
                                    FontSize="11"
                                    FontWeight="SemiBold"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   Foreground="{DynamicResource AppTextMutedBrush}"
                                    Margin="12,0,0,6" />
 
                         <!-- 1. Visão Geral -->
@@ -196,7 +201,7 @@
                             <StackPanel Orientation="Horizontal">
                                 <ui:SymbolIcon Symbol="DataHistogram24"
                                                FontSize="18"
-                                               Foreground="#00B8D4"
+                                               Foreground="{DynamicResource AppAccentBrush}"
                                                VerticalAlignment="Center" />
                                 <TextBlock Text="Visão Geral"
                                            FontSize="13.5"
@@ -218,7 +223,7 @@
                                 <ui:SymbolIcon Grid.Column="0"
                                                Symbol="DeveloperBoard24"
                                                FontSize="18"
-                                               Foreground="#0288D1"
+                                               Foreground="{DynamicResource AppAccentBrush}"
                                                VerticalAlignment="Center" />
                                 <TextBlock Grid.Column="1"
                                            Text="Processador (CPU)"
@@ -229,7 +234,7 @@
                                            Text="{Binding CpuLoadText}"
                                            FontSize="11.5"
                                            FontWeight="SemiBold"
-                                           Foreground="#0288D1"
+                                           Foreground="{DynamicResource AppAccentBrush}"
                                            VerticalAlignment="Center" />
                             </Grid>
                         </RadioButton>
@@ -247,7 +252,7 @@
                                 <ui:SymbolIcon Grid.Column="0"
                                                Symbol="Video24"
                                                FontSize="18"
-                                               Foreground="#10B981"
+                                               Foreground="{DynamicResource AppAccentBrush}"
                                                VerticalAlignment="Center" />
                                 <TextBlock Grid.Column="1"
                                            Text="Placa de Vídeo (GPU)"
@@ -258,7 +263,7 @@
                                            Text="{Binding GpuLoadText}"
                                            FontSize="11.5"
                                            FontWeight="SemiBold"
-                                           Foreground="#10B981"
+                                           Foreground="{DynamicResource AppAccentBrush}"
                                            VerticalAlignment="Center" />
                             </Grid>
                         </RadioButton>
@@ -276,7 +281,7 @@
                                 <ui:SymbolIcon Grid.Column="0"
                                                Symbol="HardDrive20"
                                                FontSize="18"
-                                               Foreground="#A855F7"
+                                               Foreground="{DynamicResource AppAccentBrush}"
                                                VerticalAlignment="Center" />
                                 <TextBlock Grid.Column="1"
                                            Text="Sistema &amp; Discos"
@@ -287,7 +292,7 @@
                                            Text="{Binding RamPercentText}"
                                            FontSize="11.5"
                                            FontWeight="SemiBold"
-                                           Foreground="#A855F7"
+                                           Foreground="{DynamicResource AppAccentBrush}"
                                            VerticalAlignment="Center" />
                             </Grid>
                         </RadioButton>
@@ -305,7 +310,7 @@
                             <StackPanel Orientation="Horizontal">
                                 <ui:SymbolIcon Symbol="Color24"
                                                FontSize="18"
-                                               Foreground="#14B8A6"
+                                               Foreground="{DynamicResource AppAccentBrush}"
                                                VerticalAlignment="Center" />
                                 <TextBlock Text="Personalização"
                                            FontSize="13.5"
@@ -327,7 +332,7 @@
                             <StackPanel Orientation="Horizontal">
                                 <ui:SymbolIcon Symbol="Settings24"
                                                FontSize="18"
-                                               Foreground="#F59E0B"
+                                               Foreground="{DynamicResource AppAccentBrush}"
                                                VerticalAlignment="Center" />
                                 <TextBlock Text="Configurações"
                                            FontSize="13.5"
@@ -371,12 +376,12 @@
                                         Width="44"
                                         Height="44"
                                         CornerRadius="8"
-                                        Background="#1A00E5FF"
+                                        Background="{DynamicResource AppSubCardBackgroundBrush}" BorderBrush="{DynamicResource AppBorderBrush}" BorderThickness="1"
                                         VerticalAlignment="Center"
                                         Margin="0,0,16,0">
                                     <ui:SymbolIcon Symbol="Window24"
                                                    FontSize="22"
-                                                   Foreground="#00B8D4"
+                                                   Foreground="{DynamicResource AppAccentBrush}"
                                                    HorizontalAlignment="Center"
                                                    VerticalAlignment="Center" />
                                 </Border>
@@ -385,7 +390,7 @@
                                     <TextBlock Text="SISTEMA OPERACIONAL"
                                                FontSize="11"
                                                FontWeight="Bold"
-                                               Foreground="#00B8D4" />
+                                               Foreground="{DynamicResource AppAccentBrush}" />
                                     <TextBlock Text="{Binding OsName}"
                                                FontSize="17"
                                                FontWeight="Bold"
@@ -410,8 +415,8 @@
                                 </StackPanel>
 
                                 <Border Grid.Column="2"
-                                        Background="#1F00E5FF"
-                                        BorderBrush="#4400E5FF"
+                                        Background="{DynamicResource AppAccentMutedBackgroundBrush}"
+                                        BorderBrush="{DynamicResource AppAccentBorderBrush}"
                                         BorderThickness="1"
                                         CornerRadius="6"
                                         Padding="12,6"
@@ -420,7 +425,7 @@
                                                FontFamily="Consolas"
                                                FontSize="14"
                                                FontWeight="Bold"
-                                               Foreground="#F59E0B" />
+                                               Foreground="{DynamicResource AppAccentBrush}" />
                                 </Border>
                             </Grid>
                         </Border>
@@ -439,12 +444,12 @@
                                             Width="44"
                                             Height="44"
                                             CornerRadius="8"
-                                            Background="#1A0288D1"
+                                            Background="{DynamicResource AppSubCardBackgroundBrush}" BorderBrush="{DynamicResource AppBorderBrush}" BorderThickness="1"
                                             VerticalAlignment="Center"
                                             Margin="0,0,16,0">
                                         <ui:SymbolIcon Symbol="DeveloperBoard24"
                                                        FontSize="22"
-                                                       Foreground="#0288D1"
+                                                       Foreground="{DynamicResource AppAccentBrush}"
                                                        HorizontalAlignment="Center"
                                                        VerticalAlignment="Center" />
                                     </Border>
@@ -453,7 +458,7 @@
                                         <TextBlock Text="PROCESSADOR (CPU)"
                                                    FontSize="11"
                                                    FontWeight="Bold"
-                                                   Foreground="#0288D1" />
+                                                   Foreground="{DynamicResource AppAccentBrush}" />
                                         <TextBlock Text="{Binding CpuName}"
                                                    FontSize="16"
                                                    FontWeight="Bold"
@@ -478,7 +483,7 @@
                                                 <TextBlock Text="{Binding CpuLoadText}"
                                                            FontSize="15"
                                                            FontWeight="Bold"
-                                                           Foreground="#0288D1" />
+                                                           Foreground="{DynamicResource AppAccentBrush}" />
                                             </StackPanel>
                                         </Border>
                                         <Border Style="{StaticResource SubCardBorderStyle}"
@@ -500,7 +505,7 @@
                                              Maximum="100"
                                              Height="6"
                                              Margin="0,12,0,0"
-                                             Foreground="#0288D1"
+                                             Foreground="{DynamicResource AppAccentBrush}"
                                              Value="{Binding CpuLoadBarValue, Mode=OneWay}" />
                             </StackPanel>
                         </Border>
@@ -518,23 +523,23 @@
                                     <ui:SymbolIcon Grid.Column="0"
                                                    Symbol="Video24"
                                                    FontSize="20"
-                                                   Foreground="#10B981"
+                                                   Foreground="{DynamicResource AppAccentBrush}"
                                                    VerticalAlignment="Center"
                                                    Margin="0,0,10,0" />
                                     <TextBlock Grid.Column="1"
                                                Text="PLACAS DE VÍDEO (GPU)"
                                                FontSize="12"
                                                FontWeight="Bold"
-                                               Foreground="#10B981"
+                                               Foreground="{DynamicResource AppAccentBrush}"
                                                VerticalAlignment="Center" />
                                     <Border Grid.Column="2"
-                                            Background="#1A10B981"
+                                            Background="{DynamicResource AppAccentMutedBackgroundBrush}" BorderBrush="{DynamicResource AppAccentBorderBrush}" BorderThickness="1"
                                             CornerRadius="4"
                                             Padding="8,3">
                                         <TextBlock Text="{Binding GpuCountBadgeText}"
                                                    FontSize="11"
                                                    FontWeight="SemiBold"
-                                                   Foreground="#10B981" />
+                                                   Foreground="{DynamicResource AppAccentBrush}" />
                                     </Border>
                                 </Grid>
 
@@ -564,7 +569,7 @@
                                                                 <TextBlock Text="{Binding TotalVramDisplay}"
                                                                            FontSize="12"
                                                                            FontWeight="SemiBold"
-                                                                           Foreground="#10B981" />
+                                                                           Foreground="{DynamicResource AppAccentBrush}" />
                                                             </StackPanel>
                                                         </StackPanel>
 
@@ -581,7 +586,7 @@
                                                                     <TextBlock Text="{Binding CoreLoadText}"
                                                                                FontSize="14"
                                                                                FontWeight="Bold"
-                                                                               Foreground="#10B981" />
+                                                                               Foreground="{DynamicResource AppAccentBrush}" />
                                                                 </StackPanel>
                                                             </Border>
                                                             <Border Style="{StaticResource SubCardBorderStyle}"
@@ -603,7 +608,7 @@
                                                                  Maximum="100"
                                                                  Height="5"
                                                                  Margin="0,10,0,0"
-                                                                 Foreground="#10B981"
+                                                                 Foreground="{DynamicResource AppAccentBrush}"
                                                                  Value="{Binding CoreLoadBarValue, Mode=OneWay}" />
                                                 </StackPanel>
                                             </Border>
@@ -627,12 +632,12 @@
                                             Width="44"
                                             Height="44"
                                             CornerRadius="8"
-                                            Background="#1AA855F7"
+                                            Background="{DynamicResource AppSubCardBackgroundBrush}" BorderBrush="{DynamicResource AppBorderBrush}" BorderThickness="1"
                                             VerticalAlignment="Center"
                                             Margin="0,0,16,0">
                                         <ui:SymbolIcon Symbol="Ram16"
                                                        FontSize="22"
-                                                       Foreground="#A855F7"
+                                                       Foreground="{DynamicResource AppAccentBrush}"
                                                        HorizontalAlignment="Center"
                                                        VerticalAlignment="Center" />
                                     </Border>
@@ -641,7 +646,7 @@
                                         <TextBlock Text="MEMÓRIA RAM"
                                                    FontSize="11"
                                                    FontWeight="Bold"
-                                                   Foreground="#A855F7" />
+                                                   Foreground="{DynamicResource AppAccentBrush}" />
                                         <TextBlock Text="{Binding RamDetailedSummaryText}"
                                                    FontSize="15"
                                                    FontWeight="SemiBold"
@@ -668,7 +673,7 @@
                                             <TextBlock Text="{Binding RamPercentText}"
                                                        FontSize="16"
                                                        FontWeight="Bold"
-                                                       Foreground="#A855F7" />
+                                                       Foreground="{DynamicResource AppAccentBrush}" />
                                         </StackPanel>
                                     </Border>
                                 </Grid>
@@ -677,7 +682,7 @@
                                              Maximum="100"
                                              Height="6"
                                              Margin="0,12,0,0"
-                                             Foreground="#A855F7"
+                                             Foreground="{DynamicResource AppAccentBrush}"
                                              Value="{Binding RamUsageBarValue, Mode=OneWay}" />
                             </StackPanel>
                         </Border>
@@ -688,13 +693,13 @@
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
                                     <ui:SymbolIcon Symbol="HardDrive20"
                                                    FontSize="20"
-                                                   Foreground="#F59E0B"
+                                                   Foreground="{DynamicResource AppAccentBrush}"
                                                    VerticalAlignment="Center"
                                                    Margin="0,0,10,0" />
                                     <TextBlock Text="UNIDADES DE ARMAZENAMENTO"
                                                FontSize="12"
                                                FontWeight="Bold"
-                                               Foreground="#F59E0B"
+                                               Foreground="{DynamicResource AppAccentBrush}"
                                                VerticalAlignment="Center" />
                                 </StackPanel>
 
@@ -735,7 +740,7 @@
                                                                 <TextBlock Text="{Binding TemperatureText}"
                                                                            FontSize="13"
                                                                            FontWeight="Bold"
-                                                                           Foreground="#F59E0B" />
+                                                                           Foreground="{DynamicResource AppAccentBrush}" />
                                                             </StackPanel>
                                                         </Border>
                                                     </Grid>
@@ -744,7 +749,7 @@
                                                                  Maximum="100"
                                                                  Height="5"
                                                                  Margin="0,8,0,0"
-                                                                 Foreground="#F59E0B"
+                                                                 Foreground="{DynamicResource AppAccentBrush}"
                                                                  Value="{Binding UsagePercent, Mode=OneWay}" />
                                                 </StackPanel>
                                             </Border>
@@ -785,7 +790,7 @@
                                     <TextBlock Text="MODELO DO PROCESSADOR"
                                                FontSize="11"
                                                FontWeight="Bold"
-                                               Foreground="#0288D1" />
+                                               Foreground="{DynamicResource AppAccentBrush}" />
                                     <TextBlock Text="{Binding CpuName}"
                                                FontSize="18"
                                                FontWeight="Bold"
@@ -809,7 +814,7 @@
                                         <TextBlock Text="{Binding CpuPhysicalCores}"
                                                    FontSize="18"
                                                    FontWeight="Bold"
-                                                   Foreground="#0288D1"
+                                                   Foreground="{DynamicResource AppAccentBrush}"
                                                    HorizontalAlignment="Center" />
                                     </StackPanel>
                                 </Border>
@@ -825,7 +830,7 @@
                                         <TextBlock Text="{Binding CpuLogicalThreads}"
                                                    FontSize="18"
                                                    FontWeight="Bold"
-                                                   Foreground="#0288D1"
+                                                   Foreground="{DynamicResource AppAccentBrush}"
                                                    HorizontalAlignment="Center" />
                                     </StackPanel>
                                 </Border>
@@ -844,12 +849,12 @@
                                     <TextBlock Text="{Binding CpuLoadText}"
                                                FontSize="24"
                                                FontWeight="Bold"
-                                               Foreground="#0288D1"
+                                               Foreground="{DynamicResource AppAccentBrush}"
                                                Margin="0,4,0,8" />
                                     <ProgressBar Minimum="0"
                                                  Maximum="100"
                                                  Height="6"
-                                                 Foreground="#0288D1"
+                                                 Foreground="{DynamicResource AppAccentBrush}"
                                                  Value="{Binding CpuLoadBarValue, Mode=OneWay}" />
                                 </StackPanel>
                             </Border>
@@ -882,7 +887,7 @@
                                     <TextBlock Text="{Binding CpuPowerText}"
                                                FontSize="24"
                                                FontWeight="Bold"
-                                               Foreground="#F59E0B"
+                                               Foreground="{DynamicResource AppAccentBrush}"
                                                Margin="0,4,0,2" />
                                     <TextBlock Text="Potência em tempo real"
                                                FontSize="11"
@@ -902,7 +907,7 @@
                                     <TextBlock Text="{Binding CpuVoltageText}"
                                                FontSize="22"
                                                FontWeight="Bold"
-                                               Foreground="#00B8D4"
+                                               Foreground="{DynamicResource AppAccentBrush}"
                                                Margin="0,4,0,2" />
                                     <TextBlock Text="Leitura direta CPU / SuperIO Placa-Mãe"
                                                FontSize="11"
@@ -974,7 +979,7 @@
                                                            FontFamily="Consolas"
                                                            FontWeight="Bold"
                                                            FontSize="13"
-                                                           Foreground="#0288D1"
+                                                           Foreground="{DynamicResource AppAccentBrush}"
                                                            Width="44"
                                                            TextAlignment="Right"
                                                            VerticalAlignment="Center" />
@@ -983,7 +988,7 @@
                                                          Maximum="100"
                                                          Height="5"
                                                          Margin="0,7,0,0"
-                                                         Foreground="#0288D1"
+                                                         Foreground="{DynamicResource AppAccentBrush}"
                                                          Value="{Binding LoadBarValue, Mode=OneWay}" />
                                         </StackPanel>
                                     </Border>
@@ -1017,8 +1022,8 @@
                             </StackPanel>
 
                             <Border Grid.Column="1"
-                                    Background="#1A10B981"
-                                    BorderBrush="#4410B981"
+                                    Background="{DynamicResource AppAccentMutedBackgroundBrush}"
+                                    BorderBrush="{DynamicResource AppAccentBorderBrush}"
                                     BorderThickness="1"
                                     CornerRadius="6"
                                     Padding="12,6"
@@ -1026,7 +1031,7 @@
                                 <TextBlock Text="{Binding GpuCountBadgeText}"
                                            FontSize="12.5"
                                            FontWeight="Bold"
-                                           Foreground="#10B981" />
+                                           Foreground="{DynamicResource AppAccentBrush}" />
                             </Border>
                         </Grid>
 
@@ -1043,7 +1048,7 @@
                                     <TextBlock Text="SELECIONAR ADAPTADOR GRÁFICO (GPU)"
                                                FontSize="11"
                                                FontWeight="Bold"
-                                               Foreground="#10B981" />
+                                               Foreground="{DynamicResource AppAccentBrush}" />
                                     <TextBlock Text="Alterne entre a GPU dedicada e a integrada"
                                                FontSize="12"
                                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
@@ -1072,7 +1077,7 @@
                                         <TextBlock Text="{Binding Vendor}"
                                                    FontSize="11"
                                                    FontWeight="Bold"
-                                                   Foreground="#10B981" />
+                                                   Foreground="{DynamicResource AppAccentBrush}" />
                                         <TextBlock Text="{Binding Name}"
                                                    FontSize="19"
                                                    FontWeight="Bold"
@@ -1092,7 +1097,7 @@
                                             <TextBlock Text="{Binding TotalVramDisplay}"
                                                        FontSize="16"
                                                        FontWeight="Bold"
-                                                       Foreground="#10B981" />
+                                                       Foreground="{DynamicResource AppAccentBrush}" />
                                         </StackPanel>
                                     </Border>
                                 </Grid>
@@ -1109,12 +1114,12 @@
                                         <TextBlock Text="{Binding CoreLoadText}"
                                                    FontSize="24"
                                                    FontWeight="Bold"
-                                                   Foreground="#10B981"
+                                                   Foreground="{DynamicResource AppAccentBrush}"
                                                    Margin="0,4,0,8" />
                                         <ProgressBar Minimum="0"
                                                      Maximum="100"
                                                      Height="6"
-                                                     Foreground="#10B981"
+                                                     Foreground="{DynamicResource AppAccentBrush}"
                                                      Value="{Binding CoreLoadBarValue, Mode=OneWay}" />
                                     </StackPanel>
                                 </Border>
@@ -1133,7 +1138,7 @@
                                         <ProgressBar Minimum="0"
                                                      Maximum="100"
                                                      Height="6"
-                                                     Foreground="#00B8D4"
+                                                     Foreground="{DynamicResource AppAccentBrush}"
                                                      Value="{Binding VramUsagePercent, Mode=OneWay}" />
                                     </StackPanel>
                                 </Border>
@@ -1166,7 +1171,7 @@
                                             <TextBlock Text="{Binding HotSpotTemperatureText}"
                                                        FontSize="22"
                                                        FontWeight="Bold"
-                                                       Foreground="#F59E0B"
+                                                       Foreground="{DynamicResource AppAccentBrush}"
                                                        Margin="0,4,0,0" />
                                         </StackPanel>
                                     </Grid>
@@ -1186,7 +1191,7 @@
                                             <TextBlock Text="{Binding CoreClockText}"
                                                        FontSize="20"
                                                        FontWeight="Bold"
-                                                       Foreground="#10B981"
+                                                       Foreground="{DynamicResource AppAccentBrush}"
                                                        Margin="0,6,0,0" />
                                         </StackPanel>
                                         <StackPanel Grid.Column="1">
@@ -1215,7 +1220,7 @@
                                         <TextBlock Text="{Binding PowerText}"
                                                    FontSize="22"
                                                    FontWeight="Bold"
-                                                   Foreground="#F59E0B"
+                                                   Foreground="{DynamicResource AppAccentBrush}"
                                                    Margin="0,4,0,2" />
                                         <TextBlock Text="Exibe N/D caso o hardware não possua sensor de potência"
                                                    FontSize="11"
@@ -1232,7 +1237,7 @@
                                         <TextBlock Text="{Binding FanText}"
                                                    FontSize="22"
                                                    FontWeight="Bold"
-                                                   Foreground="#00B8D4"
+                                                   Foreground="{DynamicResource AppAccentBrush}"
                                                    Margin="0,4,0,2" />
                                         <TextBlock Text="Rotação em RPM / % (ou N/D em GPUs integradas / Fan Stop)"
                                                    FontSize="11"
@@ -1272,7 +1277,7 @@
                                         <TextBlock Text="MEMÓRIA RAM FÍSICA"
                                                    FontSize="11"
                                                    FontWeight="Bold"
-                                                   Foreground="#A855F7" />
+                                                   Foreground="{DynamicResource AppAccentBrush}" />
                                         <TextBlock Text="{Binding RamDetailedSummaryText}"
                                                    FontSize="17"
                                                    FontWeight="Bold"
@@ -1284,7 +1289,7 @@
                                                Text="{Binding RamPercentText}"
                                                FontSize="24"
                                                FontWeight="Bold"
-                                               Foreground="#A855F7"
+                                               Foreground="{DynamicResource AppAccentBrush}"
                                                VerticalAlignment="Center" />
                                 </Grid>
 
@@ -1292,7 +1297,7 @@
                                              Maximum="100"
                                              Height="10"
                                              Margin="0,12,0,14"
-                                             Foreground="#A855F7"
+                                             Foreground="{DynamicResource AppAccentBrush}"
                                              Value="{Binding RamUsageBarValue, Mode=OneWay}" />
 
                                 <UniformGrid Columns="3">
@@ -1305,13 +1310,13 @@
                                     <Border Style="{StaticResource SubCardBorderStyle}" Padding="12,8" Margin="3,0,3,0">
                                         <StackPanel>
                                             <TextBlock Text="MEMÓRIA EM USO" FontSize="10" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                            <TextBlock Text="{Binding RamUsedText}" FontSize="16" FontWeight="Bold" Foreground="#A855F7" Margin="0,2,0,0" />
+                                            <TextBlock Text="{Binding RamUsedText}" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource AppAccentBrush}" Margin="0,2,0,0" />
                                         </StackPanel>
                                     </Border>
                                     <Border Style="{StaticResource SubCardBorderStyle}" Padding="12,8" Margin="6,0,0,0">
                                         <StackPanel>
                                             <TextBlock Text="MEMÓRIA LIVRE" FontSize="10" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                            <TextBlock Text="{Binding RamFreeText}" FontSize="16" FontWeight="Bold" Foreground="#10B981" Margin="0,2,0,0" />
+                                            <TextBlock Text="{Binding RamFreeText}" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource AppAccentBrush}" Margin="0,2,0,0" />
                                         </StackPanel>
                                     </Border>
                                 </UniformGrid>
@@ -1341,12 +1346,12 @@
                                                         Width="44"
                                                         Height="44"
                                                         CornerRadius="8"
-                                                        Background="#1AF59E0B"
+                                                        Background="{DynamicResource AppSubCardBackgroundBrush}" BorderBrush="{DynamicResource AppBorderBrush}" BorderThickness="1"
                                                         VerticalAlignment="Center"
                                                         Margin="0,0,14,0">
                                                     <ui:SymbolIcon Symbol="HardDrive20"
                                                                    FontSize="22"
-                                                                   Foreground="#F59E0B"
+                                                                   Foreground="{DynamicResource AppAccentBrush}"
                                                                    HorizontalAlignment="Center"
                                                                    VerticalAlignment="Center" />
                                                 </Border>
@@ -1365,7 +1370,7 @@
                                                             <TextBlock Text="{Binding FileSystem}"
                                                                        FontSize="10.5"
                                                                        FontWeight="SemiBold"
-                                                                       Foreground="#00B8D4" />
+                                                                       Foreground="{DynamicResource AppAccentBrush}" />
                                                         </Border>
                                                     </StackPanel>
                                                     <TextBlock Text="{Binding PhysicalDiskModel}"
@@ -1386,7 +1391,7 @@
                                                         <TextBlock Text="{Binding TemperatureText}"
                                                                    FontSize="15"
                                                                    FontWeight="Bold"
-                                                                   Foreground="#F59E0B"
+                                                                   Foreground="{DynamicResource AppAccentBrush}"
                                                                    HorizontalAlignment="Center"
                                                                    Margin="0,2,0,0" />
                                                     </StackPanel>
@@ -1397,7 +1402,7 @@
                                                          Maximum="100"
                                                          Height="8"
                                                          Margin="0,12,0,8"
-                                                         Foreground="#F59E0B"
+                                                         Foreground="{DynamicResource AppAccentBrush}"
                                                          Value="{Binding UsagePercent, Mode=OneWay}" />
 
                                             <Grid>
@@ -1442,7 +1447,7 @@
                                             <ui:SymbolIcon Grid.Column="0"
                                                            Symbol="HardDrive20"
                                                            FontSize="20"
-                                                           Foreground="#00B8D4"
+                                                           Foreground="{DynamicResource AppAccentBrush}"
                                                            VerticalAlignment="Center"
                                                            Margin="0,0,12,0" />
 
@@ -1463,7 +1468,7 @@
                                                 <TextBlock Text="{Binding TemperatureText}"
                                                            FontSize="14"
                                                            FontWeight="Bold"
-                                                           Foreground="#00B8D4" />
+                                                           Foreground="{DynamicResource AppAccentBrush}" />
                                             </Border>
                                         </Grid>
                                     </Border>
@@ -1571,6 +1576,66 @@
                             </StackPanel>
                         </Border>
 
+                        <!-- ==================== COR DE DESTAQUE (ACCENT COLOR) ==================== -->
+                        <Border Style="{StaticResource TelemetryCardBorderStyle}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="110" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <Border Grid.Column="0"
+                                        Width="36"
+                                        Height="36"
+                                        CornerRadius="8"
+                                        Background="{DynamicResource AppAccentBrush}"
+                                        BorderBrush="{DynamicResource AppBorderBrush}"
+                                        BorderThickness="1"
+                                        VerticalAlignment="Center"
+                                        Margin="0,0,14,0" />
+
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="Cor de Destaque (Accent Color)"
+                                               FontWeight="SemiBold"
+                                               FontSize="14"
+                                               Foreground="{DynamicResource AppTextPrimaryBrush}" />
+                                    <TextBlock Text="Define a cor dos indicadores ativos, barras de progresso e destaques (Padrão: #FAFAFA)"
+                                               FontSize="11.5"
+                                               Foreground="{DynamicResource AppTextMutedBrush}" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="2"
+                                            Orientation="Horizontal"
+                                            VerticalAlignment="Center"
+                                            Margin="12,0,10,0">
+                                    <Button Style="{StaticResource ColorSwatchButtonStyle}" Background="#FAFAFA" ToolTip="Monocromático (#FAFAFA)" Command="{Binding SetAccentQuickColorCommand}" CommandParameter="#FAFAFA" />
+                                    <Button Style="{StaticResource ColorSwatchButtonStyle}" Background="#00E5FF" ToolTip="Ciano (#00E5FF)" Command="{Binding SetAccentQuickColorCommand}" CommandParameter="#00E5FF" />
+                                    <Button Style="{StaticResource ColorSwatchButtonStyle}" Background="#3B82F6" ToolTip="Azul (#3B82F6)" Command="{Binding SetAccentQuickColorCommand}" CommandParameter="#3B82F6" />
+                                    <Button Style="{StaticResource ColorSwatchButtonStyle}" Background="#10B981" ToolTip="Esmeralda (#10B981)" Command="{Binding SetAccentQuickColorCommand}" CommandParameter="#10B981" />
+                                    <Button Style="{StaticResource ColorSwatchButtonStyle}" Background="#8B5CF6" ToolTip="Violeta (#8B5CF6)" Command="{Binding SetAccentQuickColorCommand}" CommandParameter="#8B5CF6" />
+                                    <Button Style="{StaticResource ColorSwatchButtonStyle}" Background="#F59E0B" ToolTip="Âmbar (#F59E0B)" Command="{Binding SetAccentQuickColorCommand}" CommandParameter="#F59E0B" />
+                                    <Button Style="{StaticResource ColorSwatchButtonStyle}" Background="#EF4444" ToolTip="Vermelho (#EF4444)" Command="{Binding SetAccentQuickColorCommand}" CommandParameter="#EF4444" />
+                                </StackPanel>
+
+                                <TextBox Grid.Column="3"
+                                         Text="{Binding AccentColorHex, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         FontFamily="Consolas"
+                                         FontWeight="SemiBold"
+                                         VerticalAlignment="Center"
+                                         Margin="0,0,8,0"
+                                         ToolTip="Código Hex (#RRGGBB)" />
+
+                                <ui:Button Grid.Column="4"
+                                           Content="Padrão"
+                                           Appearance="Secondary"
+                                           VerticalAlignment="Center"
+                                           Command="{Binding ResetAccentColorCommand}" />
+                            </Grid>
+                        </Border>
+
                         <!-- ==================== B. OPACIDADE E ESCALA DO OVERLAY ==================== -->
                         <TextBlock Text="Opacidade e Escala do Overlay (Tamanho)"
                                    FontSize="16"
@@ -1616,7 +1681,7 @@
                                                VerticalAlignment="Center"
                                                FontWeight="Bold"
                                                FontSize="13.5"
-                                               Foreground="#00B8D4"
+                                               Foreground="{DynamicResource AppAccentBrush}"
                                                Margin="8,0,0,0" />
                                 </StackPanel>
                             </Grid>
@@ -1660,7 +1725,7 @@
                                                VerticalAlignment="Center"
                                                FontWeight="Bold"
                                                FontSize="13.5"
-                                               Foreground="#00B8D4"
+                                               Foreground="{DynamicResource AppAccentBrush}"
                                                Margin="8,0,10,0" />
                                     <ui:Button Content="100% (Padrão)"
                                                Appearance="Secondary"
@@ -1700,11 +1765,17 @@
                                            Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                            Margin="0,2,0,10" />
 
-                                <UniformGrid Columns="3" Rows="2">
-                                    <ui:Button Content="Ciano Clean (Padrão)"
+                                <UniformGrid Columns="4" Rows="2">
+                                    <ui:Button Content="Monochrome (Padrão)"
                                                Appearance="Secondary"
                                                HorizontalAlignment="Stretch"
                                                Margin="0,0,6,6"
+                                               Command="{Binding ApplyColorPresetCommand}"
+                                               CommandParameter="Monochrome" />
+                                    <ui:Button Content="Ciano Clean"
+                                               Appearance="Secondary"
+                                               HorizontalAlignment="Stretch"
+                                               Margin="3,0,3,6"
                                                Command="{Binding ApplyColorPresetCommand}"
                                                CommandParameter="CleanCyan" />
                                     <ui:Button Content="Verde Esmeralda"
@@ -1734,7 +1805,7 @@
                                     <ui:Button Content="Claro Minimalista"
                                                Appearance="Secondary"
                                                HorizontalAlignment="Stretch"
-                                               Margin="6,0,0,0"
+                                               Margin="3,0,3,0"
                                                Command="{Binding ApplyColorPresetCommand}"
                                                CommandParameter="MinimalLight" />
                                 </UniformGrid>
@@ -1766,7 +1837,7 @@
                                                FontWeight="SemiBold"
                                                FontSize="14"
                                                Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-                                    <TextBlock Text="Cor base da janela flutuante (Padrão: #141418)"
+                                    <TextBlock Text="Cor base da janela flutuante (Padrão: #09090B)"
                                                FontSize="12"
                                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                 </StackPanel>
@@ -1775,9 +1846,9 @@
                                             Orientation="Horizontal"
                                             VerticalAlignment="Center"
                                             Margin="12,0,14,0">
+                                    <Button Style="{StaticResource ColorSwatchButtonStyle}" Background="#09090B" ToolTip="#09090B" Command="{Binding SetBackgroundQuickColorCommand}" CommandParameter="#09090B" />
                                     <Button Style="{StaticResource ColorSwatchButtonStyle}" Background="#141418" ToolTip="#141418" Command="{Binding SetBackgroundQuickColorCommand}" CommandParameter="#141418" />
                                     <Button Style="{StaticResource ColorSwatchButtonStyle}" Background="#0F172A" ToolTip="#0F172A" Command="{Binding SetBackgroundQuickColorCommand}" CommandParameter="#0F172A" />
-                                    <Button Style="{StaticResource ColorSwatchButtonStyle}" Background="#090D16" ToolTip="#090D16" Command="{Binding SetBackgroundQuickColorCommand}" CommandParameter="#090D16" />
                                     <Button Style="{StaticResource ColorSwatchButtonStyle}" Background="#18181B" ToolTip="#18181B" Command="{Binding SetBackgroundQuickColorCommand}" CommandParameter="#18181B" />
                                     <Button Style="{StaticResource ColorSwatchButtonStyle}" Background="#1E1B4B" ToolTip="#1E1B4B" Command="{Binding SetBackgroundQuickColorCommand}" CommandParameter="#1E1B4B" />
                                     <Button Style="{StaticResource ColorSwatchButtonStyle}" Background="#F8FAFC" ToolTip="#F8FAFC" Command="{Binding SetBackgroundQuickColorCommand}" CommandParameter="#F8FAFC" />
@@ -1816,7 +1887,7 @@
                                                FontWeight="SemiBold"
                                                FontSize="14"
                                                Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-                                    <TextBlock Text="Contorno sutil do painel flutuante (Padrão: #33FFFFFF)"
+                                    <TextBlock Text="Contorno sutil do painel flutuante (Padrão: #2E2E32)"
                                                FontSize="12"
                                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                 </StackPanel>
@@ -1855,7 +1926,7 @@
                                                FontWeight="SemiBold"
                                                FontSize="14"
                                                Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-                                    <TextBlock Text="Cor dos nomes reais de CPU, GPU e Memória RAM (Padrão: #00E5FF)"
+                                    <TextBlock Text="Cor dos nomes reais de CPU, GPU e Memória RAM (Padrão: #FAFAFA)"
                                                FontSize="12"
                                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                 </StackPanel>
@@ -1864,9 +1935,9 @@
                                             Orientation="Horizontal"
                                             VerticalAlignment="Center"
                                             Margin="12,0,14,0">
+                                    <Button Style="{StaticResource ColorSwatchButtonStyle}" Background="#FAFAFA" ToolTip="#FAFAFA" Command="{Binding SetHeaderQuickColorCommand}" CommandParameter="#FAFAFA" />
                                     <Button Style="{StaticResource ColorSwatchButtonStyle}" Background="#00E5FF" ToolTip="#00E5FF" Command="{Binding SetHeaderQuickColorCommand}" CommandParameter="#00E5FF" />
                                     <Button Style="{StaticResource ColorSwatchButtonStyle}" Background="#38BDF8" ToolTip="#38BDF8" Command="{Binding SetHeaderQuickColorCommand}" CommandParameter="#38BDF8" />
-                                    <Button Style="{StaticResource ColorSwatchButtonStyle}" Background="#2DD4BF" ToolTip="#2DD4BF" Command="{Binding SetHeaderQuickColorCommand}" CommandParameter="#2DD4BF" />
                                     <Button Style="{StaticResource ColorSwatchButtonStyle}" Background="#10B981" ToolTip="#10B981" Command="{Binding SetHeaderQuickColorCommand}" CommandParameter="#10B981" />
                                     <Button Style="{StaticResource ColorSwatchButtonStyle}" Background="#FFB900" ToolTip="#FFB900" Command="{Binding SetHeaderQuickColorCommand}" CommandParameter="#FFB900" />
                                     <Button Style="{StaticResource ColorSwatchButtonStyle}" Background="#F43F5E" ToolTip="#F43F5E" Command="{Binding SetHeaderQuickColorCommand}" CommandParameter="#F43F5E" />
@@ -1907,7 +1978,7 @@
                                                FontWeight="SemiBold"
                                                FontSize="14"
                                                Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-                                    <TextBlock Text="Cor das leituras numéricas de Uso, Temperatura, Clock e VRAM (Padrão: #FFFFFF)"
+                                    <TextBlock Text="Cor das leituras numéricas de Uso, Temperatura, Clock e VRAM (Padrão: #FAFAFA)"
                                                FontSize="12"
                                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                 </StackPanel>
@@ -1916,7 +1987,7 @@
                                             Orientation="Horizontal"
                                             VerticalAlignment="Center"
                                             Margin="12,0,14,0">
-                                    <Button Style="{StaticResource ColorSwatchButtonStyle}" Background="#FFFFFF" ToolTip="#FFFFFF" Command="{Binding SetValueQuickColorCommand}" CommandParameter="#FFFFFF" />
+                                    <Button Style="{StaticResource ColorSwatchButtonStyle}" Background="#FAFAFA" ToolTip="#FAFAFA" Command="{Binding SetValueQuickColorCommand}" CommandParameter="#FAFAFA" />
                                     <Button Style="{StaticResource ColorSwatchButtonStyle}" Background="#E2E8F0" ToolTip="#E2E8F0" Command="{Binding SetValueQuickColorCommand}" CommandParameter="#E2E8F0" />
                                     <Button Style="{StaticResource ColorSwatchButtonStyle}" Background="#38BDF8" ToolTip="#38BDF8" Command="{Binding SetValueQuickColorCommand}" CommandParameter="#38BDF8" />
                                     <Button Style="{StaticResource ColorSwatchButtonStyle}" Background="#6CCB5F" ToolTip="#6CCB5F" Command="{Binding SetValueQuickColorCommand}" CommandParameter="#6CCB5F" />
@@ -1931,6 +2002,145 @@
                                          VerticalAlignment="Center"
                                          ToolTip="Código Hex (#RRGGBB ou #AARRGGBB)" />
                             </Grid>
+                        </Border>
+
+                        <!-- ==================== ALERTAS TÉRMICOS DO OVERLAY ==================== -->
+                        <TextBlock Text="Alertas Térmicos de Temperatura (CPU &amp; GPU)"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource AppTextPrimaryBrush}"
+                                   Margin="0,8,0,10" />
+
+                        <Border Style="{StaticResource TelemetryCardBorderStyle}">
+                            <StackPanel>
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="Colorir Temperaturas por Zona Térmica"
+                                                   FontWeight="SemiBold"
+                                                   FontSize="14"
+                                                   Foreground="{DynamicResource AppTextPrimaryBrush}" />
+                                        <TextBlock Text="Destaca automaticamente as temperaturas de CPU e GPU no Overlay em Amarelo (Alerta) e Vermelho (Crítico)"
+                                                   FontSize="12"
+                                                   Foreground="{DynamicResource AppTextMutedBrush}"
+                                                   TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <ui:ToggleSwitch Grid.Column="1"
+                                                     VerticalAlignment="Center"
+                                                     IsChecked="{Binding EnableThermalColorAlerts, Mode=TwoWay}" />
+                                </Grid>
+
+                                <!-- Limiar de Alerta (Warning) -->
+                                <Border Style="{StaticResource SubCardBorderStyle}"
+                                        Padding="14,10"
+                                        Margin="0,0,0,8">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="170" />
+                                            <ColumnDefinition Width="72" />
+                                        </Grid.ColumnDefinitions>
+                                        <Ellipse Grid.Column="0"
+                                                 Width="10"
+                                                 Height="10"
+                                                 Fill="#FACC15"
+                                                 VerticalAlignment="Center"
+                                                 Margin="0,0,10,0" />
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock Text="Limite de Alerta (#FACC15)"
+                                                       FontWeight="SemiBold"
+                                                       FontSize="13.5"
+                                                       Foreground="{DynamicResource AppTextPrimaryBrush}" />
+                                            <TextBlock Text="Temperatura em °C a partir da qual a leitura fica amarela"
+                                                       FontSize="11.5"
+                                                       Foreground="{DynamicResource AppTextMutedBrush}" />
+                                        </StackPanel>
+                                        <Slider Grid.Column="2"
+                                                Minimum="30"
+                                                Maximum="110"
+                                                TickFrequency="1"
+                                                IsSnapToTickEnabled="True"
+                                                VerticalAlignment="Center"
+                                                Margin="10,0"
+                                                IsEnabled="{Binding EnableThermalColorAlerts}"
+                                                Value="{Binding TempWarningThreshold, Mode=TwoWay}" />
+                                        <TextBox Grid.Column="3"
+                                                 Text="{Binding TempWarningThreshold, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                 FontFamily="Consolas"
+                                                 FontWeight="Bold"
+                                                 HorizontalContentAlignment="Center"
+                                                 VerticalAlignment="Center"
+                                                 IsEnabled="{Binding EnableThermalColorAlerts}"
+                                                 ToolTip="Digite o valor em °C e pressione Tab/Enter" />
+                                    </Grid>
+                                </Border>
+
+                                <!-- Limiar Crítico (Critical) -->
+                                <Border Style="{StaticResource SubCardBorderStyle}"
+                                        Padding="14,10"
+                                        Margin="0,0,0,10">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="170" />
+                                            <ColumnDefinition Width="72" />
+                                        </Grid.ColumnDefinitions>
+                                        <Ellipse Grid.Column="0"
+                                                 Width="10"
+                                                 Height="10"
+                                                 Fill="#EF4444"
+                                                 VerticalAlignment="Center"
+                                                 Margin="0,0,10,0" />
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock Text="Limite Crítico (#EF4444)"
+                                                       FontWeight="SemiBold"
+                                                       FontSize="13.5"
+                                                       Foreground="{DynamicResource AppTextPrimaryBrush}" />
+                                            <TextBlock Text="Sempre maior que o limite de alerta; destaca risco térmico alto"
+                                                       FontSize="11.5"
+                                                       Foreground="{DynamicResource AppTextMutedBrush}" />
+                                        </StackPanel>
+                                        <Slider Grid.Column="2"
+                                                Minimum="35"
+                                                Maximum="120"
+                                                TickFrequency="1"
+                                                IsSnapToTickEnabled="True"
+                                                VerticalAlignment="Center"
+                                                Margin="10,0"
+                                                IsEnabled="{Binding EnableThermalColorAlerts}"
+                                                Value="{Binding TempCriticalThreshold, Mode=TwoWay}" />
+                                        <TextBox Grid.Column="3"
+                                                 Text="{Binding TempCriticalThreshold, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                 FontFamily="Consolas"
+                                                 FontWeight="Bold"
+                                                 HorizontalContentAlignment="Center"
+                                                 VerticalAlignment="Center"
+                                                 IsEnabled="{Binding EnableThermalColorAlerts}"
+                                                 ToolTip="Digite o valor em °C e pressione Tab/Enter" />
+                                    </Grid>
+                                </Border>
+
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0"
+                                               Text="Padrão: Alerta a 70 °C e Crítico a 85 °C (Normal: #FFFFFF)."
+                                               FontSize="11.5"
+                                               Foreground="{DynamicResource AppTextMutedBrush}"
+                                               VerticalAlignment="Center" />
+                                    <ui:Button Grid.Column="1"
+                                               Content="Restaurar Padrões (70°C / 85°C)"
+                                               Appearance="Secondary"
+                                               Command="{Binding ResetThermalThresholdsCommand}" />
+                                </Grid>
+                            </StackPanel>
                         </Border>
 
                         <!-- ==================== C. ORDENAÇÃO DOS BLOCOS NO OVERLAY ==================== -->
@@ -1969,15 +2179,15 @@
                                                             Width="32"
                                                             Height="32"
                                                             CornerRadius="6"
-                                                            Background="#1F00E5FF"
-                                                            BorderBrush="#4400E5FF"
+                                                            Background="{DynamicResource AppAccentMutedBackgroundBrush}"
+                                                            BorderBrush="{DynamicResource AppAccentBorderBrush}"
                                                             BorderThickness="1"
                                                             VerticalAlignment="Center"
                                                             Margin="0,0,14,0">
                                                         <TextBlock Text="{Binding PositionNumber, StringFormat={}{0}º}"
                                                                    FontWeight="Bold"
                                                                    FontSize="13"
-                                                                   Foreground="#00B8D4"
+                                                                   Foreground="{DynamicResource AppAccentBrush}"
                                                                    HorizontalAlignment="Center"
                                                                    VerticalAlignment="Center" />
                                                     </Border>
@@ -2077,7 +2287,7 @@
                                 <StackPanel>
                                     <TextBlock Text="Modo Compacto (Apenas FPS, CPU % e GPU %)"
                                                FontWeight="SemiBold"
-                                               Foreground="#00B8D4"
+                                               Foreground="{DynamicResource AppAccentBrush}"
                                                FontSize="14" />
                                     <TextBlock Text="Exibe exclusivamente FPS, uso de CPU e uso de GPU com espaçamento reduzido"
                                                FontSize="12"
@@ -2088,30 +2298,111 @@
                             <ui:ToggleSwitch IsChecked="{Binding IsCompactMode, Mode=TwoWay}" />
                         </ui:CardControl>
 
-                        <!-- Aviso visual do Atalho Global Ctrl + Shift + O -->
-                        <ui:CardControl Margin="0,0,0,8">
-                            <ui:CardControl.Header>
-                                <StackPanel>
-                                    <TextBlock Text="Atalho Global em Jogos"
-                                               FontWeight="SemiBold"
-                                               FontSize="14" />
-                                    <TextBlock Text="Use o atalho a qualquer momento dentro do jogo para mostrar ou ocultar o overlay"
-                                               FontSize="12"
-                                               Opacity="0.7" />
-                                </StackPanel>
-                            </ui:CardControl.Header>
-                            <Border Background="#2600E5FF"
-                                    BorderBrush="#6600E5FF"
-                                    BorderThickness="1"
-                                    CornerRadius="6"
-                                    Padding="10,4">
-                                <TextBlock Text="Ctrl + Shift + O"
-                                           FontFamily="Consolas"
-                                           FontWeight="Bold"
-                                           Foreground="#00B8D4"
-                                           FontSize="13" />
-                            </Border>
-                        </ui:CardControl>
+                        <!-- Atalhos Globais Configuráveis -->
+                        <Border Style="{StaticResource TelemetryCardBorderStyle}"
+                                Margin="0,0,0,10">
+                            <StackPanel>
+                                <TextBlock Text="Atalhos Globais em Jogos (Hotkeys)"
+                                           FontWeight="SemiBold"
+                                           FontSize="14"
+                                           Foreground="{DynamicResource AppTextPrimaryBrush}" />
+                                <TextBlock Text="Clique na caixa de atalho e pressione uma combinação com modificador (Ctrl, Shift ou Alt) + tecla"
+                                           FontSize="12"
+                                           Foreground="{DynamicResource AppTextMutedBrush}"
+                                           Margin="0,2,0,12" />
+
+                                <!-- Atalho 1: Mostrar/Ocultar Overlay -->
+                                <Border Style="{StaticResource SubCardBorderStyle}"
+                                        Padding="14,10"
+                                        Margin="0,0,0,8">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="210" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                            <TextBlock Text="Mostrar / Ocultar Overlay"
+                                                       FontWeight="SemiBold"
+                                                       FontSize="13.5"
+                                                       Foreground="{DynamicResource AppTextPrimaryBrush}" />
+                                            <TextBlock Text="Alterna a visibilidade do Overlay em qualquer tela cheia ou jogo"
+                                                       FontSize="11.5"
+                                                       Foreground="{DynamicResource AppTextMutedBrush}" />
+                                        </StackPanel>
+                                        <TextBox x:Name="ToggleOverlayHotkeyBox"
+                                                 Grid.Column="1"
+                                                 Tag="ToggleOverlay"
+                                                 IsReadOnly="True"
+                                                 Text="{Binding ToggleOverlayHotkeyDisplay, Mode=OneWay}"
+                                                 FontFamily="Consolas"
+                                                 FontWeight="Bold"
+                                                 FontSize="12.5"
+                                                 HorizontalContentAlignment="Center"
+                                                 VerticalContentAlignment="Center"
+                                                 Cursor="Hand"
+                                                 Margin="12,0,8,0"
+                                                 ToolTip="Clique para gravar novo atalho global"
+                                                 GotFocus="HotkeyBox_GotFocus"
+                                                 LostFocus="HotkeyBox_LostFocus"
+                                                 PreviewKeyDown="HotkeyBox_PreviewKeyDown" />
+                                        <ui:Button Grid.Column="2"
+                                                   Content="Padrão"
+                                                   Appearance="Secondary"
+                                                   ToolTip="Restaurar para Ctrl + Shift + O"
+                                                   Command="{Binding ResetToggleOverlayHotkeyCommand}" />
+                                    </Grid>
+                                </Border>
+
+                                <!-- Atalho 2: Alternar Modo Compacto -->
+                                <Border Style="{StaticResource SubCardBorderStyle}"
+                                        Padding="14,10"
+                                        Margin="0,0,0,8">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="210" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                            <TextBlock Text="Alternar Modo Compacto"
+                                                       FontWeight="SemiBold"
+                                                       FontSize="13.5"
+                                                       Foreground="{DynamicResource AppTextPrimaryBrush}" />
+                                            <TextBlock Text="Ativa ou desativa a barra horizontal compacta durante a gameplay"
+                                                       FontSize="11.5"
+                                                       Foreground="{DynamicResource AppTextMutedBrush}" />
+                                        </StackPanel>
+                                        <TextBox x:Name="ToggleCompactHotkeyBox"
+                                                 Grid.Column="1"
+                                                 Tag="ToggleCompact"
+                                                 IsReadOnly="True"
+                                                 Text="{Binding ToggleCompactModeHotkeyDisplay, Mode=OneWay}"
+                                                 FontFamily="Consolas"
+                                                 FontWeight="Bold"
+                                                 FontSize="12.5"
+                                                 HorizontalContentAlignment="Center"
+                                                 VerticalContentAlignment="Center"
+                                                 Cursor="Hand"
+                                                 Margin="12,0,8,0"
+                                                 ToolTip="Clique para gravar novo atalho global"
+                                                 GotFocus="HotkeyBox_GotFocus"
+                                                 LostFocus="HotkeyBox_LostFocus"
+                                                 PreviewKeyDown="HotkeyBox_PreviewKeyDown" />
+                                        <ui:Button Grid.Column="2"
+                                                   Content="Padrão"
+                                                   Appearance="Secondary"
+                                                   ToolTip="Restaurar para Ctrl + Shift + C"
+                                                   Command="{Binding ResetToggleCompactModeHotkeyCommand}" />
+                                    </Grid>
+                                </Border>
+
+                                <TextBlock Text="{Binding HotkeyStatusMessage}"
+                                           FontSize="11.5"
+                                           Foreground="{DynamicResource AppAccentBrush}"
+                                           Margin="2,2,0,0" />
+                            </StackPanel>
+                        </Border>
 
                         <!-- Travar Overlay (Click-Through) -->
                         <ui:CardControl Margin="0,0,0,8">

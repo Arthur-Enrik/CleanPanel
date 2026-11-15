@@ -53,17 +53,25 @@ public partial class OverlayWindow : Window
         _hwndSource?.AddHook(WndProc);
 
         WindowWin32Helper.SetClickThrough(this, _viewModel.IsOverlayLocked);
-        WindowWin32Helper.RegisterToggleOverlayHotKey(hwnd);
+        _viewModel.RegisterConfiguredHotkeys(hwnd);
         WindowWin32Helper.ForceTopMost(this);
     }
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
-        if (msg == WindowWin32Helper.WM_HOTKEY &&
-            wParam.ToInt32() == WindowWin32Helper.HOTKEY_ID_TOGGLE_OVERLAY)
+        if (msg == WindowWin32Helper.WM_HOTKEY)
         {
-            _viewModel.IsOverlayVisible = !_viewModel.IsOverlayVisible;
-            handled = true;
+            int hotkeyId = wParam.ToInt32();
+            if (hotkeyId == WindowWin32Helper.HOTKEY_ID_TOGGLE_OVERLAY)
+            {
+                _viewModel.IsOverlayVisible = !_viewModel.IsOverlayVisible;
+                handled = true;
+            }
+            else if (hotkeyId == WindowWin32Helper.HOTKEY_ID_TOGGLE_COMPACT)
+            {
+                _viewModel.IsCompactMode = !_viewModel.IsCompactMode;
+                handled = true;
+            }
         }
 
         return IntPtr.Zero;
@@ -138,10 +146,7 @@ public partial class OverlayWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         IntPtr hwnd = new WindowInteropHelper(this).Handle;
-        if (hwnd != IntPtr.Zero)
-        {
-            WindowWin32Helper.UnregisterToggleOverlayHotKey(hwnd);
-        }
+        WindowWin32Helper.UnregisterAllHotkeys(hwnd);
 
         if (_hwndSource != null)
         {

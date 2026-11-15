@@ -11,6 +11,18 @@
             </ResourceDictionary.MergedDictionaries>
 
             <BooleanToVisibilityConverter x:Key="BoolToVis" />
+
+            <!-- Tokens monocromáticos iniciais (atualizados dinamicamente pelo Theme/Accent Manager) -->
+            <SolidColorBrush x:Key="AppBackgroundBrush" Color="#09090B" />
+            <SolidColorBrush x:Key="AppCardBackgroundBrush" Color="#111114" />
+            <SolidColorBrush x:Key="AppSubCardBackgroundBrush" Color="#18181B" />
+            <SolidColorBrush x:Key="AppBorderBrush" Color="#27272A" />
+            <SolidColorBrush x:Key="AppTextPrimaryBrush" Color="#FAFAFA" />
+            <SolidColorBrush x:Key="AppTextMutedBrush" Color="#A1A1AA" />
+            <SolidColorBrush x:Key="AppAccentBrush" Color="#FAFAFA" />
+            <SolidColorBrush x:Key="AppAccentForegroundBrush" Color="#09090B" />
+            <SolidColorBrush x:Key="AppAccentMutedBackgroundBrush" Color="#18FAFAFA" />
+            <SolidColorBrush x:Key="AppAccentBorderBrush" Color="#55FAFAFA" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>
