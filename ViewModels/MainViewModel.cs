@@ -609,7 +609,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             bool isLight = targetTheme == ApplicationTheme.Light;
             Color accentColor = ResolveEffectiveAccentColor(accentHex, isLight);
 
-            ApplicationThemeManager.Apply(targetTheme);
+            ApplicationThemeManager.Apply(targetTheme, Wpf.Ui.Controls.WindowBackdropType.None, false);
 
             try
             {
@@ -621,6 +621,17 @@ public partial class MainViewModel : ObservableObject, IDisposable
             }
 
             ApplyMonochromeThemeResources(isLight, accentColor);
+
+            if (Application.Current?.Windows is { } windows)
+            {
+                foreach (Window window in windows)
+                {
+                    if (window is Views.OverlayWindow overlayWindow)
+                    {
+                        overlayWindow.EnsurePerPixelTransparency();
+                    }
+                }
+            }
         }
         catch
         {
@@ -765,6 +776,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
         return brush;
     }
 
+    public static double NormalizeOverlayOpacity(double rawOpacity)
+    {
+        if (double.IsNaN(rawOpacity) || double.IsInfinity(rawOpacity) || rawOpacity <= 0.0)
+            return 0.85;
+
+        double normalized = rawOpacity > 1.0 ? (rawOpacity / 100.0) : rawOpacity;
+        return Math.Clamp(Math.Round(normalized, 2), 0.05, 1.0);
+    }
+
     public void UpdateOverlayBrushes()
     {
         if (Application.Current?.Dispatcher is { } dispatcher && !dispatcher.CheckAccess())
@@ -773,26 +793,24 @@ public partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
-        if (double.IsNaN(OverlayOpacity) || OverlayOpacity <= 0.05 || OverlayOpacity > 1.0)
+        double normalizedOpacity = NormalizeOverlayOpacity(OverlayOpacity);
+        if (Math.Abs(normalizedOpacity - OverlayOpacity) > 0.0001)
         {
-            OverlayOpacity = 0.80;
+            OverlayOpacity = normalizedOpacity;
         }
 
-        Color baseColor = ParseHexColor(OverlayBackgroundColorHex, Color.FromRgb(9, 9, 11));
-        byte alpha = (byte)Math.Clamp(OverlayOpacity * 255.0, 20, 255);
-        Color finalBgColor = Color.FromArgb(alpha, baseColor.R, baseColor.G, baseColor.B);
+        byte alpha = (byte)Math.Clamp(normalizedOpacity * 255.0, 10, 255);
 
-        var bgBrush = new SolidColorBrush(finalBgColor);
-        bgBrush.Freeze();
-        OverlayBackgroundBrush = bgBrush;
+        Color baseColor = ParseHexColor(OverlayBackgroundColorHex, Color.FromRgb(9, 9, 11));
+        var brush = new SolidColorBrush(Color.FromArgb(alpha, baseColor.R, baseColor.G, baseColor.B));
+        brush.Freeze();
+        OverlayBackgroundBrush = brush;
 
         Color baseBorderColor = ParseHexColor(OverlayBorderColorHex, Color.FromRgb(46, 46, 50));
         byte borderAlpha = baseBorderColor.A >= 250
             ? alpha
-            : (byte)Math.Clamp(alpha * Math.Max(0.18, baseBorderColor.A / 255.0), 15, 255);
-        Color finalBorderColor = Color.FromArgb(borderAlpha, baseBorderColor.R, baseBorderColor.G, baseBorderColor.B);
-
-        var borderBrush = new SolidColorBrush(finalBorderColor);
+            : (byte)Math.Clamp(alpha * Math.Max(0.18, baseBorderColor.A / 255.0), 10, 255);
+        var borderBrush = new SolidColorBrush(Color.FromArgb(borderAlpha, baseBorderColor.R, baseBorderColor.G, baseBorderColor.B));
         borderBrush.Freeze();
         OverlayBorderBrush = borderBrush;
     }
@@ -845,19 +863,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         IsOverlayVisible = settings.IsOverlayVisible;
         IsOverlayLocked = settings.IsOverlayLocked;
 
-        double rawOpacity = settings.OverlayOpacity;
-        if (double.IsNaN(rawOpacity) || rawOpacity <= 0.05 || rawOpacity > 1.0)
-        {
-            if (rawOpacity > 1.0 && rawOpacity <= 100.0)
-            {
-                rawOpacity /= 100.0;
-            }
-            else
-            {
-                rawOpacity = 0.80;
-            }
-        }
-        OverlayOpacity = Math.Clamp(Math.Round(rawOpacity, 2), 0.10, 1.0);
+        OverlayOpacity = NormalizeOverlayOpacity(settings.OverlayOpacity);
         OverlayScale = Math.Clamp(Math.Round(settings.OverlayScale <= 0 ? 1.0 : settings.OverlayScale, 2), 0.70, 2.00);
         OverlayLeft = Math.Round(settings.OverlayLeft);
         OverlayTop = Math.Round(settings.OverlayTop);
@@ -1637,7 +1643,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         {
             IsOverlayVisible = IsOverlayVisible,
             IsOverlayLocked = IsOverlayLocked,
-            OverlayOpacity = Math.Clamp(Math.Round(OverlayOpacity, 2), 0.1, 1.0),
+            OverlayOpacity = NormalizeOverlayOpacity(OverlayOpacity),
             OverlayScale = Math.Clamp(Math.Round(OverlayScale, 2), 0.70, 2.00),
             OverlayLeft = OverlayLeft,
             OverlayTop = OverlayTop,
@@ -1825,9 +1831,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     partial void OnOverlayOpacityChanged(double value)
     {
-        if (double.IsNaN(value) || value <= 0.05 || value > 1.0)
+        double normalized = NormalizeOverlayOpacity(value);
+        if (Math.Abs(normalized - value) > 0.0001)
         {
-            OverlayOpacity = 0.80;
+            OverlayOpacity = normalized;
             return;
         }
 

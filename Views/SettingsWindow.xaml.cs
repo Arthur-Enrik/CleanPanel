@@ -44,10 +44,11 @@ public partial class SettingsWindow : FluentWindow
     {
         if (string.Equals(_viewModel.AppTheme, "Auto", StringComparison.OrdinalIgnoreCase))
         {
-            SystemThemeWatcher.Watch(this);
+            SystemThemeWatcher.Watch(this, WindowBackdropType.None, false);
         }
 
         MainViewModel.ApplyApplicationTheme(_viewModel.AppTheme, _viewModel.AccentColorHex);
+        _viewModel.UpdateOverlayBrushes();
         SyncVisibilityWithMonitorService();
     }
 

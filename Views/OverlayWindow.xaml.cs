@@ -36,13 +36,46 @@ public partial class OverlayWindow : Window
 
     private void OnWindowLoaded(object sender, RoutedEventArgs e)
     {
+        EnsurePerPixelTransparency();
         _viewModel.UpdateOverlayBrushes();
+    }
+
+    /// <summary>
+    /// Garante que a janela de Overlay permaneça 100% transparente por pixel, removendo
+    /// qualquer backdrop DWM ou sobrescrita de Background aplicada pelo gerenciador de temas do WPF-UI.
+    /// </summary>
+    public void EnsurePerPixelTransparency()
+    {
+        try
+        {
+            Wpf.Ui.Controls.WindowBackdrop.RemoveBackdrop(this);
+        }
+        catch
+        {
+            // Ignora caso o handle DWM ainda não esteja pronto ou não possua backdrop
+        }
+
+        if (Background != System.Windows.Media.Brushes.Transparent)
+        {
+            Background = System.Windows.Media.Brushes.Transparent;
+        }
+    }
+
+    protected override void OnPropertyChanged(DependencyPropertyChangedEventArgs e)
+    {
+        base.OnPropertyChanged(e);
+
+        if (e.Property == BackgroundProperty && Background != System.Windows.Media.Brushes.Transparent)
+        {
+            Background = System.Windows.Media.Brushes.Transparent;
+        }
     }
 
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
 
+        EnsurePerPixelTransparency();
         _viewModel.UpdateOverlayBrushes();
 
         IntPtr hwnd = new WindowInteropHelper(this).Handle;

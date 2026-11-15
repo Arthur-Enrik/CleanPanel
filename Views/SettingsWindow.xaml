@@ -1666,7 +1666,7 @@
                                             Orientation="Horizontal"
                                             VerticalAlignment="Center"
                                             Margin="16,0,0,0">
-                                    <Slider Minimum="0.10"
+                                    <Slider Minimum="0.05"
                                             Maximum="1.00"
                                             SmallChange="0.05"
                                             LargeChange="0.10"
@@ -1674,7 +1674,7 @@
                                             IsSnapToTickEnabled="False"
                                             Width="180"
                                             VerticalAlignment="Center"
-                                            Value="{Binding OverlayOpacity, Mode=TwoWay}" />
+                                            Value="{Binding OverlayOpacity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                     <TextBlock Text="{Binding OverlayOpacityPercentText}"
                                                Width="50"
                                                TextAlignment="Right"
