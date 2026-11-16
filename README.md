@@ -6,41 +6,42 @@
 
 ## Principais Funcionalidades
 
-### 1. Interface Principal Estilo Task Manager (Windows 11 Fluent Design + Mica)
-A janela principal do **CleanPanel** conta com navegação lateral moderna dividida em **4 seções de telemetria**, **1 seção dedicada de Personalização Visual** e um **ícone de engrenagem no rodapé para Configurações**:
+### 1. Interface Principal Monocromática (Design Web Minimalista — Dark & Light)
+A janela principal do **CleanPanel** utiliza um sistema de design estritamente monocromático inspirado em interfaces Web modernas (Vercel / Linear / Shadcn UI), definido no dicionário centralizado `Resources/MonochromeTheme.xaml` com suporte dinâmico aos temas **Escuro** (`#09090B`), **Claro** (`#FAFAFA`) e **Automático** (seguindo o Windows):
 
-- **Aba "Visão Geral" (Resumo do Sistema)**:
-  - **Card do Sistema Operacional**: Nome corrigido para Windows 11 (detecção via `CurrentBuild >= 22000` no Registro), Edição/DisplayVersion e Build completa.
-  - **Card do Processador (CPU)**: Modelo completo, contagem física de Núcleos e Threads Lógicos, Uso Total (%) com barra visual e Temperatura (°C).
-  - **Card(s) de Placa de Vídeo (Multi-GPU)**: Lista todas as GPUs instaladas (dedicadas e integradas — NVIDIA, AMD e Intel), exibindo Modelo, VRAM Total (ou `"Compartilhada / Integrada"`), Uso (%) e Temperatura (°C).
-  - **Card de Memória RAM**: Total instalado, memória usada, memória livre (em GB) e porcentagem de ocupação.
-  - **Card de Armazenamento**: Resumo de todas as partições fixas, capacidade total, espaço usado/livre e temperatura física atual de cada disco.
-- **Aba "Processador (CPU)" (Detalhes Avançados e Per-Core Telemetry)**:
+- **Barra Lateral Fixa Ultra-Minimalista (`200px`)**:
+  - **Cabeçalho**: Logo geométrica minimalista do CleanPanel com badge discreta de versão (`v1.1.0`).
+  - **Navegação Principal**: 4 abas de telemetria (`Visão Geral`, `Processador`, `Placa de Vídeo` e `Sistema & Discos`).
+  - **Rodapé**: Acesso rápido à página de `Configurações` e indicador sutil de status do Overlay (`Overlay Ativo` / `Oculto`) com toggle instantâneo e leitura de FPS tabular.
+- **Aba "Visão Geral" (Dashboard Responsivo)**:
+  - **Cards KPI de Resumo**: Grade responsiva de 4 colunas (`PROCESSADOR`, `PLACA DE VÍDEO`, `MEMÓRIA RAM`, `TAXA DE QUADROS`) com micro-rótulos em caixa alta, valores tabulares e barras de progresso finas (`4px`) monocromáticas.
+  - **Cards Detalhados**: Sistema Operacional (`CurrentBuild >= 22000`), Processador (CPU), lista Multi-GPU, Memória RAM e Unidades de Armazenamento.
+- **Aba "Processador" (Detalhes Avançados e Per-Core Telemetry)**:
   - Especificações completas do processador (Nome, Núcleos Físicos e Threads Lógicos).
-  - **Suporte Nativo a CPUs Híbridas Intel (12ª geração Alder Lake e superiores)**: Detecção automática da topologia de núcleos via Win32 `GetLogicalProcessorInformationEx` (`RelationProcessorCore`), discriminando contagem de núcleos físicos de Performance (`P-Cores`) e de Eficiência (`E-Cores`), exibindo resumo detalhado (ex: `10 Núcleos (6 P-Cores + 4 E-Cores) • 16 Threads`).
+  - **Suporte Nativo a CPUs Híbridas Intel (12ª geração Alder Lake e superiores)**: Detecção automática da topologia de núcleos via Win32 `GetLogicalProcessorInformationEx` (`RelationProcessorCore`), discriminando contagem de núcleos físicos de Performance (`P-Cores`) e de Eficiência (`E-Cores`), exibindo resumo detalhado (ex: `10 Núcleos (6P + 4E) / 16 Threads Lógicos`).
   - **Métricas Globais**: Uso Total (%), Temperatura (°C), Consumo Elétrico (W), Tensão VCore (V) e Clock Médio/Máximo (MHz).
-  - **Grade de Núcleos (Per-Core Telemetry)**: Grid exibindo cada núcleo/thread individualmente com sua identificação (`Núcleo #N (P-Core)` / `(E-Core)`), barra de Uso (%) e Clock atual (MHz) em tempo real.
-- **Aba "Placa de Vídeo (GPU)" (Suporte Multi-GPU e Sensores Avançados)**:
+  - **Grade de Núcleos (Per-Core Telemetry)**: Grid de 2 colunas exibindo cada núcleo/thread individualmente com sua identificação (`Núcleo #N (P-Core)` / `(E-Core)`), barra de Uso (`4px`) e Clock atual (MHz) em tempo real.
+- **Aba "Placa de Vídeo" (Suporte Multi-GPU e Sensores Avançados)**:
   - **Seletor Multi-GPU (`ComboBox`)**: Permite alternar instantaneamente entre múltiplas GPUs (ex: GPU Integrada + GPU Dedicada).
-  - **Métricas em Tempo Real da GPU Selecionada**: Uso do Core (%), Temperatura Core e Hot Spot (°C), Clock do Core e da Memória (MHz), Uso de VRAM (Usado / Total em GB), Consumo (W) e Velocidade dos Fans (RPM / %).
-- **Aba "Sistema & Armazenamento"**:
-  - Uso detalhado de Memória RAM com barra visual de ocupação.
+  - **Métricas em Tempo Real da GPU Selecionada**: Uso do Core (%), Uso de VRAM (GB / %), Temperatura Core e Hot Spot (°C), Clock do Core e da Memória (MHz), Consumo (W) e Velocidade dos Fans (RPM / %).
+- **Aba "Sistema & Discos"**:
+  - Uso detalhado de Memória RAM física com barra visual de ocupação (`4px`).
   - Lista de Unidades de Armazenamento combinando partições lógicas (`System.IO.DriveInfo`) e sensores térmicos físicos (`HardwareType.Storage` do LibreHardwareMonitor), exibindo Espaço Ocupado vs. Total e a Temperatura física atual de cada SSD/HDD (com fallback automático para `"Sem sensor"`).
-- **Aba "Personalização" (Temas do App, Cores e Ordem do Overlay)**:
-  - **Tema do Aplicativo (`Dark`, `Light` e `Auto`)**: Alterne entre `Escuro (Dark)`, `Claro (Light)` e `Automático (Seguir o Windows)` com sincronização dinâmica via `ApplicationThemeManager` e monitoramento do Registro do Windows (`AppsUseLightTheme`). Todos os cards e textos usam recursos dinâmicos (`DynamicResource`) para legibilidade perfeita em ambos os modos.
-  - **Personalização de Cores do Overlay em Tempo Real**: Customize a **Cor do Fundo** (`#141418`), **Cor da Borda** (`#33FFFFFF`), **Cor de Destaque dos Títulos de Hardware** (`#00E5FF`) e **Cor do Texto/Valores das Métricas** (`#FFFFFF`) usando códigos Hex (`#RRGGBB` / `#AARRGGBB`), amostras rápidas ou 6 temas predefinidos (`Ciano Clean`, `Verde Esmeralda`, `Âmbar Dourado`, `Rubi Carmesim`, `Roxo Synthwave`, `Claro Minimalista`), com botão `"Restaurar Cores Padrão"`.
-  - **Ordenação Dinâmica dos Blocos no Overlay**: Reorganize em tempo real a ordem de exibição de `FPS`, `CPU`, `GPU` e `RAM` através dos botões `"Subir (▲)"` e `"Descer (▼)"`.
-- **Rodapé com Ícone de Engrenagem — "Configurações"**:
-  - Reúne todas as configurações do aplicativo e do Overlay flutuante: Mostrar/Ocultar Overlay, Modo Compacto, Exibição Inteligente em Tela Cheia, Atalho Global (`Ctrl + Shift + O`), Modo Travado (Click-Through), Iniciar com o Windows como Administrador (`CleanPanelAutoStart`), Opacidade, Orientação Horizontal/Vertical, Alinhamento Rápido em 6 posições e seleção individual de sensores (incluindo o toggle de **GPU Uso de VRAM (GB / %)** e **Separar P-Cores e E-Cores (Intel)**).
+- **Aba "Configurações" (Layout Web Centralizado `MaxWidth="780"` em 3 Sub-Abas)**:
+  - **Geral & Sistema**: Iniciar com o Windows como Administrador (`CleanPanelAutoStart`), badge do Atalho Global (`Ctrl + Shift + O`), seletor de Tema (`Escuro`, `Claro`, `Automático`) e botão `Encerrar CleanPanel`.
+  - **Overlay & Layout**: Ativar/Ocultar Overlay, Modo de Exibição Inteligente (apenas em Tela Cheia), Travar Overlay (*Click-Through*), Modo Compacto (com sincronização automática para Orientação Horizontal), Orientação (`Vertical` / `Horizontal`), Controle de Escala (`70%`–`200%`), Opacidade do Fundo (`10%`–`100%`) e grade rápida de Alinhamento em 6 posições.
+  - **Sensores & Ordem**: Reordenação dinâmica dos blocos do Overlay (`▲` / `▼`, mantendo o FPS na última posição por padrão), toggle **Separar Núcleos P-Core e E-Core (Intel Híbrido)** e seleção granular por grupo (`CPU`, `GPU`, `RAM`, `FPS`).
   - **Separação Opcional de P-Cores e E-Cores (Intel)**: Quando ativada em processadores Intel híbridos, exibe no Overlay o Uso (%) e Clock (MHz) divididos (`Uso P-Cores: XX%` / `Uso E-Cores: XX%` e `Clock P-Cores: XXXX MHz` / `Clock E-Cores: XXXX MHz`), e no Modo Compacto horizontal/vertical `CPU P: XX% | E: XX%`. Se desativada ou em CPUs AMD / Intel legadas, o funcionamento permanece no modo padrão unificado com zero regressão.
 
 ---
 
-### 2. Novo Layout do Overlay Agrupado por Hardware + Uso de VRAM
-- **Modelos Reais como Cabeçalhos de Grupo (`GetShortHardwareName`)**:
-  - O Overlay agrupa as métricas abaixo do nome real e limpo do componente do usuário (ex: `Intel Core i9-13900K`, `AMD Ryzen 5 5600`, `RTX 5060`, `RX 7600`), formatado e cacheado uma única vez na inicialização.
+### 2. Overlay Monocromático Padrão Agrupado por Hardware
+- **Estética Monocromática Limpa (`Views/OverlayWindow.xaml`)**:
+  - Fundo preto fosco profundo (`#09090B`) com canal Alpha controlado dinamicamente pela `OverlayOpacity` configurada, borda nítida de `1px` em `#27272A` (`CornerRadius="6"`), cabeçalhos em branco puro (`#FAFAFA`), rótulos em cinza neutro (`#A1A1AA`) e valores numéricos tabulares em `Consolas` (`#FAFAFA`), com bloco **FPS** destacado em escala maior na última posição.
+- **Modelos Reais como Cabeçalhos e Ordem Consistente (`GetShortHardwareName`)**:
+  - O Overlay agrupa as métricas abaixo do nome real e limpo do componente (ex: `Intel Core i9-13900K`, `AMD Ryzen 5 5600`, `RTX 5060`, `RX 7600`) mantendo ordem fixa: **CPU** (`Uso` → `Clock` → `Temperatura` → `Consumo`) e **GPU** (`Uso` → `Clock` → `Temperatura` → `Consumo` → `VRAM`).
 - **Monitoramento de VRAM no Overlay**:
-  - Exibe o consumo de memória de vídeo em tempo real no formato `VRAM: 6.2 / 8.0 GB (78%)` (ou `VRAM: 1.4 GB` em GPUs integradas com memória compartilhada).
+  - Exibe o consumo de memória de vídeo em tempo real no formato `VRAM: 6.2 GB (78%)` (ou `VRAM: 1.4 GB` em GPUs integradas com memória compartilhada).
 - **Nova Logo Exclusiva CleanPanel**:
   - Ícone multi-resolução (`256x256`, `64x64`, `32x32`, `16x16`) com base *Squircle* em azul-noite (`#0F172A` -> `#1E293B`), painéis translúcidos sobrepostos estilo *Glassmorphism* e barras minimalistas de telemetria em gradiente Ciano/Esmeralda (`#38BDF8` -> `#2DD4BF`).
 
@@ -85,6 +86,8 @@ HardwareOverlayApp/
 │   ├── AppSettings.cs
 │   ├── HardwareMetrics.cs
 │   └── HardwareSpecs.cs
+├── Resources/
+│   └── MonochromeTheme.xaml
 ├── Services/
 │   ├── FpsMonitorService.cs
 │   ├── HardwareMonitorService.cs

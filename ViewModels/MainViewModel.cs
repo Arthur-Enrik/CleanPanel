@@ -15,10 +15,11 @@ namespace HardwareOverlayApp.ViewModels;
 
 public partial class MainViewModel : ObservableObject, IDisposable
 {
-    public const string DefaultBackgroundColorHex = "#141418";
-    public const string DefaultBorderColorHex = "#33FFFFFF";
-    public const string DefaultHeaderColorHex = "#00E5FF";
-    public const string DefaultValueTextColorHex = "#FFFFFF";
+    public const string DefaultBackgroundColorHex = "#09090B";
+    public const string DefaultBorderColorHex = "#27272A";
+    public const string DefaultHeaderColorHex = "#FAFAFA";
+    public const string DefaultValueTextColorHex = "#FAFAFA";
+    public const string DefaultLabelTextColorHex = "#A1A1AA";
 
     private static readonly string[] DefaultSectionKeys = ["CPU", "GPU", "RAM", "FPS"];
 
@@ -32,14 +33,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     public Func<(double Width, double Height)>? OverlaySizeProvider { get; set; }
 
-    // ==================== NAVEGAÇÃO LATERAL (TASK MANAGER STYLE) ====================
-    // 0 = Visão Geral, 1 = CPU, 2 = GPU, 3 = Sistema & Discos, 4 = Personalização, 5 = Configurações
+    // ==================== NAVEGAÇÃO LATERAL MINIMALISTA ====================
+    // 0 = Visão Geral, 1 = Processador, 2 = Placa de Vídeo, 3 = Sistema & Discos, 4 = Configurações
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsOverviewTabSelected))]
     [NotifyPropertyChangedFor(nameof(IsCpuTabSelected))]
     [NotifyPropertyChangedFor(nameof(IsGpuTabSelected))]
     [NotifyPropertyChangedFor(nameof(IsStorageTabSelected))]
-    [NotifyPropertyChangedFor(nameof(IsPersonalizationTabSelected))]
     [NotifyPropertyChangedFor(nameof(IsSettingsTabSelected))]
     private int _selectedNavIndex;
 
@@ -67,16 +67,36 @@ public partial class MainViewModel : ObservableObject, IDisposable
         set { if (value) SelectedNavIndex = 3; }
     }
 
-    public bool IsPersonalizationTabSelected
+    public bool IsSettingsTabSelected
     {
         get => SelectedNavIndex == 4;
         set { if (value) SelectedNavIndex = 4; }
     }
 
-    public bool IsSettingsTabSelected
+    // ==================== SUB-ABAS DE CONFIGURAÇÕES ====================
+    // 0 = Geral & Sistema, 1 = Overlay & Layout, 2 = Sensores & Ordem
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsSettingsGeneralSubTabSelected))]
+    [NotifyPropertyChangedFor(nameof(IsSettingsOverlaySubTabSelected))]
+    [NotifyPropertyChangedFor(nameof(IsSettingsSensorsSubTabSelected))]
+    private int _selectedSettingsSubTabIndex;
+
+    public bool IsSettingsGeneralSubTabSelected
     {
-        get => SelectedNavIndex == 5;
-        set { if (value) SelectedNavIndex = 5; }
+        get => SelectedSettingsSubTabIndex == 0;
+        set { if (value) SelectedSettingsSubTabIndex = 0; }
+    }
+
+    public bool IsSettingsOverlaySubTabSelected
+    {
+        get => SelectedSettingsSubTabIndex == 1;
+        set { if (value) SelectedSettingsSubTabIndex = 1; }
+    }
+
+    public bool IsSettingsSensorsSubTabSelected
+    {
+        get => SelectedSettingsSubTabIndex == 2;
+        set { if (value) SelectedSettingsSubTabIndex = 2; }
     }
 
     // ==================== TEMA DO APLICATIVO (DARK, LIGHT, AUTO) ====================
@@ -104,7 +124,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         set { if (value) AppTheme = "Auto"; }
     }
 
-    // ==================== CORES PERSONALIZADAS DO OVERLAY (COM BRUSHES CONGELADOS) ====================
+    // ==================== BRUSHES MONOCROMÁTICOS DO OVERLAY (CONGELADOS) ====================
     [ObservableProperty]
     private string _overlayBackgroundColorHex = DefaultBackgroundColorHex;
 
@@ -118,16 +138,19 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private string _overlayValueTextColorHex = DefaultValueTextColorHex;
 
     [ObservableProperty]
-    private SolidColorBrush _overlayBackgroundBrush = CreateFrozenBrush("#D9141418", Color.FromArgb(216, 20, 20, 24));
+    private SolidColorBrush _overlayBackgroundBrush = CreateFrozenBrush("#D909090B", Color.FromArgb(217, 9, 9, 11));
 
     [ObservableProperty]
-    private SolidColorBrush _overlayBorderBrush = CreateFrozenBrush(DefaultBorderColorHex, Color.FromArgb(51, 255, 255, 255));
+    private SolidColorBrush _overlayBorderBrush = CreateFrozenBrush(DefaultBorderColorHex, Color.FromRgb(39, 39, 42));
 
     [ObservableProperty]
-    private SolidColorBrush _overlayHeaderBrush = CreateFrozenBrush(DefaultHeaderColorHex, Color.FromRgb(0, 229, 255));
+    private SolidColorBrush _overlayHeaderBrush = CreateFrozenBrush(DefaultHeaderColorHex, Color.FromRgb(250, 250, 250));
 
     [ObservableProperty]
-    private SolidColorBrush _overlayValueTextBrush = CreateFrozenBrush(DefaultValueTextColorHex, Colors.White);
+    private SolidColorBrush _overlayValueTextBrush = CreateFrozenBrush(DefaultValueTextColorHex, Color.FromRgb(250, 250, 250));
+
+    [ObservableProperty]
+    private SolidColorBrush _overlayLabelTextBrush = CreateFrozenBrush(DefaultLabelTextColorHex, Color.FromRgb(161, 161, 170));
 
     // ==================== ORDEM PERSONALIZÁVEL DAS SEÇÕES DO OVERLAY ====================
     public ObservableCollection<OverlaySectionItemViewModel> OverlaySections { get; } = [];
@@ -272,6 +295,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     // ==================== CONTROLES DO OVERLAY & CONFIGURAÇÕES ====================
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(EffectiveOverlayVisible))]
+    [NotifyPropertyChangedFor(nameof(OverlayStatusText))]
     private bool _isOverlayVisible;
 
     [ObservableProperty]
@@ -442,9 +466,21 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     public string OverlayScalePercentText => $"{Math.Round(OverlayScale * 100.0):0}%";
 
+    public string OverlayStatusText => IsOverlayVisible ? "Overlay Ativo" : "Oculto";
+
     public bool EffectiveOverlayVisible => IsOverlayVisible && (!SmartFullscreenOnly || IsForegroundFullScreen);
 
-    public bool IsVerticalLayout => !IsHorizontalLayout;
+    public bool IsVerticalLayout
+    {
+        get => !IsHorizontalLayout;
+        set
+        {
+            if (value && IsHorizontalLayout)
+            {
+                IsHorizontalLayout = false;
+            }
+        }
+    }
 
     public Thickness OverlayCardPadding => IsCompactMode ? new Thickness(10, 5, 10, 5) : new Thickness(14, 10, 14, 10);
 
@@ -559,10 +595,47 @@ public partial class MainViewModel : ObservableObject, IDisposable
             }
 
             ApplicationThemeManager.Apply(targetTheme);
+            UpdateMonochromeThemeResources(targetTheme == ApplicationTheme.Light);
         }
         catch
         {
             // Fallback seguro caso a troca de tema ocorra antes da janela estar pronta
+        }
+    }
+
+    private static void UpdateMonochromeThemeResources(bool isLight)
+    {
+        ResourceDictionary? resources = Application.Current?.Resources;
+        if (resources is null)
+            return;
+
+        if (isLight)
+        {
+            resources["WindowBackgroundBrush"] = CreateFrozenBrush("#FAFAFA", Color.FromRgb(250, 250, 250));
+            resources["SidebarBackgroundBrush"] = CreateFrozenBrush("#F4F4F5", Color.FromRgb(244, 244, 245));
+            resources["CardBackgroundBrush"] = CreateFrozenBrush("#FFFFFF", Colors.White);
+            resources["SurfaceHoverBrush"] = CreateFrozenBrush("#F4F4F5", Color.FromRgb(244, 244, 245));
+            resources["BorderSubtleBrush"] = CreateFrozenBrush("#E4E4E7", Color.FromRgb(228, 228, 231));
+            resources["BorderActiveBrush"] = CreateFrozenBrush("#A1A1AA", Color.FromRgb(161, 161, 170));
+            resources["TextPrimaryBrush"] = CreateFrozenBrush("#09090B", Color.FromRgb(9, 9, 11));
+            resources["TextSecondaryBrush"] = CreateFrozenBrush("#52525B", Color.FromRgb(82, 82, 91));
+            resources["TextMutedBrush"] = CreateFrozenBrush("#71717A", Color.FromRgb(113, 113, 122));
+            resources["AccentPrimaryBrush"] = CreateFrozenBrush("#09090B", Color.FromRgb(9, 9, 11));
+            resources["AccentForegroundBrush"] = CreateFrozenBrush("#FAFAFA", Color.FromRgb(250, 250, 250));
+        }
+        else
+        {
+            resources["WindowBackgroundBrush"] = CreateFrozenBrush("#09090B", Color.FromRgb(9, 9, 11));
+            resources["SidebarBackgroundBrush"] = CreateFrozenBrush("#0C0C0E", Color.FromRgb(12, 12, 14));
+            resources["CardBackgroundBrush"] = CreateFrozenBrush("#111114", Color.FromRgb(17, 17, 20));
+            resources["SurfaceHoverBrush"] = CreateFrozenBrush("#18181B", Color.FromRgb(24, 24, 27));
+            resources["BorderSubtleBrush"] = CreateFrozenBrush("#27272A", Color.FromRgb(39, 39, 42));
+            resources["BorderActiveBrush"] = CreateFrozenBrush("#52525B", Color.FromRgb(82, 82, 91));
+            resources["TextPrimaryBrush"] = CreateFrozenBrush("#FAFAFA", Color.FromRgb(250, 250, 250));
+            resources["TextSecondaryBrush"] = CreateFrozenBrush("#A1A1AA", Color.FromRgb(161, 161, 170));
+            resources["TextMutedBrush"] = CreateFrozenBrush("#71717A", Color.FromRgb(113, 113, 122));
+            resources["AccentPrimaryBrush"] = CreateFrozenBrush("#FAFAFA", Color.FromRgb(250, 250, 250));
+            resources["AccentForegroundBrush"] = CreateFrozenBrush("#09090B", Color.FromRgb(9, 9, 11));
         }
     }
 
@@ -633,7 +706,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
             OverlayOpacity = 0.80;
         }
 
-        Color baseColor = ParseHexColor(OverlayBackgroundColorHex, Color.FromRgb(20, 20, 24));
+        // Mantém o padrão monocromático fosco profundo (#09090B) com canal Alpha guiado pela Opacidade
+        Color baseColor = Color.FromRgb(9, 9, 11);
         byte alpha = (byte)Math.Clamp(OverlayOpacity * 255.0, 20, 255);
         Color finalBgColor = Color.FromArgb(alpha, baseColor.R, baseColor.G, baseColor.B);
 
@@ -641,9 +715,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
         bgBrush.Freeze();
         OverlayBackgroundBrush = bgBrush;
 
-        Color baseBorderColor = ParseHexColor(OverlayBorderColorHex, Color.FromArgb(51, 255, 255, 255));
-        double borderRatio = baseBorderColor.A >= 250 ? 0.35 : (baseBorderColor.A / 255.0);
-        byte borderAlpha = (byte)Math.Clamp(alpha * Math.Max(0.18, borderRatio), 15, 255);
+        // Borda nítida 1px em #27272A acompanhando suavemente a opacidade
+        Color baseBorderColor = Color.FromRgb(39, 39, 42);
+        byte borderAlpha = (byte)Math.Clamp((OverlayOpacity * 0.80 + 0.20) * 255.0, 50, 255);
         Color finalBorderColor = Color.FromArgb(borderAlpha, baseBorderColor.R, baseBorderColor.G, baseBorderColor.B);
 
         var borderBrush = new SolidColorBrush(finalBorderColor);
@@ -723,18 +797,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         AppTheme = string.IsNullOrWhiteSpace(settings.AppTheme) ? "Dark" : settings.AppTheme;
 
-        OverlayBackgroundColorHex = string.IsNullOrWhiteSpace(settings.OverlayBackgroundColorHex)
-            ? DefaultBackgroundColorHex
-            : settings.OverlayBackgroundColorHex;
-        OverlayBorderColorHex = string.IsNullOrWhiteSpace(settings.OverlayBorderColorHex)
-            ? DefaultBorderColorHex
-            : settings.OverlayBorderColorHex;
-        OverlayHeaderColorHex = string.IsNullOrWhiteSpace(settings.OverlayHeaderColorHex)
-            ? DefaultHeaderColorHex
-            : settings.OverlayHeaderColorHex;
-        OverlayValueTextColorHex = string.IsNullOrWhiteSpace(settings.OverlayValueTextColorHex)
-            ? DefaultValueTextColorHex
-            : settings.OverlayValueTextColorHex;
+        OverlayBackgroundColorHex = DefaultBackgroundColorHex;
+        OverlayBorderColorHex = DefaultBorderColorHex;
+        OverlayHeaderColorHex = DefaultHeaderColorHex;
+        OverlayValueTextColorHex = DefaultValueTextColorHex;
 
         RefreshFrozenColorBrushes();
         InitializeOverlaySectionsOrder(settings.OverlaySectionOrder);
@@ -760,8 +826,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private void RefreshFrozenColorBrushes()
     {
         UpdateOverlayBrushes();
-        OverlayHeaderBrush = CreateFrozenBrush(OverlayHeaderColorHex, Color.FromRgb(0, 229, 255));
-        OverlayValueTextBrush = CreateFrozenBrush(OverlayValueTextColorHex, Colors.White);
+        OverlayHeaderBrush = CreateFrozenBrush(DefaultHeaderColorHex, Color.FromRgb(250, 250, 250));
+        OverlayValueTextBrush = CreateFrozenBrush(DefaultValueTextColorHex, Color.FromRgb(250, 250, 250));
+        OverlayLabelTextBrush = CreateFrozenBrush(DefaultLabelTextColorHex, Color.FromRgb(161, 161, 170));
     }
 
     private void InitializeOverlaySectionsOrder(List<string>? savedOrder)
@@ -859,96 +926,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private void ResetOverlayScale()
     {
         OverlayScale = 1.0;
-    }
-
-    [RelayCommand]
-    private void ResetOverlayColors()
-    {
-        OverlayBackgroundColorHex = DefaultBackgroundColorHex;
-        OverlayBorderColorHex = DefaultBorderColorHex;
-        OverlayHeaderColorHex = DefaultHeaderColorHex;
-        OverlayValueTextColorHex = DefaultValueTextColorHex;
-        RefreshFrozenColorBrushes();
-        SaveSettings();
-    }
-
-    [RelayCommand]
-    private void ApplyColorPreset(string? preset)
-    {
-        if (string.IsNullOrWhiteSpace(preset))
-            return;
-
-        switch (preset)
-        {
-            case "CleanCyan":
-                OverlayBackgroundColorHex = "#141418";
-                OverlayBorderColorHex = "#3338BDF8";
-                OverlayHeaderColorHex = "#00E5FF";
-                OverlayValueTextColorHex = "#FFFFFF";
-                break;
-
-            case "EmeraldNeon":
-                OverlayBackgroundColorHex = "#0F1715";
-                OverlayBorderColorHex = "#382DD4BF";
-                OverlayHeaderColorHex = "#2DD4BF";
-                OverlayValueTextColorHex = "#F0FDFA";
-                break;
-
-            case "AmberGold":
-                OverlayBackgroundColorHex = "#181410";
-                OverlayBorderColorHex = "#40FFB900";
-                OverlayHeaderColorHex = "#FFB900";
-                OverlayValueTextColorHex = "#FFFBEB";
-                break;
-
-            case "CrimsonPulse":
-                OverlayBackgroundColorHex = "#1A1014";
-                OverlayBorderColorHex = "#40F43F5E";
-                OverlayHeaderColorHex = "#FB7185";
-                OverlayValueTextColorHex = "#FFF1F2";
-                break;
-
-            case "PurpleSynth":
-                OverlayBackgroundColorHex = "#151022";
-                OverlayBorderColorHex = "#40A855F7";
-                OverlayHeaderColorHex = "#C084FC";
-                OverlayValueTextColorHex = "#FAF5FF";
-                break;
-
-            case "MinimalLight":
-                OverlayBackgroundColorHex = "#F2F8FAFC";
-                OverlayBorderColorHex = "#440284C7";
-                OverlayHeaderColorHex = "#0284C7";
-                OverlayValueTextColorHex = "#0F172A";
-                break;
-        }
-    }
-
-    [RelayCommand]
-    private void SetHeaderQuickColor(string? hex)
-    {
-        if (!string.IsNullOrWhiteSpace(hex))
-        {
-            OverlayHeaderColorHex = hex;
-        }
-    }
-
-    [RelayCommand]
-    private void SetValueQuickColor(string? hex)
-    {
-        if (!string.IsNullOrWhiteSpace(hex))
-        {
-            OverlayValueTextColorHex = hex;
-        }
-    }
-
-    [RelayCommand]
-    private void SetBackgroundQuickColor(string? hex)
-    {
-        if (!string.IsNullOrWhiteSpace(hex))
-        {
-            OverlayBackgroundColorHex = hex;
-        }
     }
 
     private void OnHeartbeatTick()
@@ -1198,7 +1175,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void SelectTab(string? indexParameter)
     {
-        if (int.TryParse(indexParameter, out int idx) && idx is >= 0 and <= 5)
+        if (int.TryParse(indexParameter, out int idx) && idx is >= 0 and <= 4)
         {
             SelectedNavIndex = idx;
         }
@@ -1341,13 +1318,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     partial void OnOverlayHeaderColorHexChanged(string value)
     {
-        OverlayHeaderBrush = CreateFrozenBrush(value, Color.FromRgb(0, 229, 255));
+        OverlayHeaderBrush = CreateFrozenBrush(DefaultHeaderColorHex, Color.FromRgb(250, 250, 250));
         SaveSettings();
     }
 
     partial void OnOverlayValueTextColorHexChanged(string value)
     {
-        OverlayValueTextBrush = CreateFrozenBrush(value, Colors.White);
+        OverlayValueTextBrush = CreateFrozenBrush(DefaultValueTextColorHex, Color.FromRgb(250, 250, 250));
         SaveSettings();
     }
 

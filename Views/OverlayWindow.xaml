@@ -14,13 +14,13 @@
         ShowInTaskbar="False"
         ResizeMode="NoResize"
         SizeToContent="WidthAndHeight"
-        FontFamily="Consolas"
+        FontFamily="Segoe UI Variable Display, Segoe UI"
         MouseLeftButtonDown="Window_MouseLeftButtonDown">
 
-    <!-- Border raiz do Overlay: aplica Cor + Alpha direto no Background/BorderBrush (mantendo textos 100% nítidos) e Escala Vetorial via LayoutTransform -->
+    <!-- Border raiz do Overlay Monocromático: Fundo #09090B (com Alpha dinâmico) + Borda #27272A de 1px + Escala Vetorial -->
     <Border Visibility="{Binding EffectiveOverlayVisible, Converter={StaticResource BoolToVis}}"
             Margin="4"
-            CornerRadius="8"
+            CornerRadius="6"
             Background="{Binding OverlayBackgroundBrush}"
             BorderBrush="{Binding OverlayBorderBrush}"
             BorderThickness="1"
@@ -48,186 +48,186 @@
                             <!-- [BLOCO PROCESSADOR (CPU)] -->
                             <StackPanel Visibility="{Binding IsCpuSection, Converter={StaticResource BoolToVis}}">
                                 <StackPanel Visibility="{Binding Parent.ShowCpuSection, Converter={StaticResource BoolToVis}}"
-                                            Margin="0,4,0,3">
+                                            Margin="0,3,0,4">
 
-                                    <!-- Modo Completo: Cabeçalho com Modelo Real da CPU + Linhas independentes Rótulo/Valor -->
+                                    <!-- Modo Completo: Cabeçalho com Modelo Real da CPU -->
                                     <StackPanel Visibility="{Binding Parent.ShowSectionHeaders, Converter={StaticResource BoolToVis}}">
                                         <TextBlock Text="{Binding Parent.CpuShortName}"
                                                    Foreground="{Binding Parent.OverlayHeaderBrush}"
-                                                   FontWeight="Bold"
+                                                   FontWeight="SemiBold"
                                                    FontSize="12.5"
                                                    Margin="0,0,0,2" />
 
-                                        <!-- Uso (Padrão / Não Híbrido) -->
+                                        <!-- 1. Uso (Padrão / Não Híbrido) -->
                                         <Grid Visibility="{Binding Parent.ShowNormalCpuLoad, Converter={StaticResource BoolToVis}}"
-                                              Margin="6,1,0,1">
+                                              Margin="4,1,0,1">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
                                             <TextBlock Grid.Column="0"
                                                        Text="Uso:"
-                                                       Foreground="{Binding Parent.OverlayValueTextBrush}"
-                                                       Opacity="0.78"
-                                                       FontSize="12.5" />
+                                                       Foreground="{Binding Parent.OverlayLabelTextBrush}"
+                                                       FontSize="12" />
                                             <TextBlock Grid.Column="1"
                                                        Text="{Binding Parent.CpuLoadText}"
                                                        Foreground="{Binding Parent.OverlayValueTextBrush}"
+                                                       FontFamily="Consolas"
                                                        FontWeight="Bold"
-                                                       FontSize="12.5"
+                                                       FontSize="12"
                                                        Margin="12,0,0,0"
                                                        HorizontalAlignment="Right" />
                                         </Grid>
 
-                                        <!-- Uso P-Cores (Híbrido Intel) -->
+                                        <!-- 1a. Uso P-Cores (Híbrido Intel) -->
                                         <Grid Visibility="{Binding Parent.ShowHybridCpuLoad, Converter={StaticResource BoolToVis}}"
-                                              Margin="6,1,0,1">
+                                              Margin="4,1,0,1">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
                                             <TextBlock Grid.Column="0"
                                                        Text="Uso P-Cores:"
-                                                       Foreground="{Binding Parent.OverlayValueTextBrush}"
-                                                       Opacity="0.78"
-                                                       FontSize="12.5" />
+                                                       Foreground="{Binding Parent.OverlayLabelTextBrush}"
+                                                       FontSize="12" />
                                             <TextBlock Grid.Column="1"
                                                        Text="{Binding Parent.CpuPCoreLoadText}"
                                                        Foreground="{Binding Parent.OverlayValueTextBrush}"
+                                                       FontFamily="Consolas"
                                                        FontWeight="Bold"
-                                                       FontSize="12.5"
+                                                       FontSize="12"
                                                        Margin="12,0,0,0"
                                                        HorizontalAlignment="Right" />
                                         </Grid>
 
-                                        <!-- Uso E-Cores (Híbrido Intel) -->
+                                        <!-- 1b. Uso E-Cores (Híbrido Intel) -->
                                         <Grid Visibility="{Binding Parent.ShowHybridCpuLoad, Converter={StaticResource BoolToVis}}"
-                                              Margin="6,1,0,1">
+                                              Margin="4,1,0,1">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
                                             <TextBlock Grid.Column="0"
                                                        Text="Uso E-Cores:"
-                                                       Foreground="{Binding Parent.OverlayValueTextBrush}"
-                                                       Opacity="0.78"
-                                                       FontSize="12.5" />
+                                                       Foreground="{Binding Parent.OverlayLabelTextBrush}"
+                                                       FontSize="12" />
                                             <TextBlock Grid.Column="1"
                                                        Text="{Binding Parent.CpuECoreLoadText}"
                                                        Foreground="{Binding Parent.OverlayValueTextBrush}"
+                                                       FontFamily="Consolas"
                                                        FontWeight="Bold"
-                                                       FontSize="12.5"
+                                                       FontSize="12"
                                                        Margin="12,0,0,0"
                                                        HorizontalAlignment="Right" />
                                         </Grid>
 
-                                        <!-- Clock (Padrão / Não Híbrido) -->
+                                        <!-- 2. Clock (Padrão / Não Híbrido) -->
                                         <Grid Visibility="{Binding Parent.ShowNormalCpuClock, Converter={StaticResource BoolToVis}}"
-                                              Margin="6,1,0,1">
+                                              Margin="4,1,0,1">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
                                             <TextBlock Grid.Column="0"
                                                        Text="Clock:"
-                                                       Foreground="{Binding Parent.OverlayValueTextBrush}"
-                                                       Opacity="0.78"
-                                                       FontSize="12.5" />
+                                                       Foreground="{Binding Parent.OverlayLabelTextBrush}"
+                                                       FontSize="12" />
                                             <TextBlock Grid.Column="1"
                                                        Text="{Binding Parent.CpuClockText}"
                                                        Foreground="{Binding Parent.OverlayValueTextBrush}"
+                                                       FontFamily="Consolas"
                                                        FontWeight="Bold"
-                                                       FontSize="12.5"
+                                                       FontSize="12"
                                                        Margin="12,0,0,0"
                                                        HorizontalAlignment="Right" />
                                         </Grid>
 
-                                        <!-- Clock P-Cores (Híbrido Intel) -->
+                                        <!-- 2a. Clock P-Cores (Híbrido Intel) -->
                                         <Grid Visibility="{Binding Parent.ShowHybridCpuClock, Converter={StaticResource BoolToVis}}"
-                                              Margin="6,1,0,1">
+                                              Margin="4,1,0,1">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
                                             <TextBlock Grid.Column="0"
                                                        Text="Clock P-Cores:"
-                                                       Foreground="{Binding Parent.OverlayValueTextBrush}"
-                                                       Opacity="0.78"
-                                                       FontSize="12.5" />
+                                                       Foreground="{Binding Parent.OverlayLabelTextBrush}"
+                                                       FontSize="12" />
                                             <TextBlock Grid.Column="1"
                                                        Text="{Binding Parent.CpuPCoreClockText}"
                                                        Foreground="{Binding Parent.OverlayValueTextBrush}"
+                                                       FontFamily="Consolas"
                                                        FontWeight="Bold"
-                                                       FontSize="12.5"
+                                                       FontSize="12"
                                                        Margin="12,0,0,0"
                                                        HorizontalAlignment="Right" />
                                         </Grid>
 
-                                        <!-- Clock E-Cores (Híbrido Intel) -->
+                                        <!-- 2b. Clock E-Cores (Híbrido Intel) -->
                                         <Grid Visibility="{Binding Parent.ShowHybridCpuClock, Converter={StaticResource BoolToVis}}"
-                                              Margin="6,1,0,1">
+                                              Margin="4,1,0,1">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
                                             <TextBlock Grid.Column="0"
                                                        Text="Clock E-Cores:"
-                                                       Foreground="{Binding Parent.OverlayValueTextBrush}"
-                                                       Opacity="0.78"
-                                                       FontSize="12.5" />
+                                                       Foreground="{Binding Parent.OverlayLabelTextBrush}"
+                                                       FontSize="12" />
                                             <TextBlock Grid.Column="1"
                                                        Text="{Binding Parent.CpuECoreClockText}"
                                                        Foreground="{Binding Parent.OverlayValueTextBrush}"
+                                                       FontFamily="Consolas"
                                                        FontWeight="Bold"
-                                                       FontSize="12.5"
+                                                       FontSize="12"
                                                        Margin="12,0,0,0"
                                                        HorizontalAlignment="Right" />
                                         </Grid>
 
-                                        <!-- Temp: -->
+                                        <!-- 3. Temperatura -->
                                         <Grid Visibility="{Binding Parent.EffectiveShowCpuTemp, Converter={StaticResource BoolToVis}}"
-                                              Margin="6,1,0,1">
+                                              Margin="4,1,0,1">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
                                             <TextBlock Grid.Column="0"
                                                        Text="Temp:"
-                                                       Foreground="{Binding Parent.OverlayValueTextBrush}"
-                                                       Opacity="0.78"
-                                                       FontSize="12.5" />
+                                                       Foreground="{Binding Parent.OverlayLabelTextBrush}"
+                                                       FontSize="12" />
                                             <TextBlock Grid.Column="1"
                                                        Text="{Binding Parent.CpuTemperatureText}"
                                                        Foreground="{Binding Parent.OverlayValueTextBrush}"
+                                                       FontFamily="Consolas"
                                                        FontWeight="Bold"
-                                                       FontSize="12.5"
+                                                       FontSize="12"
                                                        Margin="12,0,0,0"
                                                        HorizontalAlignment="Right" />
                                         </Grid>
 
-                                        <!-- Consumo: -->
+                                        <!-- 4. Consumo -->
                                         <Grid Visibility="{Binding Parent.EffectiveShowCpuPower, Converter={StaticResource BoolToVis}}"
-                                              Margin="6,1,0,1">
+                                              Margin="4,1,0,1">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
                                             <TextBlock Grid.Column="0"
                                                        Text="Consumo:"
-                                                       Foreground="{Binding Parent.OverlayValueTextBrush}"
-                                                       Opacity="0.78"
-                                                       FontSize="12.5" />
+                                                       Foreground="{Binding Parent.OverlayLabelTextBrush}"
+                                                       FontSize="12" />
                                             <TextBlock Grid.Column="1"
                                                        Text="{Binding Parent.CpuPowerText}"
                                                        Foreground="{Binding Parent.OverlayValueTextBrush}"
+                                                       FontFamily="Consolas"
                                                        FontWeight="Bold"
-                                                       FontSize="12.5"
+                                                       FontSize="12"
                                                        Margin="12,0,0,0"
                                                        HorizontalAlignment="Right" />
                                         </Grid>
                                     </StackPanel>
 
-                                    <!-- Modo Compacto: Rótulo claro CPU: + Uso % -->
+                                    <!-- Modo Compacto Vertical CPU -->
                                     <Grid Visibility="{Binding Parent.IsCompactMode, Converter={StaticResource BoolToVis}}"
                                           Margin="0,1">
                                         <Grid.ColumnDefinitions>
@@ -237,13 +237,14 @@
                                         <TextBlock Grid.Column="0"
                                                    Text="{Binding Parent.EffectiveCompactCpuHeader}"
                                                    Foreground="{Binding Parent.OverlayHeaderBrush}"
-                                                   FontWeight="Bold"
-                                                   FontSize="13" />
+                                                   FontWeight="SemiBold"
+                                                   FontSize="12.5" />
                                         <TextBlock Grid.Column="1"
                                                    Text="{Binding Parent.EffectiveCompactCpuLoadText}"
                                                    Foreground="{Binding Parent.OverlayValueTextBrush}"
+                                                   FontFamily="Consolas"
                                                    FontWeight="Bold"
-                                                   FontSize="13"
+                                                   FontSize="12.5"
                                                    Margin="12,0,0,0"
                                                    HorizontalAlignment="Right" />
                                     </Grid>
@@ -253,123 +254,123 @@
                             <!-- [BLOCO PLACA DE VÍDEO (GPU)] -->
                             <StackPanel Visibility="{Binding IsGpuSection, Converter={StaticResource BoolToVis}}">
                                 <StackPanel Visibility="{Binding Parent.ShowGpuSection, Converter={StaticResource BoolToVis}}"
-                                            Margin="0,4,0,3">
+                                            Margin="0,3,0,4">
 
-                                    <!-- Modo Completo: Cabeçalho com Modelo Real da GPU + Linhas independentes Rótulo/Valor -->
+                                    <!-- Modo Completo: Cabeçalho com Modelo Real da GPU -->
                                     <StackPanel Visibility="{Binding Parent.ShowSectionHeaders, Converter={StaticResource BoolToVis}}">
                                         <TextBlock Text="{Binding Parent.GpuShortName}"
                                                    Foreground="{Binding Parent.OverlayHeaderBrush}"
-                                                   FontWeight="Bold"
+                                                   FontWeight="SemiBold"
                                                    FontSize="12.5"
                                                    Margin="0,0,0,2" />
 
-                                        <!-- Uso: -->
+                                        <!-- 1. Uso -->
                                         <Grid Visibility="{Binding Parent.EffectiveShowGpuLoad, Converter={StaticResource BoolToVis}}"
-                                              Margin="6,1,0,1">
+                                              Margin="4,1,0,1">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
                                             <TextBlock Grid.Column="0"
                                                        Text="Uso:"
-                                                       Foreground="{Binding Parent.OverlayValueTextBrush}"
-                                                       Opacity="0.78"
-                                                       FontSize="12.5" />
+                                                       Foreground="{Binding Parent.OverlayLabelTextBrush}"
+                                                       FontSize="12" />
                                             <TextBlock Grid.Column="1"
                                                        Text="{Binding Parent.GpuLoadText}"
                                                        Foreground="{Binding Parent.OverlayValueTextBrush}"
+                                                       FontFamily="Consolas"
                                                        FontWeight="Bold"
-                                                       FontSize="12.5"
+                                                       FontSize="12"
                                                        Margin="12,0,0,0"
                                                        HorizontalAlignment="Right" />
                                         </Grid>
 
-                                        <!-- Clock: -->
+                                        <!-- 2. Clock -->
                                         <Grid Visibility="{Binding Parent.EffectiveShowGpuClock, Converter={StaticResource BoolToVis}}"
-                                              Margin="6,1,0,1">
+                                              Margin="4,1,0,1">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
                                             <TextBlock Grid.Column="0"
                                                        Text="Clock:"
-                                                       Foreground="{Binding Parent.OverlayValueTextBrush}"
-                                                       Opacity="0.78"
-                                                       FontSize="12.5" />
+                                                       Foreground="{Binding Parent.OverlayLabelTextBrush}"
+                                                       FontSize="12" />
                                             <TextBlock Grid.Column="1"
                                                        Text="{Binding Parent.GpuClockText}"
                                                        Foreground="{Binding Parent.OverlayValueTextBrush}"
+                                                       FontFamily="Consolas"
                                                        FontWeight="Bold"
-                                                       FontSize="12.5"
+                                                       FontSize="12"
                                                        Margin="12,0,0,0"
                                                        HorizontalAlignment="Right" />
                                         </Grid>
 
-                                        <!-- Temp: -->
+                                        <!-- 3. Temperatura -->
                                         <Grid Visibility="{Binding Parent.EffectiveShowGpuTemp, Converter={StaticResource BoolToVis}}"
-                                              Margin="6,1,0,1">
+                                              Margin="4,1,0,1">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
                                             <TextBlock Grid.Column="0"
                                                        Text="Temp:"
-                                                       Foreground="{Binding Parent.OverlayValueTextBrush}"
-                                                       Opacity="0.78"
-                                                       FontSize="12.5" />
+                                                       Foreground="{Binding Parent.OverlayLabelTextBrush}"
+                                                       FontSize="12" />
                                             <TextBlock Grid.Column="1"
                                                        Text="{Binding Parent.GpuTemperatureText}"
                                                        Foreground="{Binding Parent.OverlayValueTextBrush}"
+                                                       FontFamily="Consolas"
                                                        FontWeight="Bold"
-                                                       FontSize="12.5"
+                                                       FontSize="12"
                                                        Margin="12,0,0,0"
                                                        HorizontalAlignment="Right" />
                                         </Grid>
 
-                                        <!-- Consumo: -->
+                                        <!-- 4. Consumo -->
                                         <Grid Visibility="{Binding Parent.EffectiveShowGpuPower, Converter={StaticResource BoolToVis}}"
-                                              Margin="6,1,0,1">
+                                              Margin="4,1,0,1">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
                                             <TextBlock Grid.Column="0"
                                                        Text="Consumo:"
-                                                       Foreground="{Binding Parent.OverlayValueTextBrush}"
-                                                       Opacity="0.78"
-                                                       FontSize="12.5" />
+                                                       Foreground="{Binding Parent.OverlayLabelTextBrush}"
+                                                       FontSize="12" />
                                             <TextBlock Grid.Column="1"
                                                        Text="{Binding Parent.GpuPowerText}"
                                                        Foreground="{Binding Parent.OverlayValueTextBrush}"
+                                                       FontFamily="Consolas"
                                                        FontWeight="Bold"
-                                                       FontSize="12.5"
+                                                       FontSize="12"
                                                        Margin="12,0,0,0"
                                                        HorizontalAlignment="Right" />
                                         </Grid>
 
-                                        <!-- VRAM: -->
+                                        <!-- 5. VRAM -->
                                         <Grid Visibility="{Binding Parent.EffectiveShowGpuVram, Converter={StaticResource BoolToVis}}"
-                                              Margin="6,1,0,1">
+                                              Margin="4,1,0,1">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
                                             <TextBlock Grid.Column="0"
                                                        Text="VRAM:"
-                                                       Foreground="{Binding Parent.OverlayValueTextBrush}"
-                                                       Opacity="0.78"
-                                                       FontSize="12.5" />
+                                                       Foreground="{Binding Parent.OverlayLabelTextBrush}"
+                                                       FontSize="12" />
                                             <TextBlock Grid.Column="1"
                                                        Text="{Binding Parent.GpuVramText}"
                                                        Foreground="{Binding Parent.OverlayValueTextBrush}"
+                                                       FontFamily="Consolas"
                                                        FontWeight="Bold"
-                                                       FontSize="12.5"
+                                                       FontSize="12"
                                                        Margin="12,0,0,0"
                                                        HorizontalAlignment="Right" />
                                         </Grid>
                                     </StackPanel>
 
-                                    <!-- Modo Compacto: Rótulo claro GPU: + Uso % -->
+                                    <!-- Modo Compacto Vertical GPU -->
                                     <Grid Visibility="{Binding Parent.IsCompactMode, Converter={StaticResource BoolToVis}}"
                                           Margin="0,1">
                                         <Grid.ColumnDefinitions>
@@ -379,13 +380,14 @@
                                         <TextBlock Grid.Column="0"
                                                    Text="GPU:"
                                                    Foreground="{Binding Parent.OverlayHeaderBrush}"
-                                                   FontWeight="Bold"
-                                                   FontSize="13" />
+                                                   FontWeight="SemiBold"
+                                                   FontSize="12.5" />
                                         <TextBlock Grid.Column="1"
                                                    Text="{Binding Parent.GpuLoadText}"
                                                    Foreground="{Binding Parent.OverlayValueTextBrush}"
+                                                   FontFamily="Consolas"
                                                    FontWeight="Bold"
-                                                   FontSize="13"
+                                                   FontSize="12.5"
                                                    Margin="12,0,0,0"
                                                    HorizontalAlignment="Right" />
                                     </Grid>
@@ -395,39 +397,39 @@
                             <!-- [BLOCO MEMÓRIA RAM] -->
                             <StackPanel Visibility="{Binding IsRamSection, Converter={StaticResource BoolToVis}}">
                                 <StackPanel Visibility="{Binding Parent.EffectiveShowRam, Converter={StaticResource BoolToVis}}"
-                                            Margin="0,4,0,2">
+                                            Margin="0,3,0,4">
                                     <TextBlock Text="Memória RAM"
                                                Visibility="{Binding Parent.ShowSectionHeaders, Converter={StaticResource BoolToVis}}"
                                                Foreground="{Binding Parent.OverlayHeaderBrush}"
-                                               FontWeight="Bold"
+                                               FontWeight="SemiBold"
                                                FontSize="12.5"
                                                Margin="0,0,0,2" />
 
-                                    <Grid Margin="6,1,0,1">
+                                    <Grid Margin="4,1,0,1">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Grid.Column="0"
                                                    Text="Uso:"
-                                                   Foreground="{Binding Parent.OverlayValueTextBrush}"
-                                                   Opacity="0.78"
-                                                   FontSize="12.5" />
+                                                   Foreground="{Binding Parent.OverlayLabelTextBrush}"
+                                                   FontSize="12" />
                                         <TextBlock Grid.Column="1"
                                                    Text="{Binding Parent.RamUsageText}"
                                                    Foreground="{Binding Parent.OverlayValueTextBrush}"
+                                                   FontFamily="Consolas"
                                                    FontWeight="Bold"
-                                                   FontSize="12.5"
+                                                   FontSize="12"
                                                    Margin="12,0,0,0"
                                                    HorizontalAlignment="Right" />
                                     </Grid>
                                 </StackPanel>
                             </StackPanel>
 
-                            <!-- [BLOCO FPS - Destacado e em Escala Maior] -->
+                            <!-- [BLOCO FPS - Destacado em Escala Maior e Alto Contraste] -->
                             <StackPanel Visibility="{Binding IsFpsSection, Converter={StaticResource BoolToVis}}">
                                 <Grid Visibility="{Binding Parent.EffectiveShowFps, Converter={StaticResource BoolToVis}}"
-                                      Margin="0,4,0,3">
+                                      Margin="0,4,0,2">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
@@ -436,11 +438,12 @@
                                                Text="FPS:"
                                                Foreground="{Binding Parent.OverlayHeaderBrush}"
                                                FontWeight="Bold"
-                                               FontSize="15"
+                                               FontSize="14.5"
                                                VerticalAlignment="Center" />
                                     <TextBlock Grid.Column="1"
                                                Text="{Binding Parent.FpsValueText}"
                                                Foreground="{Binding Parent.OverlayValueTextBrush}"
+                                               FontFamily="Consolas"
                                                FontWeight="Bold"
                                                FontSize="17.5"
                                                Margin="12,0,0,0"
@@ -454,7 +457,7 @@
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
 
-            <!-- ==================== LAYOUT HORIZONTAL (EM LINHA REORDENÁVEL E SEM SEPARADORES ÓRFÃOS) ==================== -->
+            <!-- ==================== LAYOUT HORIZONTAL (EM LINHA REORDENÁVEL) ==================== -->
             <ItemsControl Visibility="{Binding IsHorizontalLayout, Converter={StaticResource BoolToVis}}"
                           ItemsSource="{Binding OverlaySections}"
                           VerticalAlignment="Center">
@@ -477,70 +480,73 @@
                                     <TextBlock Text="{Binding Parent.CpuShortName}"
                                                Visibility="{Binding Parent.ShowCpuSection, Converter={StaticResource BoolToVis}}"
                                                Foreground="{Binding Parent.OverlayHeaderBrush}"
-                                               FontWeight="Bold"
-                                               FontSize="13"
-                                               Margin="0,0,8,0" />
+                                               FontWeight="SemiBold"
+                                               FontSize="12.5"
+                                               Margin="0,0,8,0"
+                                               VerticalAlignment="Center" />
 
-                                    <!-- Uso (Padrão / Não Híbrido) -->
+                                    <!-- 1. Uso (Padrão / Não Híbrido) -->
                                     <StackPanel Orientation="Horizontal"
                                                 Visibility="{Binding Parent.ShowNormalCpuLoad, Converter={StaticResource BoolToVis}}"
                                                 Margin="0,0,8,0">
-                                        <TextBlock Text="Uso: " Foreground="{Binding Parent.OverlayValueTextBrush}" Opacity="0.78" FontSize="13" />
-                                        <TextBlock Text="{Binding Parent.CpuLoadText}" Foreground="{Binding Parent.OverlayValueTextBrush}" FontWeight="Bold" FontSize="13" />
+                                        <TextBlock Text="Uso: " Foreground="{Binding Parent.OverlayLabelTextBrush}" FontSize="12" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding Parent.CpuLoadText}" Foreground="{Binding Parent.OverlayValueTextBrush}" FontFamily="Consolas" FontWeight="Bold" FontSize="12" VerticalAlignment="Center" />
                                     </StackPanel>
 
-                                    <!-- Uso P-Cores (Híbrido Intel) -->
+                                    <!-- 1a. Uso P-Cores (Híbrido Intel) -->
                                     <StackPanel Orientation="Horizontal"
                                                 Visibility="{Binding Parent.ShowHybridCpuLoad, Converter={StaticResource BoolToVis}}"
                                                 Margin="0,0,8,0">
-                                        <TextBlock Text="Uso P-Cores: " Foreground="{Binding Parent.OverlayValueTextBrush}" Opacity="0.78" FontSize="13" />
-                                        <TextBlock Text="{Binding Parent.CpuPCoreLoadText}" Foreground="{Binding Parent.OverlayValueTextBrush}" FontWeight="Bold" FontSize="13" />
+                                        <TextBlock Text="Uso P-Cores: " Foreground="{Binding Parent.OverlayLabelTextBrush}" FontSize="12" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding Parent.CpuPCoreLoadText}" Foreground="{Binding Parent.OverlayValueTextBrush}" FontFamily="Consolas" FontWeight="Bold" FontSize="12" VerticalAlignment="Center" />
                                     </StackPanel>
 
-                                    <!-- Uso E-Cores (Híbrido Intel) -->
+                                    <!-- 1b. Uso E-Cores (Híbrido Intel) -->
                                     <StackPanel Orientation="Horizontal"
                                                 Visibility="{Binding Parent.ShowHybridCpuLoad, Converter={StaticResource BoolToVis}}"
                                                 Margin="0,0,8,0">
-                                        <TextBlock Text="Uso E-Cores: " Foreground="{Binding Parent.OverlayValueTextBrush}" Opacity="0.78" FontSize="13" />
-                                        <TextBlock Text="{Binding Parent.CpuECoreLoadText}" Foreground="{Binding Parent.OverlayValueTextBrush}" FontWeight="Bold" FontSize="13" />
+                                        <TextBlock Text="Uso E-Cores: " Foreground="{Binding Parent.OverlayLabelTextBrush}" FontSize="12" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding Parent.CpuECoreLoadText}" Foreground="{Binding Parent.OverlayValueTextBrush}" FontFamily="Consolas" FontWeight="Bold" FontSize="12" VerticalAlignment="Center" />
                                     </StackPanel>
 
-                                    <!-- Clock (Padrão / Não Híbrido) -->
+                                    <!-- 2. Clock (Padrão / Não Híbrido) -->
                                     <StackPanel Orientation="Horizontal"
                                                 Visibility="{Binding Parent.ShowNormalCpuClock, Converter={StaticResource BoolToVis}}"
                                                 Margin="0,0,8,0">
-                                        <TextBlock Text="Clock: " Foreground="{Binding Parent.OverlayValueTextBrush}" Opacity="0.78" FontSize="13" />
-                                        <TextBlock Text="{Binding Parent.CpuClockText}" Foreground="{Binding Parent.OverlayValueTextBrush}" FontWeight="Bold" FontSize="13" />
+                                        <TextBlock Text="Clock: " Foreground="{Binding Parent.OverlayLabelTextBrush}" FontSize="12" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding Parent.CpuClockText}" Foreground="{Binding Parent.OverlayValueTextBrush}" FontFamily="Consolas" FontWeight="Bold" FontSize="12" VerticalAlignment="Center" />
                                     </StackPanel>
 
-                                    <!-- Clock P-Cores (Híbrido Intel) -->
+                                    <!-- 2a. Clock P-Cores (Híbrido Intel) -->
                                     <StackPanel Orientation="Horizontal"
                                                 Visibility="{Binding Parent.ShowHybridCpuClock, Converter={StaticResource BoolToVis}}"
                                                 Margin="0,0,8,0">
-                                        <TextBlock Text="Clock P-Cores: " Foreground="{Binding Parent.OverlayValueTextBrush}" Opacity="0.78" FontSize="13" />
-                                        <TextBlock Text="{Binding Parent.CpuPCoreClockText}" Foreground="{Binding Parent.OverlayValueTextBrush}" FontWeight="Bold" FontSize="13" />
+                                        <TextBlock Text="Clock P-Cores: " Foreground="{Binding Parent.OverlayLabelTextBrush}" FontSize="12" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding Parent.CpuPCoreClockText}" Foreground="{Binding Parent.OverlayValueTextBrush}" FontFamily="Consolas" FontWeight="Bold" FontSize="12" VerticalAlignment="Center" />
                                     </StackPanel>
 
-                                    <!-- Clock E-Cores (Híbrido Intel) -->
+                                    <!-- 2b. Clock E-Cores (Híbrido Intel) -->
                                     <StackPanel Orientation="Horizontal"
                                                 Visibility="{Binding Parent.ShowHybridCpuClock, Converter={StaticResource BoolToVis}}"
                                                 Margin="0,0,8,0">
-                                        <TextBlock Text="Clock E-Cores: " Foreground="{Binding Parent.OverlayValueTextBrush}" Opacity="0.78" FontSize="13" />
-                                        <TextBlock Text="{Binding Parent.CpuECoreClockText}" Foreground="{Binding Parent.OverlayValueTextBrush}" FontWeight="Bold" FontSize="13" />
+                                        <TextBlock Text="Clock E-Cores: " Foreground="{Binding Parent.OverlayLabelTextBrush}" FontSize="12" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding Parent.CpuECoreClockText}" Foreground="{Binding Parent.OverlayValueTextBrush}" FontFamily="Consolas" FontWeight="Bold" FontSize="12" VerticalAlignment="Center" />
                                     </StackPanel>
 
+                                    <!-- 3. Temp -->
                                     <StackPanel Orientation="Horizontal"
                                                 Visibility="{Binding Parent.EffectiveShowCpuTemp, Converter={StaticResource BoolToVis}}"
                                                 Margin="0,0,8,0">
-                                        <TextBlock Text="Temp: " Foreground="{Binding Parent.OverlayValueTextBrush}" Opacity="0.78" FontSize="13" />
-                                        <TextBlock Text="{Binding Parent.CpuTemperatureText}" Foreground="{Binding Parent.OverlayValueTextBrush}" FontWeight="Bold" FontSize="13" />
+                                        <TextBlock Text="Temp: " Foreground="{Binding Parent.OverlayLabelTextBrush}" FontSize="12" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding Parent.CpuTemperatureText}" Foreground="{Binding Parent.OverlayValueTextBrush}" FontFamily="Consolas" FontWeight="Bold" FontSize="12" VerticalAlignment="Center" />
                                     </StackPanel>
 
+                                    <!-- 4. Consumo -->
                                     <StackPanel Orientation="Horizontal"
                                                 Visibility="{Binding Parent.EffectiveShowCpuPower, Converter={StaticResource BoolToVis}}"
                                                 Margin="0,0,4,0">
-                                        <TextBlock Text="Consumo: " Foreground="{Binding Parent.OverlayValueTextBrush}" Opacity="0.78" FontSize="13" />
-                                        <TextBlock Text="{Binding Parent.CpuPowerText}" Foreground="{Binding Parent.OverlayValueTextBrush}" FontWeight="Bold" FontSize="13" />
+                                        <TextBlock Text="Consumo: " Foreground="{Binding Parent.OverlayLabelTextBrush}" FontSize="12" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding Parent.CpuPowerText}" Foreground="{Binding Parent.OverlayValueTextBrush}" FontFamily="Consolas" FontWeight="Bold" FontSize="12" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </WrapPanel>
 
@@ -548,8 +554,8 @@
                                 <StackPanel Orientation="Horizontal"
                                             Visibility="{Binding Parent.IsCompactMode, Converter={StaticResource BoolToVis}}"
                                             Margin="6,2,10,2">
-                                    <TextBlock Text="{Binding Parent.EffectiveCompactCpuHeaderWithSpace}" Foreground="{Binding Parent.OverlayHeaderBrush}" FontWeight="Bold" FontSize="13" />
-                                    <TextBlock Text="{Binding Parent.EffectiveCompactCpuLoadText}" Foreground="{Binding Parent.OverlayValueTextBrush}" FontWeight="Bold" FontSize="13" />
+                                    <TextBlock Text="{Binding Parent.EffectiveCompactCpuHeaderWithSpace}" Foreground="{Binding Parent.OverlayHeaderBrush}" FontWeight="SemiBold" FontSize="12.5" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding Parent.EffectiveCompactCpuLoadText}" Foreground="{Binding Parent.OverlayValueTextBrush}" FontFamily="Consolas" FontWeight="Bold" FontSize="12.5" VerticalAlignment="Center" />
                                 </StackPanel>
                             </StackPanel>
 
@@ -563,43 +569,49 @@
                                     <TextBlock Text="{Binding Parent.GpuShortName}"
                                                Visibility="{Binding Parent.ShowGpuSection, Converter={StaticResource BoolToVis}}"
                                                Foreground="{Binding Parent.OverlayHeaderBrush}"
-                                               FontWeight="Bold"
-                                               FontSize="13"
-                                               Margin="0,0,8,0" />
+                                               FontWeight="SemiBold"
+                                               FontSize="12.5"
+                                               Margin="0,0,8,0"
+                                               VerticalAlignment="Center" />
 
+                                    <!-- 1. Uso -->
                                     <StackPanel Orientation="Horizontal"
                                                 Visibility="{Binding Parent.EffectiveShowGpuLoad, Converter={StaticResource BoolToVis}}"
                                                 Margin="0,0,8,0">
-                                        <TextBlock Text="Uso: " Foreground="{Binding Parent.OverlayValueTextBrush}" Opacity="0.78" FontSize="13" />
-                                        <TextBlock Text="{Binding Parent.GpuLoadText}" Foreground="{Binding Parent.OverlayValueTextBrush}" FontWeight="Bold" FontSize="13" />
+                                        <TextBlock Text="Uso: " Foreground="{Binding Parent.OverlayLabelTextBrush}" FontSize="12" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding Parent.GpuLoadText}" Foreground="{Binding Parent.OverlayValueTextBrush}" FontFamily="Consolas" FontWeight="Bold" FontSize="12" VerticalAlignment="Center" />
                                     </StackPanel>
 
+                                    <!-- 2. Clock -->
                                     <StackPanel Orientation="Horizontal"
                                                 Visibility="{Binding Parent.EffectiveShowGpuClock, Converter={StaticResource BoolToVis}}"
                                                 Margin="0,0,8,0">
-                                        <TextBlock Text="Clock: " Foreground="{Binding Parent.OverlayValueTextBrush}" Opacity="0.78" FontSize="13" />
-                                        <TextBlock Text="{Binding Parent.GpuClockText}" Foreground="{Binding Parent.OverlayValueTextBrush}" FontWeight="Bold" FontSize="13" />
+                                        <TextBlock Text="Clock: " Foreground="{Binding Parent.OverlayLabelTextBrush}" FontSize="12" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding Parent.GpuClockText}" Foreground="{Binding Parent.OverlayValueTextBrush}" FontFamily="Consolas" FontWeight="Bold" FontSize="12" VerticalAlignment="Center" />
                                     </StackPanel>
 
+                                    <!-- 3. Temp -->
                                     <StackPanel Orientation="Horizontal"
                                                 Visibility="{Binding Parent.EffectiveShowGpuTemp, Converter={StaticResource BoolToVis}}"
                                                 Margin="0,0,8,0">
-                                        <TextBlock Text="Temp: " Foreground="{Binding Parent.OverlayValueTextBrush}" Opacity="0.78" FontSize="13" />
-                                        <TextBlock Text="{Binding Parent.GpuTemperatureText}" Foreground="{Binding Parent.OverlayValueTextBrush}" FontWeight="Bold" FontSize="13" />
+                                        <TextBlock Text="Temp: " Foreground="{Binding Parent.OverlayLabelTextBrush}" FontSize="12" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding Parent.GpuTemperatureText}" Foreground="{Binding Parent.OverlayValueTextBrush}" FontFamily="Consolas" FontWeight="Bold" FontSize="12" VerticalAlignment="Center" />
                                     </StackPanel>
 
+                                    <!-- 4. Consumo -->
                                     <StackPanel Orientation="Horizontal"
                                                 Visibility="{Binding Parent.EffectiveShowGpuPower, Converter={StaticResource BoolToVis}}"
                                                 Margin="0,0,8,0">
-                                        <TextBlock Text="Consumo: " Foreground="{Binding Parent.OverlayValueTextBrush}" Opacity="0.78" FontSize="13" />
-                                        <TextBlock Text="{Binding Parent.GpuPowerText}" Foreground="{Binding Parent.OverlayValueTextBrush}" FontWeight="Bold" FontSize="13" />
+                                        <TextBlock Text="Consumo: " Foreground="{Binding Parent.OverlayLabelTextBrush}" FontSize="12" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding Parent.GpuPowerText}" Foreground="{Binding Parent.OverlayValueTextBrush}" FontFamily="Consolas" FontWeight="Bold" FontSize="12" VerticalAlignment="Center" />
                                     </StackPanel>
 
+                                    <!-- 5. VRAM -->
                                     <StackPanel Orientation="Horizontal"
                                                 Visibility="{Binding Parent.EffectiveShowGpuVram, Converter={StaticResource BoolToVis}}"
                                                 Margin="0,0,4,0">
-                                        <TextBlock Text="VRAM: " Foreground="{Binding Parent.OverlayValueTextBrush}" Opacity="0.78" FontSize="13" />
-                                        <TextBlock Text="{Binding Parent.GpuVramText}" Foreground="{Binding Parent.OverlayValueTextBrush}" FontWeight="Bold" FontSize="13" />
+                                        <TextBlock Text="VRAM: " Foreground="{Binding Parent.OverlayLabelTextBrush}" FontSize="12" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding Parent.GpuVramText}" Foreground="{Binding Parent.OverlayValueTextBrush}" FontFamily="Consolas" FontWeight="Bold" FontSize="12" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </WrapPanel>
 
@@ -607,8 +619,8 @@
                                 <StackPanel Orientation="Horizontal"
                                             Visibility="{Binding Parent.IsCompactMode, Converter={StaticResource BoolToVis}}"
                                             Margin="6,2,10,2">
-                                    <TextBlock Text="GPU: " Foreground="{Binding Parent.OverlayHeaderBrush}" FontWeight="Bold" FontSize="13" />
-                                    <TextBlock Text="{Binding Parent.GpuLoadText}" Foreground="{Binding Parent.OverlayValueTextBrush}" FontWeight="Bold" FontSize="13" />
+                                    <TextBlock Text="GPU: " Foreground="{Binding Parent.OverlayHeaderBrush}" FontWeight="SemiBold" FontSize="12.5" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding Parent.GpuLoadText}" Foreground="{Binding Parent.OverlayValueTextBrush}" FontFamily="Consolas" FontWeight="Bold" FontSize="12.5" VerticalAlignment="Center" />
                                 </StackPanel>
                             </StackPanel>
 
@@ -617,23 +629,26 @@
                                         Visibility="{Binding IsRamSection, Converter={StaticResource BoolToVis}}">
                                 <StackPanel Orientation="Horizontal"
                                             Visibility="{Binding Parent.EffectiveShowRam, Converter={StaticResource BoolToVis}}"
-                                            Margin="6,2,6,2">
+                                            Margin="6,2,8,2">
                                     <TextBlock Text="Memória RAM "
                                                Foreground="{Binding Parent.OverlayHeaderBrush}"
-                                               FontWeight="Bold"
-                                               FontSize="13" />
+                                               FontWeight="SemiBold"
+                                               FontSize="12.5"
+                                               VerticalAlignment="Center" />
                                     <TextBlock Text="Uso: "
-                                               Foreground="{Binding Parent.OverlayValueTextBrush}"
-                                               Opacity="0.78"
-                                               FontSize="13" />
+                                               Foreground="{Binding Parent.OverlayLabelTextBrush}"
+                                               FontSize="12"
+                                               VerticalAlignment="Center" />
                                     <TextBlock Text="{Binding Parent.RamUsageText}"
                                                Foreground="{Binding Parent.OverlayValueTextBrush}"
+                                               FontFamily="Consolas"
                                                FontWeight="Bold"
-                                               FontSize="13" />
+                                               FontSize="12"
+                                               VerticalAlignment="Center" />
                                 </StackPanel>
                             </StackPanel>
 
-                            <!-- FPS Horizontal - Destacado e em Escala Maior -->
+                            <!-- FPS Horizontal - Destacado em Escala Maior e Alto Contraste -->
                             <StackPanel Orientation="Horizontal"
                                         Visibility="{Binding IsFpsSection, Converter={StaticResource BoolToVis}}"
                                         VerticalAlignment="Center">
@@ -644,12 +659,13 @@
                                     <TextBlock Text="FPS: "
                                                Foreground="{Binding Parent.OverlayHeaderBrush}"
                                                FontWeight="Bold"
-                                               FontSize="15"
+                                               FontSize="14.5"
                                                VerticalAlignment="Center" />
                                     <TextBlock Text="{Binding Parent.FpsValueText}"
                                                Foreground="{Binding Parent.OverlayValueTextBrush}"
+                                               FontFamily="Consolas"
                                                FontWeight="Bold"
-                                               FontSize="17.5"
+                                               FontSize="16.5"
                                                VerticalAlignment="Center" />
                                 </StackPanel>
                             </StackPanel>
