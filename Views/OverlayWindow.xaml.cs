@@ -36,68 +36,16 @@ public partial class OverlayWindow : Window
 
     private void OnWindowLoaded(object sender, RoutedEventArgs e)
     {
-        EnsurePerPixelTransparency();
         _viewModel.UpdateOverlayBrushes();
-    }
-
-    /// <summary>
-    /// Garante que a janela de Overlay permaneça 100% transparente por pixel, removendo
-    /// qualquer backdrop DWM ou sobrescrita de Background aplicada pelo gerenciador de temas do WPF-UI.
-    /// </summary>
-    public void EnsurePerPixelTransparency()
-    {
-        try
-        {
-            IntPtr hwnd = new WindowInteropHelper(this).Handle;
-            if (hwnd != IntPtr.Zero)
-            {
-                WindowWin32Helper.DisableDwmSystemBackdrop(hwnd);
-                Wpf.Ui.Controls.WindowBackdrop.RemoveBackdrop(this);
-            }
-        }
-        catch
-        {
-            // Ignora caso o handle DWM ainda não esteja pronto ou não possua backdrop
-        }
-
-        if (WindowStyle != WindowStyle.None)
-        {
-            WindowStyle = WindowStyle.None;
-        }
-
-        if (Background != System.Windows.Media.Brushes.Transparent)
-        {
-            Background = System.Windows.Media.Brushes.Transparent;
-        }
-    }
-
-    protected override void OnPropertyChanged(DependencyPropertyChangedEventArgs e)
-    {
-        base.OnPropertyChanged(e);
-
-        if (e.Property == WindowStyleProperty && WindowStyle != WindowStyle.None)
-        {
-            WindowStyle = WindowStyle.None;
-        }
-        else if (e.Property == BackgroundProperty && Background != System.Windows.Media.Brushes.Transparent)
-        {
-            Background = System.Windows.Media.Brushes.Transparent;
-        }
     }
 
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
 
-        IntPtr hwnd = new WindowInteropHelper(this).Handle;
-        if (hwnd != IntPtr.Zero)
-        {
-            WindowWin32Helper.DisableDwmSystemBackdrop(hwnd);
-        }
-
-        EnsurePerPixelTransparency();
         _viewModel.UpdateOverlayBrushes();
 
+        IntPtr hwnd = new WindowInteropHelper(this).Handle;
         if (hwnd == IntPtr.Zero)
             return;
 
@@ -105,25 +53,17 @@ public partial class OverlayWindow : Window
         _hwndSource?.AddHook(WndProc);
 
         WindowWin32Helper.SetClickThrough(this, _viewModel.IsOverlayLocked);
-        _viewModel.RegisterConfiguredHotkeys(hwnd);
+        WindowWin32Helper.RegisterToggleOverlayHotKey(hwnd);
         WindowWin32Helper.ForceTopMost(this);
     }
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
-        if (msg == WindowWin32Helper.WM_HOTKEY)
+        if (msg == WindowWin32Helper.WM_HOTKEY &&
+            wParam.ToInt32() == WindowWin32Helper.HOTKEY_ID_TOGGLE_OVERLAY)
         {
-            int hotkeyId = wParam.ToInt32();
-            if (hotkeyId == WindowWin32Helper.HOTKEY_ID_TOGGLE_OVERLAY)
-            {
-                _viewModel.IsOverlayVisible = !_viewModel.IsOverlayVisible;
-                handled = true;
-            }
-            else if (hotkeyId == WindowWin32Helper.HOTKEY_ID_TOGGLE_COMPACT)
-            {
-                _viewModel.IsCompactMode = !_viewModel.IsCompactMode;
-                handled = true;
-            }
+            _viewModel.IsOverlayVisible = !_viewModel.IsOverlayVisible;
+            handled = true;
         }
 
         return IntPtr.Zero;
@@ -198,7 +138,10 @@ public partial class OverlayWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         IntPtr hwnd = new WindowInteropHelper(this).Handle;
-        WindowWin32Helper.UnregisterAllHotkeys(hwnd);
+        if (hwnd != IntPtr.Zero)
+        {
+            WindowWin32Helper.UnregisterToggleOverlayHotKey(hwnd);
+        }
 
         if (_hwndSource != null)
         {

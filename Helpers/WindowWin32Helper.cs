@@ -20,24 +20,12 @@ public static class WindowWin32Helper
     private const int WS_SYSMENU = 0x00080000;
 
     private const int DWMWA_EXTENDED_FRAME_BOUNDS = 9;
-    private const int DWMWA_SYSTEMBACKDROP_TYPE = 38;
-    private const int DWMSBT_NONE = 1;
 
     public const int WM_HOTKEY = 0x0312;
     public const int HOTKEY_ID_TOGGLE_OVERLAY = 9001;
-    public const int HOTKEY_ID_TOGGLE_COMPACT = 9002;
-    public const uint MOD_ALT = 0x0001;
     public const uint MOD_CONTROL = 0x0002;
     public const uint MOD_SHIFT = 0x0004;
-    public const uint MOD_WIN = 0x0008;
-    public const uint MOD_NOREPEAT = 0x4000;
     public const uint VK_O = 0x4F;
-    public const uint VK_C = 0x43;
-
-    private static readonly object _hotkeyLock = new();
-    private static readonly Dictionary<int, (uint Modifiers, uint VirtualKey)> _registeredHotkeys = new();
-    private static IntPtr _hotkeyHwnd = IntPtr.Zero;
-    private static bool _hotkeysPaused;
 
     private static readonly IntPtr HWND_TOPMOST = new(-1);
     private const uint SWP_NOSIZE = 0x0001;
@@ -141,29 +129,6 @@ public static class WindowWin32Helper
     [DllImport("dwmapi.dll")]
     private static extern int DwmGetWindowAttribute(IntPtr hwnd, int dwAttribute, out RECT pvAttribute, int cbAttribute);
 
-    [DllImport("dwmapi.dll")]
-    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int dwAttribute, ref int pvAttribute, int cbAttribute);
-
-    /// <summary>
-    /// Desativa explicitamente qualquer backdrop DWM do Windows 11 (Mica/Acrylic) na janela informada
-    /// para preservar 100% da transparência por pixel.
-    /// </summary>
-    public static void DisableDwmSystemBackdrop(IntPtr hwnd)
-    {
-        if (hwnd == IntPtr.Zero)
-            return;
-
-        try
-        {
-            int backdropNone = DWMSBT_NONE;
-            _ = DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, ref backdropNone, sizeof(int));
-        }
-        catch
-        {
-            // Ignora em versões do Windows anteriores ao Win11 22H2 (sem DWMWA_SYSTEMBACKDROP_TYPE)
-        }
-    }
-
     [DllImport("user32.dll")]
     private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
 
@@ -208,165 +173,25 @@ public static class WindowWin32Helper
     }
 
     /// <summary>
-    /// Define o handle da janela que receberá mensagens WM_HOTKEY.
-    /// </summary>
-    public static void SetHotkeyWindowHandle(IntPtr hwnd)
-    {
-        lock (_hotkeyLock)
-        {
-            _hotkeyHwnd = hwnd;
-        }
-    }
-
-    /// <summary>
-    /// Registra ou atualiza um atalho global sem lançar exceções em caso de conflito com outro programa.
-    /// </summary>
-    public static bool RegisterOrUpdateHotKey(int hotkeyId, uint modifiers, uint virtualKey)
-    {
-        lock (_hotkeyLock)
-        {
-            if (_hotkeyHwnd == IntPtr.Zero || virtualKey == 0)
-                return false;
-
-            uint cleanModifiers = modifiers & (MOD_ALT | MOD_CONTROL | MOD_SHIFT | MOD_WIN);
-            if (cleanModifiers == 0)
-                return false;
-
-            try
-            {
-                UnregisterHotKey(_hotkeyHwnd, hotkeyId);
-            }
-            catch
-            {
-                // Ignora falhas de desregistro prévio
-            }
-
-            _registeredHotkeys[hotkeyId] = (cleanModifiers, virtualKey);
-
-            if (_hotkeysPaused)
-                return true;
-
-            try
-            {
-                return RegisterHotKey(_hotkeyHwnd, hotkeyId, cleanModifiers | MOD_NOREPEAT, virtualKey);
-            }
-            catch
-            {
-                return false;
-            }
-        }
-    }
-
-    /// <summary>
-    /// Pausa temporariamente os atalhos globais registrados (útil durante a captura de um novo atalho na UI).
-    /// </summary>
-    public static void PauseAllHotkeys()
-    {
-        lock (_hotkeyLock)
-        {
-            _hotkeysPaused = true;
-            if (_hotkeyHwnd == IntPtr.Zero)
-                return;
-
-            foreach (int hotkeyId in _registeredHotkeys.Keys)
-            {
-                try
-                {
-                    UnregisterHotKey(_hotkeyHwnd, hotkeyId);
-                }
-                catch
-                {
-                    // Ignora falhas ao pausar atalho
-                }
-            }
-        }
-    }
-
-    /// <summary>
-    /// Reativa todos os atalhos globais configurados após finalizar a gravação de teclas.
-    /// </summary>
-    public static bool ResumeAllHotkeys()
-    {
-        lock (_hotkeyLock)
-        {
-            _hotkeysPaused = false;
-            if (_hotkeyHwnd == IntPtr.Zero)
-                return false;
-
-            bool allSucceeded = true;
-            foreach (var kvp in _registeredHotkeys)
-            {
-                try
-                {
-                    UnregisterHotKey(_hotkeyHwnd, kvp.Key);
-                    if (!RegisterHotKey(_hotkeyHwnd, kvp.Key, kvp.Value.Modifiers | MOD_NOREPEAT, kvp.Value.VirtualKey))
-                    {
-                        allSucceeded = false;
-                    }
-                }
-                catch
-                {
-                    allSucceeded = false;
-                }
-            }
-
-            return allSucceeded;
-        }
-    }
-
-    /// <summary>
-    /// Remove o registro de todos os atalhos globais ao encerrar a janela.
-    /// </summary>
-    public static void UnregisterAllHotkeys(IntPtr hwnd)
-    {
-        lock (_hotkeyLock)
-        {
-            IntPtr targetHwnd = hwnd != IntPtr.Zero ? hwnd : _hotkeyHwnd;
-            if (targetHwnd != IntPtr.Zero)
-            {
-                foreach (int hotkeyId in _registeredHotkeys.Keys)
-                {
-                    try
-                    {
-                        UnregisterHotKey(targetHwnd, hotkeyId);
-                    }
-                    catch
-                    {
-                        // Ignora
-                    }
-                }
-
-                try { UnregisterHotKey(targetHwnd, HOTKEY_ID_TOGGLE_OVERLAY); } catch { }
-                try { UnregisterHotKey(targetHwnd, HOTKEY_ID_TOGGLE_COMPACT); } catch { }
-            }
-
-            _registeredHotkeys.Clear();
-            if (hwnd == IntPtr.Zero || hwnd == _hotkeyHwnd)
-            {
-                _hotkeyHwnd = IntPtr.Zero;
-            }
-            _hotkeysPaused = false;
-        }
-    }
-
-    /// <summary>
-    /// Compatibilidade: registra o atalho global padrão de visibilidade do Overlay.
+    /// Registra o atalho global Ctrl + Shift + O para mostrar/ocultar o Overlay de dentro de qualquer jogo.
     /// </summary>
     public static bool RegisterToggleOverlayHotKey(IntPtr hwnd)
     {
         if (hwnd == IntPtr.Zero)
             return false;
 
-        SetHotkeyWindowHandle(hwnd);
-        return RegisterOrUpdateHotKey(HOTKEY_ID_TOGGLE_OVERLAY, MOD_CONTROL | MOD_SHIFT, VK_O);
+        return RegisterHotKey(hwnd, HOTKEY_ID_TOGGLE_OVERLAY, MOD_CONTROL | MOD_SHIFT, VK_O);
     }
 
     /// <summary>
-    /// Compatibilidade: remove os atalhos globais registrados na janela.
+    /// Remove o registro do atalho global ao encerrar a janela.
     /// </summary>
     public static void UnregisterToggleOverlayHotKey(IntPtr hwnd)
     {
-        UnregisterAllHotkeys(hwnd);
+        if (hwnd == IntPtr.Zero)
+            return;
+
+        UnregisterHotKey(hwnd, HOTKEY_ID_TOGGLE_OVERLAY);
     }
 
     /// <summary>

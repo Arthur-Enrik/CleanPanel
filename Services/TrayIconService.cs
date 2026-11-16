@@ -29,22 +29,10 @@ public class TrayIconService : IDisposable
         openSettingsItem.Click += (_, _) => _openSettingsAction();
 
         var toggleOverlayItem = new System.Windows.Forms.ToolStripMenuItem("Mostrar / Ocultar Overlay (Ctrl+Shift+O)");
-        toggleOverlayItem.Click += (_, _) =>
-        {
-            System.Windows.Application.Current?.Dispatcher.InvokeAsync(() =>
-            {
-                _viewModel.IsOverlayVisible = !_viewModel.IsOverlayVisible;
-            });
-        };
+        toggleOverlayItem.Click += (_, _) => _viewModel.IsOverlayVisible = !_viewModel.IsOverlayVisible;
 
         var toggleLockItem = new System.Windows.Forms.ToolStripMenuItem("Travar / Destravar Posição do Overlay");
-        toggleLockItem.Click += (_, _) =>
-        {
-            System.Windows.Application.Current?.Dispatcher.InvokeAsync(() =>
-            {
-                _viewModel.IsOverlayLocked = !_viewModel.IsOverlayLocked;
-            });
-        };
+        toggleLockItem.Click += (_, _) => _viewModel.IsOverlayLocked = !_viewModel.IsOverlayLocked;
 
         var exitItem = new System.Windows.Forms.ToolStripMenuItem("Sair Completamente");
         exitItem.Click += (_, _) => _exitApplicationAction();

@@ -11,33 +11,6 @@
             </ResourceDictionary.MergedDictionaries>
 
             <BooleanToVisibilityConverter x:Key="BoolToVis" />
-
-            <!-- Shadcn / Vercel Monochrome Design System Tokens (atualizados dinamicamente pelo Theme/Accent Manager) -->
-            <SolidColorBrush x:Key="BgPrimary" Color="#09090B" />
-            <SolidColorBrush x:Key="BgCard" Color="#121215" />
-            <SolidColorBrush x:Key="BgHover" Color="#18181B" />
-            <SolidColorBrush x:Key="BorderSubtle" Color="#27272A" />
-            <SolidColorBrush x:Key="TextPrimary" Color="#FAFAFA" />
-            <SolidColorBrush x:Key="TextMuted" Color="#A1A1AA" />
-
-            <!-- Aliases de compatibilidade e tokens de acento -->
-            <SolidColorBrush x:Key="AppBackgroundBrush" Color="#09090B" />
-            <SolidColorBrush x:Key="AppCardBackgroundBrush" Color="#121215" />
-            <SolidColorBrush x:Key="AppSubCardBackgroundBrush" Color="#18181B" />
-            <SolidColorBrush x:Key="AppBorderBrush" Color="#27272A" />
-            <SolidColorBrush x:Key="AppTextPrimaryBrush" Color="#FAFAFA" />
-            <SolidColorBrush x:Key="AppTextMutedBrush" Color="#A1A1AA" />
-            <SolidColorBrush x:Key="AppAccentBrush" Color="#FAFAFA" />
-            <SolidColorBrush x:Key="AppAccentForegroundBrush" Color="#09090B" />
-            <SolidColorBrush x:Key="AppAccentMutedBackgroundBrush" Color="#18FAFAFA" />
-            <SolidColorBrush x:Key="AppAccentBorderBrush" Color="#55FAFAFA" />
-
-            <!-- Estilização global de scrollbar limpa e discreta -->
-            <Style TargetType="ScrollBar">
-                <Setter Property="Background" Value="Transparent" />
-                <Setter Property="Width" Value="8" />
-                <Setter Property="MinWidth" Value="8" />
-            </Style>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

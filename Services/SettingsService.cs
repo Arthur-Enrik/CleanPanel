@@ -30,137 +30,35 @@ public class SettingsService : IDisposable
         {
             if (!File.Exists(_settingsFilePath))
             {
-                var defaultSettings = SanitizeSettings(new AppSettings());
+                var defaultSettings = new AppSettings();
                 WriteToDiskImmediate(defaultSettings);
                 return defaultSettings;
             }
 
             string json = File.ReadAllText(_settingsFilePath);
             var settings = JsonSerializer.Deserialize<AppSettings>(json, JsonOptions) ?? new AppSettings();
-            return SanitizeSettings(settings);
-        }
-        catch
-        {
-            return SanitizeSettings(new AppSettings());
-        }
-    }
 
-    public static AppSettings SanitizeSettings(AppSettings? settings)
-    {
-        settings ??= new AppSettings();
-
-        // Normaliza opacidade caso tenha sido salva em 0..100 ou esteja fora do intervalo
-        if (double.IsNaN(settings.OverlayOpacity) || double.IsInfinity(settings.OverlayOpacity))
-        {
-            settings.OverlayOpacity = 0.85;
-        }
-        else
-        {
+            // Normaliza caso um arquivo antigo tenha salvo em escala 10..100
             if (settings.OverlayOpacity > 1.0 && settings.OverlayOpacity <= 100.0)
             {
                 settings.OverlayOpacity /= 100.0;
             }
 
-            if (settings.OverlayOpacity <= 0.05 || settings.OverlayOpacity > 1.0)
+            // Fallback seguro de 0.80 se o valor for inválido, corrompido ou <= 0.05
+            if (double.IsNaN(settings.OverlayOpacity) || settings.OverlayOpacity <= 0.05 || settings.OverlayOpacity > 1.0)
             {
-                settings.OverlayOpacity = 0.85;
+                settings.OverlayOpacity = 0.80;
             }
             else
             {
-                settings.OverlayOpacity = Math.Clamp(Math.Round(settings.OverlayOpacity, 2), 0.05, 1.0);
+                settings.OverlayOpacity = Math.Clamp(settings.OverlayOpacity, 0.1, 1.0);
             }
+            return settings;
         }
-
-        // Garante que OverlayScale seja sempre um double válido > 0 para nunca quebrar o ScaleTransform do WPF
-        if (double.IsNaN(settings.OverlayScale) || double.IsInfinity(settings.OverlayScale) || settings.OverlayScale <= 0.0)
+        catch
         {
-            settings.OverlayScale = 1.0;
+            return new AppSettings();
         }
-        else
-        {
-            settings.OverlayScale = Math.Clamp(Math.Round(settings.OverlayScale, 2), 0.70, 2.00);
-        }
-
-        if (double.IsNaN(settings.OverlayLeft) || double.IsInfinity(settings.OverlayLeft))
-        {
-            settings.OverlayLeft = 50.0;
-        }
-
-        if (double.IsNaN(settings.OverlayTop) || double.IsInfinity(settings.OverlayTop))
-        {
-            settings.OverlayTop = 50.0;
-        }
-
-        if (string.IsNullOrWhiteSpace(settings.AppTheme))
-        {
-            settings.AppTheme = "Dark";
-        }
-
-        if (string.IsNullOrWhiteSpace(settings.AccentColorHex))
-        {
-            settings.AccentColorHex = "#FAFAFA";
-        }
-
-        if (string.IsNullOrWhiteSpace(settings.OverlayBackgroundColorHex))
-        {
-            settings.OverlayBackgroundColorHex = "#09090B";
-        }
-
-        if (string.IsNullOrWhiteSpace(settings.OverlayBorderColorHex))
-        {
-            settings.OverlayBorderColorHex = "#27272A";
-        }
-
-        if (string.IsNullOrWhiteSpace(settings.OverlayHeaderColorHex))
-        {
-            settings.OverlayHeaderColorHex = "#FAFAFA";
-        }
-
-        if (string.IsNullOrWhiteSpace(settings.OverlayValueTextColorHex))
-        {
-            settings.OverlayValueTextColorHex = "#FAFAFA";
-        }
-
-        if (double.IsNaN(settings.TempWarningThreshold) || double.IsInfinity(settings.TempWarningThreshold) || settings.TempWarningThreshold <= 0.0)
-        {
-            settings.TempWarningThreshold = 70.0;
-        }
-        else
-        {
-            settings.TempWarningThreshold = Math.Clamp(Math.Round(settings.TempWarningThreshold), 30.0, 110.0);
-        }
-
-        if (double.IsNaN(settings.TempCriticalThreshold) || double.IsInfinity(settings.TempCriticalThreshold) || settings.TempCriticalThreshold <= 0.0)
-        {
-            settings.TempCriticalThreshold = 85.0;
-        }
-        else
-        {
-            settings.TempCriticalThreshold = Math.Clamp(Math.Round(settings.TempCriticalThreshold), 35.0, 120.0);
-        }
-
-        if (settings.TempCriticalThreshold <= settings.TempWarningThreshold)
-        {
-            settings.TempCriticalThreshold = Math.Clamp(settings.TempWarningThreshold + 5.0, 35.0, 120.0);
-        }
-
-        if (settings.OverlaySectionOrder is null || settings.OverlaySectionOrder.Count == 0)
-        {
-            settings.OverlaySectionOrder = ["CPU", "GPU", "RAM", "FPS"];
-        }
-        else
-        {
-            settings.OverlaySectionOrder = settings.OverlaySectionOrder
-                .Where(s => !string.IsNullOrWhiteSpace(s))
-                .ToList();
-
-            if (settings.OverlaySectionOrder.Count == 0)
-            {
-                settings.OverlaySectionOrder = ["CPU", "GPU", "RAM", "FPS"];
-            }
-        }
-
-        return settings;
     }
 
     /// <summary>
@@ -237,7 +135,15 @@ public class SettingsService : IDisposable
     {
         try
         {
-            SanitizeSettings(settings);
+            if (double.IsNaN(settings.OverlayOpacity) || settings.OverlayOpacity <= 0.05 || settings.OverlayOpacity > 1.0)
+            {
+                settings.OverlayOpacity = 0.80;
+            }
+            else
+            {
+                settings.OverlayOpacity = Math.Clamp(Math.Round(settings.OverlayOpacity, 2), 0.1, 1.0);
+            }
+
             string json = JsonSerializer.Serialize(settings, JsonOptions);
             File.WriteAllText(_settingsFilePath, json);
         }

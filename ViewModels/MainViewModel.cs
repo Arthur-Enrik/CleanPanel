@@ -15,19 +15,10 @@ namespace HardwareOverlayApp.ViewModels;
 
 public partial class MainViewModel : ObservableObject, IDisposable
 {
-    public const string DefaultAccentColorHex = "#FAFAFA";
-    public const string DefaultBackgroundColorHex = "#09090B";
-    public const string DefaultBorderColorHex = "#27272A";
-    public const string DefaultHeaderColorHex = "#FAFAFA";
-    public const string DefaultValueTextColorHex = "#FAFAFA";
-
-    // Pincéis pré-alocados e congelados para alertas térmicos (zero alocação por tick)
-    private static readonly SolidColorBrush ThermalNormalBrush = CreateFrozenBrush("#FAFAFA", Color.FromRgb(250, 250, 250));
-    private static readonly SolidColorBrush ThermalWarningBrush = CreateFrozenBrush("#FACC15", Color.FromRgb(250, 204, 21));
-    private static readonly SolidColorBrush ThermalCriticalBrush = CreateFrozenBrush("#EF4444", Color.FromRgb(239, 68, 68));
-
-    private int _lastCpuTemp;
-    private int _lastGpuTemp;
+    public const string DefaultBackgroundColorHex = "#141418";
+    public const string DefaultBorderColorHex = "#33FFFFFF";
+    public const string DefaultHeaderColorHex = "#00E5FF";
+    public const string DefaultValueTextColorHex = "#FFFFFF";
 
     private static readonly string[] DefaultSectionKeys = ["CPU", "GPU", "RAM", "FPS"];
 
@@ -113,10 +104,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         set { if (value) AppTheme = "Auto"; }
     }
 
-    // ==================== CORES MONOCROMÁTICAS, ACCENT, ALERTAS TÉRMICOS E ATALHOS ====================
-    [ObservableProperty]
-    private string _accentColorHex = DefaultAccentColorHex;
-
+    // ==================== CORES PERSONALIZADAS DO OVERLAY (COM BRUSHES CONGELADOS) ====================
     [ObservableProperty]
     private string _overlayBackgroundColorHex = DefaultBackgroundColorHex;
 
@@ -130,52 +118,16 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private string _overlayValueTextColorHex = DefaultValueTextColorHex;
 
     [ObservableProperty]
-    private SolidColorBrush _overlayBackgroundBrush = CreateFrozenBrush("#09090B", Color.FromRgb(9, 9, 11));
+    private SolidColorBrush _overlayBackgroundBrush = CreateFrozenBrush("#D9141418", Color.FromArgb(216, 20, 20, 24));
 
     [ObservableProperty]
-    private SolidColorBrush _overlayBorderBrush = CreateFrozenBrush(DefaultBorderColorHex, Color.FromRgb(39, 39, 42));
+    private SolidColorBrush _overlayBorderBrush = CreateFrozenBrush(DefaultBorderColorHex, Color.FromArgb(51, 255, 255, 255));
 
     [ObservableProperty]
-    private SolidColorBrush _overlayHeaderBrush = CreateFrozenBrush(DefaultHeaderColorHex, Color.FromRgb(250, 250, 250));
+    private SolidColorBrush _overlayHeaderBrush = CreateFrozenBrush(DefaultHeaderColorHex, Color.FromRgb(0, 229, 255));
 
     [ObservableProperty]
-    private SolidColorBrush _overlayValueTextBrush = CreateFrozenBrush(DefaultValueTextColorHex, Color.FromRgb(250, 250, 250));
-
-    [ObservableProperty]
-    private bool _enableThermalColorAlerts = true;
-
-    [ObservableProperty]
-    private double _tempWarningThreshold = 70.0;
-
-    [ObservableProperty]
-    private double _tempCriticalThreshold = 85.0;
-
-    [ObservableProperty]
-    private SolidColorBrush _cpuTempBrush = ThermalNormalBrush;
-
-    [ObservableProperty]
-    private SolidColorBrush _gpuTempBrush = ThermalNormalBrush;
-
-    [ObservableProperty]
-    private uint _toggleOverlayHotkeyModifiers = WindowWin32Helper.MOD_CONTROL | WindowWin32Helper.MOD_SHIFT;
-
-    [ObservableProperty]
-    private uint _toggleOverlayHotkeyKey = WindowWin32Helper.VK_O;
-
-    [ObservableProperty]
-    private string _toggleOverlayHotkeyDisplay = "Ctrl + Shift + O";
-
-    [ObservableProperty]
-    private uint _toggleCompactModeHotkeyModifiers = WindowWin32Helper.MOD_CONTROL | WindowWin32Helper.MOD_SHIFT;
-
-    [ObservableProperty]
-    private uint _toggleCompactModeHotkeyKey = WindowWin32Helper.VK_C;
-
-    [ObservableProperty]
-    private string _toggleCompactModeHotkeyDisplay = "Ctrl + Shift + C";
-
-    [ObservableProperty]
-    private string _hotkeyStatusMessage = string.Empty;
+    private SolidColorBrush _overlayValueTextBrush = CreateFrozenBrush(DefaultValueTextColorHex, Colors.White);
 
     // ==================== ORDEM PERSONALIZÁVEL DAS SEÇÕES DO OVERLAY ====================
     public ObservableCollection<OverlaySectionItemViewModel> OverlaySections { get; } = [];
@@ -328,7 +280,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(OverlayOpacityPercentText))]
     [NotifyPropertyChangedFor(nameof(OverlayOpacityDisplayText))]
-    [NotifyPropertyChangedFor(nameof(NormalizedOverlayOpacity))]
     private double _overlayOpacity = 0.85;
 
     [ObservableProperty]
@@ -485,13 +436,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [NotifyPropertyChangedFor(nameof(EffectiveShowRam))]
     private bool _showRam;
 
-    public double NormalizedOverlayOpacity => OverlayOpacity > 1.0
-        ? Math.Clamp(OverlayOpacity / 100.0, 0.05, 1.0)
-        : Math.Clamp(OverlayOpacity, 0.05, 1.0);
+    public string OverlayOpacityPercentText => $"{Math.Round(OverlayOpacity * 100.0):0}%";
 
-    public string OverlayOpacityPercentText => $"{Math.Round(NormalizedOverlayOpacity * 100.0):0}%";
-
-    public string OverlayOpacityDisplayText => $"Opacidade do Fundo: {Math.Round(NormalizedOverlayOpacity * 100.0):0}%";
+    public string OverlayOpacityDisplayText => $"Opacidade do Fundo: {Math.Round(OverlayOpacity * 100.0):0}%";
 
     public string OverlayScalePercentText => $"{Math.Round(OverlayScale * 100.0):0}%";
 
@@ -565,7 +512,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         _hardwareMonitorService.SplitIntelHybridCores = SplitIntelHybridCores;
 
-        ApplyApplicationTheme(AppTheme, AccentColorHex);
+        ApplyApplicationTheme(AppTheme);
         SystemEvents.UserPreferenceChanged += OnSystemUserPreferenceChanged;
 
         UpdatePollingAndSmartVisibilityState();
@@ -574,8 +521,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _hardwareMonitorService.HeartbeatTick += OnHeartbeatTick;
         _hardwareMonitorService.MetricsUpdated += OnHardwareMetricsUpdated;
 
-        // Chamada explícita para garantir opacidade normalizada e brushes 100% atualizados no final da inicialização
-        OnPropertyChanged(nameof(NormalizedOverlayOpacity));
+        // Chamada explícita para garantir brushes de opacidade e cores 100% atualizados no final da inicialização
         UpdateOverlayBrushes();
     }
 
@@ -592,21 +538,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
         {
             Application.Current?.Dispatcher.InvokeAsync(() =>
             {
-                ApplyApplicationTheme("Auto", AccentColorHex);
+                ApplyApplicationTheme("Auto");
             }, DispatcherPriority.Background);
         }
     }
 
-    public static void ApplyApplicationTheme(string? themeSetting, string? accentHex = null)
+    public static void ApplyApplicationTheme(string? themeSetting)
     {
         try
         {
-            if (Application.Current?.Dispatcher is { } dispatcher && !dispatcher.CheckAccess())
-            {
-                dispatcher.Invoke(() => ApplyApplicationTheme(themeSetting, accentHex));
-                return;
-            }
-
             ApplicationTheme targetTheme = ApplicationTheme.Dark;
 
             if (string.Equals(themeSetting, "Light", StringComparison.OrdinalIgnoreCase))
@@ -618,129 +558,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 targetTheme = IsWindowsInLightTheme() ? ApplicationTheme.Light : ApplicationTheme.Dark;
             }
 
-            bool isLight = targetTheme == ApplicationTheme.Light;
-            Color accentColor = ResolveEffectiveAccentColor(accentHex, isLight);
-
-            ApplicationThemeManager.Apply(targetTheme, Wpf.Ui.Controls.WindowBackdropType.None, false);
-
-            try
-            {
-                ApplicationAccentColorManager.Apply(accentColor, targetTheme, false);
-            }
-            catch
-            {
-                // Ignora falhas de atualização de acento no runtime
-            }
-
-            ApplyMonochromeThemeResources(isLight, accentColor);
-
-            if (Application.Current?.Windows is { } windows)
-            {
-                foreach (Window window in windows)
-                {
-                    if (window is Views.OverlayWindow overlayWindow)
-                    {
-                        overlayWindow.EnsurePerPixelTransparency();
-                    }
-                }
-            }
+            ApplicationThemeManager.Apply(targetTheme);
         }
         catch
         {
             // Fallback seguro caso a troca de tema ocorra antes da janela estar pronta
         }
-    }
-
-    private static Color ResolveEffectiveAccentColor(string? accentHex, bool isLightTheme)
-    {
-        Color parsed = ParseHexColor(accentHex, Color.FromRgb(250, 250, 250));
-
-        if (isLightTheme && parsed.R >= 235 && parsed.G >= 235 && parsed.B >= 235)
-        {
-            return Color.FromRgb(9, 9, 11);
-        }
-
-        if (!isLightTheme && parsed.R <= 25 && parsed.G <= 25 && parsed.B <= 25)
-        {
-            return Color.FromRgb(250, 250, 250);
-        }
-
-        return Color.FromRgb(parsed.R, parsed.G, parsed.B);
-    }
-
-    private static void ApplyMonochromeThemeResources(bool isLight, Color accentColor)
-    {
-        ResourceDictionary? resources = Application.Current?.Resources;
-        if (resources is null)
-            return;
-
-        Color bgColor = isLight ? Color.FromRgb(250, 250, 250) : Color.FromRgb(9, 9, 11);
-        Color cardColor = isLight ? Color.FromRgb(255, 255, 255) : Color.FromRgb(18, 18, 21);
-        Color hoverColor = isLight ? Color.FromRgb(244, 244, 245) : Color.FromRgb(24, 24, 27);
-        Color strongHoverColor = isLight ? Color.FromRgb(236, 236, 239) : Color.FromRgb(32, 32, 36);
-        Color borderColor = isLight ? Color.FromRgb(228, 228, 231) : Color.FromRgb(39, 39, 42);
-        Color primaryTextColor = isLight ? Color.FromRgb(9, 9, 11) : Color.FromRgb(250, 250, 250);
-        Color mutedTextColor = isLight ? Color.FromRgb(113, 113, 122) : Color.FromRgb(161, 161, 170);
-
-        double luminance = (0.299 * accentColor.R) + (0.587 * accentColor.G) + (0.114 * accentColor.B);
-        Color accentForegroundColor = luminance > 155.0
-            ? Color.FromRgb(9, 9, 11)
-            : Color.FromRgb(250, 250, 250);
-
-        Color accentMutedColor = Color.FromArgb(isLight ? (byte)24 : (byte)28, accentColor.R, accentColor.G, accentColor.B);
-        Color accentBorderColor = Color.FromArgb(isLight ? (byte)115 : (byte)95, accentColor.R, accentColor.G, accentColor.B);
-
-        var bgBrush = CreateFrozenBrushFromColor(bgColor);
-        var cardBrush = CreateFrozenBrushFromColor(cardColor);
-        var hoverBrush = CreateFrozenBrushFromColor(hoverColor);
-        var strongHoverBrush = CreateFrozenBrushFromColor(strongHoverColor);
-        var borderBrush = CreateFrozenBrushFromColor(borderColor);
-        var textPrimaryBrush = CreateFrozenBrushFromColor(primaryTextColor);
-        var textMutedBrush = CreateFrozenBrushFromColor(mutedTextColor);
-        var accentBrush = CreateFrozenBrushFromColor(accentColor);
-        var accentFgBrush = CreateFrozenBrushFromColor(accentForegroundColor);
-        var accentMutedBrush = CreateFrozenBrushFromColor(accentMutedColor);
-        var accentBorderBrush = CreateFrozenBrushFromColor(accentBorderColor);
-
-        // Tokens primários Shadcn / Vercel Design System
-        resources["BgPrimary"] = bgBrush;
-        resources["BgCard"] = cardBrush;
-        resources["BgHover"] = hoverBrush;
-        resources["BorderSubtle"] = borderBrush;
-        resources["TextPrimary"] = textPrimaryBrush;
-        resources["TextMuted"] = textMutedBrush;
-
-        // Aliases de compatibilidade
-        resources["AppBackgroundBrush"] = bgBrush;
-        resources["AppCardBackgroundBrush"] = cardBrush;
-        resources["AppSubCardBackgroundBrush"] = hoverBrush;
-        resources["AppBorderBrush"] = borderBrush;
-        resources["AppTextPrimaryBrush"] = textPrimaryBrush;
-        resources["AppTextMutedBrush"] = textMutedBrush;
-        resources["AppAccentBrush"] = accentBrush;
-        resources["AppAccentForegroundBrush"] = accentFgBrush;
-        resources["AppAccentMutedBackgroundBrush"] = accentMutedBrush;
-        resources["AppAccentBorderBrush"] = accentBorderBrush;
-
-        // Sobrescrita dos tokens do WPF-UI para manter estética Shadcn/Linear 100% consistente
-        resources["ApplicationBackgroundBrush"] = bgBrush;
-        resources["CardBackgroundFillColorDefaultBrush"] = cardBrush;
-        resources["CardBackgroundFillColorSecondaryBrush"] = hoverBrush;
-        resources["ControlFillColorDefaultBrush"] = hoverBrush;
-        resources["ControlFillColorSecondaryBrush"] = strongHoverBrush;
-        resources["ControlStrokeColorDefaultBrush"] = borderBrush;
-        resources["CardStrokeColorDefaultBrush"] = borderBrush;
-        resources["TextFillColorPrimaryBrush"] = textPrimaryBrush;
-        resources["TextFillColorSecondaryBrush"] = textMutedBrush;
-        resources["AccentFillColorDefaultBrush"] = accentBrush;
-        resources["AccentTextFillColorPrimaryBrush"] = accentBrush;
-    }
-
-    private static SolidColorBrush CreateFrozenBrushFromColor(Color color)
-    {
-        var brush = new SolidColorBrush(color);
-        brush.Freeze();
-        return brush;
     }
 
     private static bool IsWindowsInLightTheme()
@@ -797,15 +620,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         return brush;
     }
 
-    public static double NormalizeOverlayOpacity(double rawOpacity)
-    {
-        if (double.IsNaN(rawOpacity) || double.IsInfinity(rawOpacity) || rawOpacity <= 0.0)
-            return 0.85;
-
-        double normalized = rawOpacity > 1.0 ? (rawOpacity / 100.0) : rawOpacity;
-        return Math.Clamp(Math.Round(normalized, 2), 0.05, 1.0);
-    }
-
     public void UpdateOverlayBrushes()
     {
         if (Application.Current?.Dispatcher is { } dispatcher && !dispatcher.CheckAccess())
@@ -814,75 +628,68 @@ public partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
-        double normalizedOpacity = NormalizeOverlayOpacity(OverlayOpacity);
-        if (Math.Abs(normalizedOpacity - OverlayOpacity) > 0.0001)
+        if (double.IsNaN(OverlayOpacity) || OverlayOpacity <= 0.05 || OverlayOpacity > 1.0)
         {
-            OverlayOpacity = normalizedOpacity;
+            OverlayOpacity = 0.80;
         }
 
-        // Mantém Background opaco RGB (#09090B padrão) pois Layer 0 OverlayBgBorder controla a transparência via NormalizedOverlayOpacity
-        Color baseColor = ParseHexColor(OverlayBackgroundColorHex, Color.FromRgb(9, 9, 11));
-        var brush = new SolidColorBrush(Color.FromRgb(baseColor.R, baseColor.G, baseColor.B));
-        brush.Freeze();
-        OverlayBackgroundBrush = brush;
+        Color baseColor = ParseHexColor(OverlayBackgroundColorHex, Color.FromRgb(20, 20, 24));
+        byte alpha = (byte)Math.Clamp(OverlayOpacity * 255.0, 20, 255);
+        Color finalBgColor = Color.FromArgb(alpha, baseColor.R, baseColor.G, baseColor.B);
 
-        Color baseBorderColor = ParseHexColor(OverlayBorderColorHex, Color.FromRgb(39, 39, 42));
-        var borderBrush = new SolidColorBrush(baseBorderColor);
+        var bgBrush = new SolidColorBrush(finalBgColor);
+        bgBrush.Freeze();
+        OverlayBackgroundBrush = bgBrush;
+
+        Color baseBorderColor = ParseHexColor(OverlayBorderColorHex, Color.FromArgb(51, 255, 255, 255));
+        double borderRatio = baseBorderColor.A >= 250 ? 0.35 : (baseBorderColor.A / 255.0);
+        byte borderAlpha = (byte)Math.Clamp(alpha * Math.Max(0.18, borderRatio), 15, 255);
+        Color finalBorderColor = Color.FromArgb(borderAlpha, baseBorderColor.R, baseBorderColor.G, baseBorderColor.B);
+
+        var borderBrush = new SolidColorBrush(finalBorderColor);
         borderBrush.Freeze();
         OverlayBorderBrush = borderBrush;
-
-        OnPropertyChanged(nameof(NormalizedOverlayOpacity));
     }
 
     private void OnHardwareSpecsInitialized(HardwareSpecs specs)
     {
         Application.Current?.Dispatcher.InvokeAsync(() =>
         {
-            if (_isDisposed)
-                return;
+            OsName = specs.OsName;
+            OsEdition = specs.OsEdition;
+            OsBuild = specs.OsBuild;
 
-            try
+            CpuName = specs.CpuName;
+            CpuShortName = specs.CpuShortName;
+            GpuShortName = specs.PrimaryGpuShortName;
+            CpuPhysicalCores = specs.CpuPhysicalCores;
+            CpuLogicalThreads = specs.CpuLogicalThreads;
+            CpuCoresThreadsSummary = specs.CpuCoresThreadsSummary;
+            IsIntelHybridCpu = specs.IsIntelHybridCpu;
+
+            if (specs.TotalRamGb > 0f)
             {
-                OsName = specs.OsName;
-                OsEdition = specs.OsEdition;
-                OsBuild = specs.OsBuild;
-
-                CpuName = specs.CpuName;
-                CpuShortName = specs.CpuShortName;
-                GpuShortName = specs.PrimaryGpuShortName;
-                CpuPhysicalCores = specs.CpuPhysicalCores;
-                CpuLogicalThreads = specs.CpuLogicalThreads;
-                CpuCoresThreadsSummary = specs.CpuCoresThreadsSummary;
-                IsIntelHybridCpu = specs.IsIntelHybridCpu;
-
-                if (specs.TotalRamGb > 0f)
-                {
-                    double roundedTotalRam = Math.Round(specs.TotalRamGb, 1);
-                    RamTotalText = string.Create(CultureInfo.InvariantCulture, $"{roundedTotalRam:0.0} GB");
-                }
-
-                if (Gpus.Count == 0 && specs.Gpus.Count > 0)
-                {
-                    foreach (GpuSpecInfo gpuSpec in specs.Gpus)
-                    {
-                        Gpus.Add(new GpuDetailedMetrics
-                        {
-                            Id = gpuSpec.Id,
-                            Name = gpuSpec.Name,
-                            Vendor = gpuSpec.Vendor,
-                            TotalVramGb = gpuSpec.TotalVramGb,
-                            IsIntegratedOrSharedVram = gpuSpec.IsIntegratedOrSharedVram,
-                            TotalVramDisplay = gpuSpec.TotalVramDisplay
-                        });
-                    }
-
-                    SelectedGpu ??= Gpus.FirstOrDefault();
-                    UpdateGpuCountBadge();
-                }
+                double roundedTotalRam = Math.Round(specs.TotalRamGb, 1);
+                RamTotalText = string.Create(CultureInfo.InvariantCulture, $"{roundedTotalRam:0.0} GB");
             }
-            catch (Exception ex)
+
+            if (Gpus.Count == 0 && specs.Gpus.Count > 0)
             {
-                App.LogCrash("MainViewModel.OnHardwareSpecsInitialized", ex);
+                foreach (GpuSpecInfo gpuSpec in specs.Gpus)
+                {
+                    Gpus.Add(new GpuDetailedMetrics
+                    {
+                        Id = gpuSpec.Id,
+                        Name = gpuSpec.Name,
+                        Vendor = gpuSpec.Vendor,
+                        TotalVramGb = gpuSpec.TotalVramGb,
+                        IsIntegratedOrSharedVram = gpuSpec.IsIntegratedOrSharedVram,
+                        TotalVramDisplay = gpuSpec.TotalVramDisplay
+                    });
+                }
+
+                SelectedGpu ??= Gpus.FirstOrDefault();
+                UpdateGpuCountBadge();
             }
         }, DispatcherPriority.Background);
     }
@@ -892,8 +699,19 @@ public partial class MainViewModel : ObservableObject, IDisposable
         IsOverlayVisible = settings.IsOverlayVisible;
         IsOverlayLocked = settings.IsOverlayLocked;
 
-        OverlayOpacity = NormalizeOverlayOpacity(settings.OverlayOpacity);
-        OnPropertyChanged(nameof(NormalizedOverlayOpacity));
+        double rawOpacity = settings.OverlayOpacity;
+        if (double.IsNaN(rawOpacity) || rawOpacity <= 0.05 || rawOpacity > 1.0)
+        {
+            if (rawOpacity > 1.0 && rawOpacity <= 100.0)
+            {
+                rawOpacity /= 100.0;
+            }
+            else
+            {
+                rawOpacity = 0.80;
+            }
+        }
+        OverlayOpacity = Math.Clamp(Math.Round(rawOpacity, 2), 0.10, 1.0);
         OverlayScale = Math.Clamp(Math.Round(settings.OverlayScale <= 0 ? 1.0 : settings.OverlayScale, 2), 0.70, 2.00);
         OverlayLeft = Math.Round(settings.OverlayLeft);
         OverlayTop = Math.Round(settings.OverlayTop);
@@ -904,74 +722,19 @@ public partial class MainViewModel : ObservableObject, IDisposable
         IsHorizontalLayout = settings.IsCompactMode || settings.IsHorizontalLayout;
 
         AppTheme = string.IsNullOrWhiteSpace(settings.AppTheme) ? "Dark" : settings.AppTheme;
-        AccentColorHex = string.IsNullOrWhiteSpace(settings.AccentColorHex)
-            ? DefaultAccentColorHex
-            : settings.AccentColorHex;
 
-        // Migra defaults legados para o novo esquema monocromático se o usuário usava os valores antigos padrão
-        string rawBgHex = string.IsNullOrWhiteSpace(settings.OverlayBackgroundColorHex) ? DefaultBackgroundColorHex : settings.OverlayBackgroundColorHex;
-        string rawBorderHex = string.IsNullOrWhiteSpace(settings.OverlayBorderColorHex) ? DefaultBorderColorHex : settings.OverlayBorderColorHex;
-        string rawHeaderHex = string.IsNullOrWhiteSpace(settings.OverlayHeaderColorHex) ? DefaultHeaderColorHex : settings.OverlayHeaderColorHex;
-        string rawValueHex = string.IsNullOrWhiteSpace(settings.OverlayValueTextColorHex) ? DefaultValueTextColorHex : settings.OverlayValueTextColorHex;
-
-        OverlayBackgroundColorHex = string.Equals(rawBgHex, "#141418", StringComparison.OrdinalIgnoreCase)
+        OverlayBackgroundColorHex = string.IsNullOrWhiteSpace(settings.OverlayBackgroundColorHex)
             ? DefaultBackgroundColorHex
-            : rawBgHex;
-        OverlayBorderColorHex = string.Equals(rawBorderHex, "#33FFFFFF", StringComparison.OrdinalIgnoreCase) ||
-                                string.Equals(rawBorderHex, "#2E2E32", StringComparison.OrdinalIgnoreCase)
+            : settings.OverlayBackgroundColorHex;
+        OverlayBorderColorHex = string.IsNullOrWhiteSpace(settings.OverlayBorderColorHex)
             ? DefaultBorderColorHex
-            : rawBorderHex;
-        OverlayHeaderColorHex = string.Equals(rawHeaderHex, "#00E5FF", StringComparison.OrdinalIgnoreCase)
+            : settings.OverlayBorderColorHex;
+        OverlayHeaderColorHex = string.IsNullOrWhiteSpace(settings.OverlayHeaderColorHex)
             ? DefaultHeaderColorHex
-            : rawHeaderHex;
-        OverlayValueTextColorHex = string.Equals(rawValueHex, "#FFFFFF", StringComparison.OrdinalIgnoreCase)
+            : settings.OverlayHeaderColorHex;
+        OverlayValueTextColorHex = string.IsNullOrWhiteSpace(settings.OverlayValueTextColorHex)
             ? DefaultValueTextColorHex
-            : rawValueHex;
-
-        double warnTemp = Math.Clamp(Math.Round(settings.TempWarningThreshold <= 0 ? 70.0 : settings.TempWarningThreshold), 30.0, 110.0);
-        double critTemp = Math.Clamp(Math.Round(settings.TempCriticalThreshold <= 0 ? 85.0 : settings.TempCriticalThreshold), 35.0, 120.0);
-        if (critTemp <= warnTemp)
-        {
-            critTemp = Math.Clamp(warnTemp + 5.0, 35.0, 120.0);
-            if (critTemp <= warnTemp)
-            {
-                warnTemp = Math.Max(30.0, critTemp - 1.0);
-            }
-        }
-
-        EnableThermalColorAlerts = settings.EnableThermalColorAlerts;
-        TempWarningThreshold = warnTemp;
-        TempCriticalThreshold = critTemp;
-
-        if (settings.ToggleOverlayHotkeyModifiers != 0 && settings.ToggleOverlayHotkeyKey != 0)
-        {
-            ToggleOverlayHotkeyModifiers = settings.ToggleOverlayHotkeyModifiers;
-            ToggleOverlayHotkeyKey = settings.ToggleOverlayHotkeyKey;
-            ToggleOverlayHotkeyDisplay = string.IsNullOrWhiteSpace(settings.ToggleOverlayHotkeyDisplay)
-                ? "Ctrl + Shift + O"
-                : settings.ToggleOverlayHotkeyDisplay;
-        }
-        else
-        {
-            ToggleOverlayHotkeyModifiers = WindowWin32Helper.MOD_CONTROL | WindowWin32Helper.MOD_SHIFT;
-            ToggleOverlayHotkeyKey = WindowWin32Helper.VK_O;
-            ToggleOverlayHotkeyDisplay = "Ctrl + Shift + O";
-        }
-
-        if (settings.ToggleCompactModeHotkeyModifiers != 0 && settings.ToggleCompactModeHotkeyKey != 0)
-        {
-            ToggleCompactModeHotkeyModifiers = settings.ToggleCompactModeHotkeyModifiers;
-            ToggleCompactModeHotkeyKey = settings.ToggleCompactModeHotkeyKey;
-            ToggleCompactModeHotkeyDisplay = string.IsNullOrWhiteSpace(settings.ToggleCompactModeHotkeyDisplay)
-                ? "Ctrl + Shift + C"
-                : settings.ToggleCompactModeHotkeyDisplay;
-        }
-        else
-        {
-            ToggleCompactModeHotkeyModifiers = WindowWin32Helper.MOD_CONTROL | WindowWin32Helper.MOD_SHIFT;
-            ToggleCompactModeHotkeyKey = WindowWin32Helper.VK_C;
-            ToggleCompactModeHotkeyDisplay = "Ctrl + Shift + C";
-        }
+            : settings.OverlayValueTextColorHex;
 
         RefreshFrozenColorBrushes();
         InitializeOverlaySectionsOrder(settings.OverlaySectionOrder);
@@ -997,9 +760,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private void RefreshFrozenColorBrushes()
     {
         UpdateOverlayBrushes();
-        OverlayHeaderBrush = CreateFrozenBrush(OverlayHeaderColorHex, Color.FromRgb(250, 250, 250));
-        OverlayValueTextBrush = CreateFrozenBrush(OverlayValueTextColorHex, Color.FromRgb(250, 250, 250));
-        UpdateThermalAlertBrushes(_lastCpuTemp, _lastGpuTemp);
+        OverlayHeaderBrush = CreateFrozenBrush(OverlayHeaderColorHex, Color.FromRgb(0, 229, 255));
+        OverlayValueTextBrush = CreateFrozenBrush(OverlayValueTextColorHex, Colors.White);
     }
 
     private void InitializeOverlaySectionsOrder(List<string>? savedOrder)
@@ -1118,13 +880,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         switch (preset)
         {
-            case "Monochrome":
-                OverlayBackgroundColorHex = DefaultBackgroundColorHex;
-                OverlayBorderColorHex = DefaultBorderColorHex;
-                OverlayHeaderColorHex = DefaultHeaderColorHex;
-                OverlayValueTextColorHex = DefaultValueTextColorHex;
-                break;
-
             case "CleanCyan":
                 OverlayBackgroundColorHex = "#141418";
                 OverlayBorderColorHex = "#3338BDF8";
@@ -1166,147 +921,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 OverlayHeaderColorHex = "#0284C7";
                 OverlayValueTextColorHex = "#0F172A";
                 break;
-        }
-    }
-
-    [RelayCommand]
-    private void SetAccentQuickColor(string? hex)
-    {
-        if (!string.IsNullOrWhiteSpace(hex))
-        {
-            AccentColorHex = hex;
-        }
-    }
-
-    [RelayCommand]
-    private void ResetAccentColor()
-    {
-        AccentColorHex = DefaultAccentColorHex;
-    }
-
-    [RelayCommand]
-    private void ResetThermalThresholds()
-    {
-        EnableThermalColorAlerts = true;
-        TempWarningThreshold = 70.0;
-        TempCriticalThreshold = 85.0;
-    }
-
-    public void RegisterConfiguredHotkeys(IntPtr hwnd)
-    {
-        if (hwnd == IntPtr.Zero)
-            return;
-
-        WindowWin32Helper.SetHotkeyWindowHandle(hwnd);
-        bool overlayOk = WindowWin32Helper.RegisterOrUpdateHotKey(
-            WindowWin32Helper.HOTKEY_ID_TOGGLE_OVERLAY,
-            ToggleOverlayHotkeyModifiers,
-            ToggleOverlayHotkeyKey);
-
-        bool compactOk = WindowWin32Helper.RegisterOrUpdateHotKey(
-            WindowWin32Helper.HOTKEY_ID_TOGGLE_COMPACT,
-            ToggleCompactModeHotkeyModifiers,
-            ToggleCompactModeHotkeyKey);
-
-        UpdateHotkeyStatusMessage(overlayOk, compactOk);
-    }
-
-    public void PauseHotkeysForCapture() => WindowWin32Helper.PauseAllHotkeys();
-
-    public void ResumeHotkeysAfterCapture()
-    {
-        bool allOk = WindowWin32Helper.ResumeAllHotkeys();
-        if (!allOk)
-        {
-            HotkeyStatusMessage = "Um ou mais atalhos estão em conflito com outro aplicativo em execução.";
-        }
-    }
-
-    public bool SetToggleOverlayHotkey(uint modifiers, uint virtualKey, string displayText)
-    {
-        if (modifiers == ToggleCompactModeHotkeyModifiers && virtualKey == ToggleCompactModeHotkeyKey)
-        {
-            HotkeyStatusMessage = "Esse atalho já está atribuído ao Modo Compacto.";
-            return false;
-        }
-
-        ToggleOverlayHotkeyModifiers = modifiers;
-        ToggleOverlayHotkeyKey = virtualKey;
-        ToggleOverlayHotkeyDisplay = displayText;
-
-        bool ok = WindowWin32Helper.RegisterOrUpdateHotKey(
-            WindowWin32Helper.HOTKEY_ID_TOGGLE_OVERLAY,
-            modifiers,
-            virtualKey);
-
-        HotkeyStatusMessage = ok
-            ? "Atalho de exibição do Overlay atualizado."
-            : "Aviso: o atalho foi salvo, mas pode estar em conflito com outro aplicativo.";
-
-        SaveSettings();
-        return ok;
-    }
-
-    public bool SetToggleCompactModeHotkey(uint modifiers, uint virtualKey, string displayText)
-    {
-        if (modifiers == ToggleOverlayHotkeyModifiers && virtualKey == ToggleOverlayHotkeyKey)
-        {
-            HotkeyStatusMessage = "Esse atalho já está atribuído a Mostrar/Ocultar Overlay.";
-            return false;
-        }
-
-        ToggleCompactModeHotkeyModifiers = modifiers;
-        ToggleCompactModeHotkeyKey = virtualKey;
-        ToggleCompactModeHotkeyDisplay = displayText;
-
-        bool ok = WindowWin32Helper.RegisterOrUpdateHotKey(
-            WindowWin32Helper.HOTKEY_ID_TOGGLE_COMPACT,
-            modifiers,
-            virtualKey);
-
-        HotkeyStatusMessage = ok
-            ? "Atalho de Modo Compacto atualizado."
-            : "Aviso: o atalho foi salvo, mas pode estar em conflito com outro aplicativo.";
-
-        SaveSettings();
-        return ok;
-    }
-
-    [RelayCommand]
-    private void ResetToggleOverlayHotkey()
-    {
-        SetToggleOverlayHotkey(
-            WindowWin32Helper.MOD_CONTROL | WindowWin32Helper.MOD_SHIFT,
-            WindowWin32Helper.VK_O,
-            "Ctrl + Shift + O");
-    }
-
-    [RelayCommand]
-    private void ResetToggleCompactModeHotkey()
-    {
-        SetToggleCompactModeHotkey(
-            WindowWin32Helper.MOD_CONTROL | WindowWin32Helper.MOD_SHIFT,
-            WindowWin32Helper.VK_C,
-            "Ctrl + Shift + C");
-    }
-
-    private void UpdateHotkeyStatusMessage(bool overlayOk, bool compactOk)
-    {
-        if (!overlayOk && !compactOk)
-        {
-            HotkeyStatusMessage = "Conflito detectado: ambos os atalhos globais estão ocupados por outro software.";
-        }
-        else if (!overlayOk)
-        {
-            HotkeyStatusMessage = $"Conflito no atalho '{ToggleOverlayHotkeyDisplay}' — escolha outra combinação.";
-        }
-        else if (!compactOk)
-        {
-            HotkeyStatusMessage = $"Conflito no atalho '{ToggleCompactModeHotkeyDisplay}' — escolha outra combinação.";
-        }
-        else
-        {
-            HotkeyStatusMessage = "Atalhos globais registrados e prontos para uso em jogos.";
         }
     }
 
@@ -1400,104 +1014,96 @@ public partial class MainViewModel : ObservableObject, IDisposable
             if (_isDisposed)
                 return;
 
-            try
+            // FPS
+            FpsValueText = $"{metrics.CurrentFps}";
+            FpsText = $"{metrics.CurrentFps} FPS";
+
+            // CPU
+            CpuTemperatureText = roundedCpuTemp > 0 ? $"{roundedCpuTemp} °C" : "N/D";
+            CpuLoadText = $"{roundedCpuLoad:0}%";
+            CpuLoadBarValue = roundedCpuLoad;
+
+            CpuClockText = roundedCpuClock > 0 ? $"{roundedCpuClock} MHz" : "N/D";
+            CpuMaxClockText = roundedCpuMaxClock > 0 ? $"{roundedCpuMaxClock} MHz" : "N/D";
+
+            CpuClockAvgMaxText = roundedCpuClock > 0
+                ? (roundedCpuMaxClock > 0
+                    ? $"{roundedCpuClock} MHz (Máx: {roundedCpuMaxClock} MHz)"
+                    : $"{roundedCpuClock} MHz")
+                : "N/D";
+
+            CpuPowerText = roundedCpuPower > 0.0
+                ? string.Create(CultureInfo.InvariantCulture, $"{roundedCpuPower:0.0} W")
+                : "N/D";
+
+            CpuVoltageText = roundedCpuVcore is > 0.0
+                ? string.Create(CultureInfo.InvariantCulture, $"{roundedCpuVcore.Value:0.000} V")
+                : "N/D";
+
+            if (metrics.IsHybridCpu)
             {
-                // FPS
-                FpsValueText = $"{metrics.CurrentFps}";
-                FpsText = $"{metrics.CurrentFps} FPS";
+                CpuPCoreLoad = (float)roundedPCoreLoad;
+                CpuECoreLoad = (float)roundedECoreLoad;
+                CpuPCoreClock = roundedPCoreClock;
+                CpuECoreClock = roundedECoreClock;
 
-                // CPU & Alertas Térmicos
-                UpdateThermalAlertBrushes(roundedCpuTemp, roundedGpuTemp);
-                CpuTemperatureText = roundedCpuTemp > 0 ? $"{roundedCpuTemp} °C" : "N/D";
-                CpuLoadText = $"{roundedCpuLoad:0}%";
-                CpuLoadBarValue = roundedCpuLoad;
+                CpuPCoreLoadText = $"{roundedPCoreLoad:0}%";
+                CpuECoreLoadText = $"{roundedECoreLoad:0}%";
 
-                CpuClockText = roundedCpuClock > 0 ? $"{roundedCpuClock} MHz" : "N/D";
-                CpuMaxClockText = roundedCpuMaxClock > 0 ? $"{roundedCpuMaxClock} MHz" : "N/D";
+                CpuPCoreClockText = roundedPCoreClock > 0 ? $"{roundedPCoreClock} MHz" : "N/D";
+                CpuECoreClockText = roundedECoreClock > 0 ? $"{roundedECoreClock} MHz" : "N/D";
 
-                CpuClockAvgMaxText = roundedCpuClock > 0
-                    ? (roundedCpuMaxClock > 0
-                        ? $"{roundedCpuClock} MHz (Máx: {roundedCpuMaxClock} MHz)"
-                        : $"{roundedCpuClock} MHz")
-                    : "N/D";
+                CpuHybridCompactLoadText = $"P: {roundedPCoreLoad:0}% | E: {roundedECoreLoad:0}%";
+            }
 
-                CpuPowerText = roundedCpuPower > 0.0
-                    ? string.Create(CultureInfo.InvariantCulture, $"{roundedCpuPower:0.0} W")
-                    : "N/D";
+            // GPU Primária do Overlay
+            GpuTemperatureText = roundedGpuTemp > 0 ? $"{roundedGpuTemp} °C" : "N/D";
+            GpuLoadText = $"{roundedGpuLoad}%";
+            GpuClockText = roundedGpuClock > 0 ? $"{roundedGpuClock} MHz" : "N/D";
+            GpuPowerText = roundedGpuPower > 0.0
+                ? string.Create(CultureInfo.InvariantCulture, $"{roundedGpuPower:0.0} W")
+                : "N/D";
 
-                CpuVoltageText = roundedCpuVcore is > 0.0
-                    ? string.Create(CultureInfo.InvariantCulture, $"{roundedCpuVcore.Value:0.000} V")
-                    : "N/D";
-
-                if (metrics.IsHybridCpu)
+            if (roundedGpuVramUsed > 0.0)
+            {
+                if (roundedGpuVramTotal is > 0.0)
                 {
-                    CpuPCoreLoad = (float)roundedPCoreLoad;
-                    CpuECoreLoad = (float)roundedECoreLoad;
-                    CpuPCoreClock = roundedPCoreClock;
-                    CpuECoreClock = roundedECoreClock;
-
-                    CpuPCoreLoadText = $"{roundedPCoreLoad:0}%";
-                    CpuECoreLoadText = $"{roundedECoreLoad:0}%";
-
-                    CpuPCoreClockText = roundedPCoreClock > 0 ? $"{roundedPCoreClock} MHz" : "N/D";
-                    CpuECoreClockText = roundedECoreClock > 0 ? $"{roundedECoreClock} MHz" : "N/D";
-
-                    CpuHybridCompactLoadText = $"P: {roundedPCoreLoad:0}% | E: {roundedECoreLoad:0}%";
-                }
-
-                // GPU Primária do Overlay
-                GpuTemperatureText = roundedGpuTemp > 0 ? $"{roundedGpuTemp} °C" : "N/D";
-                GpuLoadText = $"{roundedGpuLoad}%";
-                GpuClockText = roundedGpuClock > 0 ? $"{roundedGpuClock} MHz" : "N/D";
-                GpuPowerText = roundedGpuPower > 0.0
-                    ? string.Create(CultureInfo.InvariantCulture, $"{roundedGpuPower:0.0} W")
-                    : "N/D";
-
-                if (roundedGpuVramUsed > 0.0)
-                {
-                    if (roundedGpuVramTotal is > 0.0)
-                    {
-                        int vramPct = (int)Math.Clamp(Math.Round((roundedGpuVramUsed / roundedGpuVramTotal.Value) * 100.0), 0.0, 100.0);
-                        GpuVramText = string.Create(CultureInfo.InvariantCulture, $"{roundedGpuVramUsed:0.0} GB ({vramPct}%)");
-                    }
-                    else
-                    {
-                        GpuVramText = string.Create(CultureInfo.InvariantCulture, $"{roundedGpuVramUsed:0.0} GB");
-                    }
+                    int vramPct = (int)Math.Clamp(Math.Round((roundedGpuVramUsed / roundedGpuVramTotal.Value) * 100.0), 0.0, 100.0);
+                    GpuVramText = string.Create(CultureInfo.InvariantCulture, $"{roundedGpuVramUsed:0.0} GB ({vramPct}%)");
                 }
                 else
                 {
-                    GpuVramText = "N/D";
-                }
-
-                // Memória RAM
-                RamUsageText = string.Create(
-                    CultureInfo.InvariantCulture,
-                    $"{roundedRamUsed:0.0} GB ({roundedRamPct:0}%)");
-
-                RamUsedText = string.Create(CultureInfo.InvariantCulture, $"{roundedRamUsed:0.0} GB");
-                RamPercentText = $"{roundedRamPct:0}%";
-                RamUsageBarValue = roundedRamPct;
-
-                if (roundedRamTotal > 0.0)
-                {
-                    RamTotalText = string.Create(CultureInfo.InvariantCulture, $"{roundedRamTotal:0.0} GB");
-                    RamFreeText = string.Create(CultureInfo.InvariantCulture, $"{roundedRamFree:0.0} GB");
-                    RamDetailedSummaryText = string.Create(
-                        CultureInfo.InvariantCulture,
-                        $"{roundedRamUsed:0.0} GB usados de {roundedRamTotal:0.0} GB ({roundedRamFree:0.0} GB livres)");
-                }
-
-                if (metrics.IsDetailedSnapshot)
-                {
-                    SyncCpuCoresCollection(metrics.CpuCores);
-                    SyncGpusCollection(metrics.Gpus);
-                    SyncStorageCollections(metrics.StorageDrives, metrics.PhysicalDisks);
+                    GpuVramText = string.Create(CultureInfo.InvariantCulture, $"{roundedGpuVramUsed:0.0} GB");
                 }
             }
-            catch (Exception ex)
+            else
             {
-                App.LogCrash("MainViewModel.OnHardwareMetricsUpdated", ex);
+                GpuVramText = "N/D";
+            }
+
+            // Memória RAM
+            RamUsageText = string.Create(
+                CultureInfo.InvariantCulture,
+                $"{roundedRamUsed:0.0} GB ({roundedRamPct:0}%)");
+
+            RamUsedText = string.Create(CultureInfo.InvariantCulture, $"{roundedRamUsed:0.0} GB");
+            RamPercentText = $"{roundedRamPct:0}%";
+            RamUsageBarValue = roundedRamPct;
+
+            if (roundedRamTotal > 0.0)
+            {
+                RamTotalText = string.Create(CultureInfo.InvariantCulture, $"{roundedRamTotal:0.0} GB");
+                RamFreeText = string.Create(CultureInfo.InvariantCulture, $"{roundedRamFree:0.0} GB");
+                RamDetailedSummaryText = string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"{roundedRamUsed:0.0} GB usados de {roundedRamTotal:0.0} GB ({roundedRamFree:0.0} GB livres)");
+            }
+
+            if (metrics.IsDetailedSnapshot)
+            {
+                SyncCpuCoresCollection(metrics.CpuCores);
+                SyncGpusCollection(metrics.Gpus);
+                SyncStorageCollections(metrics.StorageDrives, metrics.PhysicalDisks);
             }
         }, DispatcherPriority.Background);
     }
@@ -1681,7 +1287,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         {
             IsOverlayVisible = IsOverlayVisible,
             IsOverlayLocked = IsOverlayLocked,
-            OverlayOpacity = NormalizeOverlayOpacity(OverlayOpacity),
+            OverlayOpacity = Math.Clamp(Math.Round(OverlayOpacity, 2), 0.1, 1.0),
             OverlayScale = Math.Clamp(Math.Round(OverlayScale, 2), 0.70, 2.00),
             OverlayLeft = OverlayLeft,
             OverlayTop = OverlayTop,
@@ -1690,20 +1296,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
             SmartFullscreenOnly = SmartFullscreenOnly,
             IsHorizontalLayout = IsHorizontalLayout,
             AppTheme = AppTheme,
-            AccentColorHex = AccentColorHex,
             OverlayBackgroundColorHex = OverlayBackgroundColorHex,
             OverlayBorderColorHex = OverlayBorderColorHex,
             OverlayHeaderColorHex = OverlayHeaderColorHex,
             OverlayValueTextColorHex = OverlayValueTextColorHex,
-            EnableThermalColorAlerts = EnableThermalColorAlerts,
-            TempWarningThreshold = TempWarningThreshold,
-            TempCriticalThreshold = TempCriticalThreshold,
-            ToggleOverlayHotkeyModifiers = ToggleOverlayHotkeyModifiers,
-            ToggleOverlayHotkeyKey = ToggleOverlayHotkeyKey,
-            ToggleOverlayHotkeyDisplay = ToggleOverlayHotkeyDisplay,
-            ToggleCompactModeHotkeyModifiers = ToggleCompactModeHotkeyModifiers,
-            ToggleCompactModeHotkeyKey = ToggleCompactModeHotkeyKey,
-            ToggleCompactModeHotkeyDisplay = ToggleCompactModeHotkeyDisplay,
             OverlaySectionOrder = OverlaySections.Select(s => s.Key).ToList(),
             ShowFps = ShowFps,
             ShowCpuTemp = ShowCpuTemp,
@@ -1722,55 +1318,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _settingsService.Save(settings);
     }
 
-    private SolidColorBrush ResolveTempBrush(int tempC)
-    {
-        if (!EnableThermalColorAlerts)
-            return OverlayValueTextBrush;
-
-        if (tempC <= 0)
-            return ThermalNormalBrush;
-
-        if (tempC >= TempCriticalThreshold)
-            return ThermalCriticalBrush;
-
-        if (tempC >= TempWarningThreshold)
-            return ThermalWarningBrush;
-
-        return ThermalNormalBrush;
-    }
-
-    private void UpdateThermalAlertBrushes(int cpuTemp, int gpuTemp)
-    {
-        _lastCpuTemp = cpuTemp;
-        _lastGpuTemp = gpuTemp;
-
-        SolidColorBrush nextCpuBrush = ResolveTempBrush(cpuTemp);
-        if (!ReferenceEquals(CpuTempBrush, nextCpuBrush))
-        {
-            CpuTempBrush = nextCpuBrush;
-        }
-
-        SolidColorBrush nextGpuBrush = ResolveTempBrush(gpuTemp);
-        if (!ReferenceEquals(GpuTempBrush, nextGpuBrush))
-        {
-            GpuTempBrush = nextGpuBrush;
-        }
-    }
-
     partial void OnAppThemeChanged(string value)
     {
         if (!_isInitializing)
         {
-            ApplyApplicationTheme(value, AccentColorHex);
-        }
-        SaveSettings();
-    }
-
-    partial void OnAccentColorHexChanged(string value)
-    {
-        if (!_isInitializing)
-        {
-            ApplyApplicationTheme(AppTheme, value);
+            ApplyApplicationTheme(value);
         }
         SaveSettings();
     }
@@ -1789,92 +1341,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     partial void OnOverlayHeaderColorHexChanged(string value)
     {
-        OverlayHeaderBrush = CreateFrozenBrush(value, Color.FromRgb(250, 250, 250));
+        OverlayHeaderBrush = CreateFrozenBrush(value, Color.FromRgb(0, 229, 255));
         SaveSettings();
     }
 
     partial void OnOverlayValueTextColorHexChanged(string value)
     {
-        OverlayValueTextBrush = CreateFrozenBrush(value, Color.FromRgb(250, 250, 250));
-        if (!_isInitializing)
-        {
-            UpdateThermalAlertBrushes(_lastCpuTemp, _lastGpuTemp);
-        }
+        OverlayValueTextBrush = CreateFrozenBrush(value, Colors.White);
         SaveSettings();
-    }
-
-    partial void OnEnableThermalColorAlertsChanged(bool value)
-    {
-        if (!_isInitializing)
-        {
-            UpdateThermalAlertBrushes(_lastCpuTemp, _lastGpuTemp);
-        }
-        SaveSettings();
-    }
-
-    private bool _isUpdatingThermalThresholds;
-    private bool _isUpdatingOpacity;
-    private bool _isUpdatingScale;
-
-    partial void OnTempWarningThresholdChanged(double value)
-    {
-        if (_isInitializing || _isUpdatingThermalThresholds)
-            return;
-
-        _isUpdatingThermalThresholds = true;
-        try
-        {
-            double clamped = double.IsNaN(value) || double.IsInfinity(value) ? 70.0 : Math.Clamp(Math.Round(value), 30.0, 110.0);
-            if (Math.Abs(clamped - value) > 0.001)
-            {
-                TempWarningThreshold = clamped;
-            }
-
-            if (TempCriticalThreshold <= clamped)
-            {
-                double nextCritical = Math.Clamp(clamped + 5.0, 35.0, 120.0);
-                if (nextCritical <= clamped)
-                {
-                    nextCritical = Math.Min(120.0, clamped + 1.0);
-                }
-                TempCriticalThreshold = nextCritical;
-            }
-
-            UpdateThermalAlertBrushes(_lastCpuTemp, _lastGpuTemp);
-            SaveSettings();
-        }
-        finally
-        {
-            _isUpdatingThermalThresholds = false;
-        }
-    }
-
-    partial void OnTempCriticalThresholdChanged(double value)
-    {
-        if (_isInitializing || _isUpdatingThermalThresholds)
-            return;
-
-        _isUpdatingThermalThresholds = true;
-        try
-        {
-            double clamped = double.IsNaN(value) || double.IsInfinity(value) ? 85.0 : Math.Clamp(Math.Round(value), 35.0, 120.0);
-            if (Math.Abs(clamped - value) > 0.001)
-            {
-                TempCriticalThreshold = clamped;
-            }
-
-            if (clamped <= TempWarningThreshold)
-            {
-                TempWarningThreshold = Math.Max(30.0, clamped - 1.0);
-            }
-
-            UpdateThermalAlertBrushes(_lastCpuTemp, _lastGpuTemp);
-            SaveSettings();
-        }
-        finally
-        {
-            _isUpdatingThermalThresholds = false;
-        }
     }
 
     partial void OnIsOverlayVisibleChanged(bool value)
@@ -1887,52 +1361,17 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     partial void OnOverlayOpacityChanged(double value)
     {
-        if (_isUpdatingOpacity)
+        if (double.IsNaN(value) || value <= 0.05 || value > 1.0)
+        {
+            OverlayOpacity = 0.80;
             return;
-
-        _isUpdatingOpacity = true;
-        try
-        {
-            double normalized = NormalizeOverlayOpacity(value);
-            if (Math.Abs(normalized - value) > 0.0001)
-            {
-                OverlayOpacity = normalized;
-            }
-
-            OnPropertyChanged(nameof(NormalizedOverlayOpacity));
-            UpdateOverlayBrushes();
-            SaveSettings();
         }
-        finally
-        {
-            _isUpdatingOpacity = false;
-        }
+
+        UpdateOverlayBrushes();
+        SaveSettings();
     }
 
-    partial void OnOverlayScaleChanged(double value)
-    {
-        if (_isUpdatingScale)
-            return;
-
-        _isUpdatingScale = true;
-        try
-        {
-            double clamped = double.IsNaN(value) || double.IsInfinity(value) || value <= 0.0
-                ? 1.0
-                : Math.Clamp(Math.Round(value, 2), 0.70, 2.00);
-
-            if (Math.Abs(clamped - value) > 0.0001)
-            {
-                OverlayScale = clamped;
-            }
-
-            SaveSettings();
-        }
-        finally
-        {
-            _isUpdatingScale = false;
-        }
-    }
+    partial void OnOverlayScaleChanged(double value) => SaveSettings();
 
     partial void OnStartWithWindowsChanged(bool value)
     {
@@ -1945,11 +1384,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     partial void OnIsCompactModeChanged(bool value)
     {
-        if (IsHorizontalLayout != value)
-        {
-            IsHorizontalLayout = value;
-            OnPropertyChanged(nameof(IsHorizontalLayout));
-        }
+        IsHorizontalLayout = value;
+        OnPropertyChanged(nameof(IsHorizontalLayout));
 
         UpdatePollingAndSmartVisibilityState();
         SaveSettings();
@@ -2007,11 +1443,6 @@ public partial class OverlaySectionItemViewModel : ObservableObject
     public string DisplayTitle { get; }
     public string IconSymbol { get; }
     public MainViewModel Parent { get; }
-
-    public bool IsFps => Key == "FPS";
-    public bool IsCpu => Key == "CPU";
-    public bool IsGpu => Key == "GPU";
-    public bool IsRam => Key == "RAM";
 
     public bool IsFpsSection => Key == "FPS";
     public bool IsCpuSection => Key == "CPU";
