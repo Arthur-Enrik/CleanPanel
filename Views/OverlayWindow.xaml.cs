@@ -48,6 +48,12 @@ public partial class OverlayWindow : Window
     {
         try
         {
+            IntPtr hwnd = new WindowInteropHelper(this).Handle;
+            if (hwnd != IntPtr.Zero)
+            {
+                WindowWin32Helper.DisableDwmSystemBackdrop(hwnd);
+            }
+
             Wpf.Ui.Controls.WindowBackdrop.RemoveBackdrop(this);
         }
         catch
@@ -75,10 +81,15 @@ public partial class OverlayWindow : Window
     {
         base.OnSourceInitialized(e);
 
+        IntPtr hwnd = new WindowInteropHelper(this).Handle;
+        if (hwnd != IntPtr.Zero)
+        {
+            WindowWin32Helper.DisableDwmSystemBackdrop(hwnd);
+        }
+
         EnsurePerPixelTransparency();
         _viewModel.UpdateOverlayBrushes();
 
-        IntPtr hwnd = new WindowInteropHelper(this).Handle;
         if (hwnd == IntPtr.Zero)
             return;
 

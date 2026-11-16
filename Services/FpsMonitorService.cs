@@ -6,6 +6,10 @@ using Microsoft.Diagnostics.Tracing.Session;
 
 namespace HardwareOverlayApp.Services;
 
+/// <summary>
+/// Motor único de captura de FPS via ETW (Microsoft-Windows-DXGI / D3D9) com Ring Buffer lock-bounded
+/// de alta precisão (Stopwatch) e suavização EMA responsiva.
+/// </summary>
 public class FpsMonitorService : IDisposable
 {
     private const string SessionName = "CleanPanelFpsSession";
@@ -19,43 +23,43 @@ public class FpsMonitorService : IDisposable
     private static readonly Guid D3D9ProviderGuid = new("783ACA0A-790E-4D7F-8451-AA850511C6B9");
     private const int D3D9PresentStartEventId = 1;
 
-    private const double SlidingWindowMs = 650.0;
-    private const double MinFrameDeltaMs = 0.5;
-    private const double StaleResetMs = 1000.0;
-    private const double EmaAlpha = 0.45;
-    private const long D3D9SwapChainSentinel = 1L;
+    private const int RingBufferCapacity = 256;
+    private const int RingBufferMask = RingBufferCapacity - 1;
     private const int SwapChainSlotCount = 8;
+    private const long D3D9SwapChainSentinel = 1L;
+    private const double MinFrameDeltaSeconds = 0.0004; // 0.4 ms filtro contra burst duplicado
+    private const double MaxSaneFps = 2500.0;
 
     private struct SwapChainSlot
     {
         public long Pointer;
-        public int RecentCount;
-        public long LastSeenTick;
+        public int WindowCount;
+        public long LastSeenTicks;
     }
 
     private readonly object _framesLock = new();
-    private readonly Queue<double> _frameTimesMs = new(512);
+    private readonly long[] _ringBuffer = new long[RingBufferCapacity];
     private readonly SwapChainSlot[] _swapChainSlots = new SwapChainSlot[SwapChainSlotCount];
     private readonly CancellationTokenSource _cts = new();
     private readonly int _currentAppPid = Environment.ProcessId;
-    private readonly long _staleResetTicks = Stopwatch.Frequency;
-    private readonly long _swapChainStaleTicks = Stopwatch.Frequency / 2;
+    private readonly long _windowTicks = Stopwatch.Frequency; // 1000 ms
+    private readonly long _swapChainStaleTicks = Stopwatch.Frequency / 2; // 500 ms
+    private readonly long _minFrameDeltaTicks = Math.Max(1L, (long)(Stopwatch.Frequency * MinFrameDeltaSeconds));
 
     private TraceEventSession? _etwSession;
     private Task? _etwTask;
 
-    // PID em foco cacheado (atualizado apenas 1x por segundo no loop principal para zero P/Invoke no callback ETW)
+    // PID em foco cacheado em O(1) para zero P/Invoke no hot path do ETW
     private volatile int _activeForegroundPid = -1;
     private int _lastEvaluatedRawPid = -1;
 
-    private long _primarySwapChain;
-    private long _lastSwapChainDecayTick;
-    private double _lastAcceptedEventTimeMs;
-    private double _latestEventTimeMs;
-    private double _lastSmoothedEventTimeMs;
+    private int _writeIndex;
+    private int _frameCount;
+    private long _lastFrameArrivalTicks;
+    private long _lastSmoothedFrameTicks;
+    private long _activeSwapChainPtr;
+    private long _lastSwapChainEvalTicks;
     private double _smoothedFps;
-    private long _lastFrameArrivalTick;
-    private bool _hasAcceptedFrame;
 
     private volatile bool _isDisposed;
     private volatile bool _isSuspended;
@@ -78,7 +82,7 @@ public class FpsMonitorService : IDisposable
         }
     }
 
-    public int CurrentFps => CalculateCurrentFps();
+    public int CurrentFps => GetCurrentFps();
 
     public void Start()
     {
@@ -90,7 +94,7 @@ public class FpsMonitorService : IDisposable
     }
 
     /// <summary>
-    /// Atualiza o PID do processo em primeiro plano apenas 1 vez por segundo (fora do callback de alta frequência do ETW).
+    /// Atualiza o PID do processo em primeiro plano fora do callback de alta frequência do ETW.
     /// </summary>
     public void RefreshActiveForegroundProcess()
     {
@@ -133,7 +137,6 @@ public class FpsMonitorService : IDisposable
 
     private void RunEtwSession(CancellationToken cancellationToken)
     {
-        // Limpa sessões órfãs anteriores caso existam
         CloseExistingSessionSafe(LegacySessionName);
         CloseExistingSessionSafe(SessionName);
 
@@ -160,15 +163,13 @@ public class FpsMonitorService : IDisposable
             });
 
             _etwSession.Source.AllEvents += OnEtwEvent;
-
             _etwSession.EnableProvider(DxgiProviderGuid, TraceEventLevel.Informational);
             _etwSession.EnableProvider(D3D9ProviderGuid, TraceEventLevel.Informational);
-
             _etwSession.Source.Process();
         }
         catch
         {
-            // Caso o usuário não tenha privilégios de sessão ETW ou ocorra parada abrupta, mantém o app estável
+            // Mantém o aplicativo estável caso não haja privilégio administrativo para sessão ETW
         }
     }
 
@@ -186,21 +187,19 @@ public class FpsMonitorService : IDisposable
 
     private void ResetFrameStateNoLock()
     {
-        _frameTimesMs.Clear();
+        Array.Clear(_ringBuffer, 0, _ringBuffer.Length);
         Array.Clear(_swapChainSlots, 0, _swapChainSlots.Length);
-        _primarySwapChain = 0;
-        _lastSwapChainDecayTick = 0;
-        _lastAcceptedEventTimeMs = 0;
-        _latestEventTimeMs = 0;
-        _lastSmoothedEventTimeMs = 0;
-        _smoothedFps = 0;
-        _lastFrameArrivalTick = 0;
-        _hasAcceptedFrame = false;
+        _writeIndex = 0;
+        _frameCount = 0;
+        _lastFrameArrivalTicks = 0;
+        _lastSmoothedFrameTicks = 0;
+        _activeSwapChainPtr = 0;
+        _lastSwapChainEvalTicks = 0;
+        _smoothedFps = 0.0;
     }
 
     private void OnEtwEvent(TraceEvent data)
     {
-        // 1ª linha obrigatória: comparação inteira direta O(1) sem P/Invoke e sem alocações
         if (data.ProcessID != _activeForegroundPid) return;
 
         if (_isDisposed || _isSuspended)
@@ -214,30 +213,29 @@ public class FpsMonitorService : IDisposable
             return;
 
         long swapChainPtr = isDxgi ? ExtractDxgiSwapChainPointer(data) : D3D9SwapChainSentinel;
-        double eventTimeMs = data.TimeStampRelativeMSec;
-        long arrivalTick = Stopwatch.GetTimestamp();
+        long nowTicks = Stopwatch.GetTimestamp();
 
         lock (_framesLock)
         {
-            if (!TryAcceptPrimarySwapChainNoLock(swapChainPtr, arrivalTick))
+            if (!TryAcceptPrimarySwapChainNoLock(swapChainPtr, nowTicks))
                 return;
 
-            // Ignora eventos duplicados/micro-bursts (< 0.5 ms) usando timestamp ETW real (QPC)
-            if (_hasAcceptedFrame && (eventTimeMs - _lastAcceptedEventTimeMs) < MinFrameDeltaMs)
-                return;
-
-            _hasAcceptedFrame = true;
-            _lastAcceptedEventTimeMs = eventTimeMs;
-            _latestEventTimeMs = eventTimeMs;
-            _lastFrameArrivalTick = arrivalTick;
-
-            _frameTimesMs.Enqueue(eventTimeMs);
-
-            double cutoffMs = eventTimeMs - SlidingWindowMs;
-            while (_frameTimesMs.Count > 2 && _frameTimesMs.Peek() < cutoffMs)
+            // Filtro anti-duplicação (< 0.4ms)
+            if (_frameCount > 0)
             {
-                _frameTimesMs.Dequeue();
+                long newestTick = _ringBuffer[(_writeIndex - 1 + RingBufferCapacity) & RingBufferMask];
+                if ((nowTicks - newestTick) < _minFrameDeltaTicks)
+                    return;
             }
+
+            _ringBuffer[_writeIndex] = nowTicks;
+            _writeIndex = (_writeIndex + 1) & RingBufferMask;
+            if (_frameCount < RingBufferCapacity)
+            {
+                _frameCount++;
+            }
+
+            _lastFrameArrivalTicks = nowTicks;
         }
     }
 
@@ -253,28 +251,9 @@ public class FpsMonitorService : IDisposable
         return D3D9SwapChainSentinel;
     }
 
-    private bool TryAcceptPrimarySwapChainNoLock(long swapChainPtr, long nowTick)
+    private bool TryAcceptPrimarySwapChainNoLock(long swapChainPtr, long nowTicks)
     {
-        if (_lastSwapChainDecayTick == 0 || (nowTick - _lastSwapChainDecayTick) >= _staleResetTicks)
-        {
-            _lastSwapChainDecayTick = nowTick;
-            for (int i = 0; i < _swapChainSlots.Length; i++)
-            {
-                if (_swapChainSlots[i].Pointer == 0)
-                    continue;
-
-                if ((nowTick - _swapChainSlots[i].LastSeenTick) > _staleResetTicks)
-                {
-                    _swapChainSlots[i] = default;
-                }
-                else
-                {
-                    _swapChainSlots[i].RecentCount >>= 1;
-                }
-            }
-        }
-
-        int targetIndex = -1;
+        int slotIndex = -1;
         int freeIndex = -1;
         int lowestIndex = 0;
         int lowestCount = int.MaxValue;
@@ -283,119 +262,201 @@ public class FpsMonitorService : IDisposable
         {
             if (_swapChainSlots[i].Pointer == swapChainPtr)
             {
-                targetIndex = i;
+                slotIndex = i;
                 break;
             }
 
-            if (_swapChainSlots[i].Pointer == 0 || (nowTick - _swapChainSlots[i].LastSeenTick) > _staleResetTicks)
+            if (_swapChainSlots[i].Pointer == 0 || (nowTicks - _swapChainSlots[i].LastSeenTicks) > _windowTicks)
             {
                 if (freeIndex == -1)
+                {
                     freeIndex = i;
+                }
             }
-            else if (_swapChainSlots[i].RecentCount < lowestCount)
+            else if (_swapChainSlots[i].WindowCount < lowestCount)
             {
-                lowestCount = _swapChainSlots[i].RecentCount;
+                lowestCount = _swapChainSlots[i].WindowCount;
                 lowestIndex = i;
             }
         }
 
-        if (targetIndex == -1)
+        if (slotIndex == -1)
         {
-            targetIndex = freeIndex != -1 ? freeIndex : lowestIndex;
-            _swapChainSlots[targetIndex] = new SwapChainSlot
+            slotIndex = freeIndex != -1 ? freeIndex : lowestIndex;
+            _swapChainSlots[slotIndex] = new SwapChainSlot
             {
                 Pointer = swapChainPtr,
-                RecentCount = 0,
-                LastSeenTick = nowTick
+                WindowCount = 0,
+                LastSeenTicks = nowTicks
             };
         }
 
-        _swapChainSlots[targetIndex].RecentCount++;
-        _swapChainSlots[targetIndex].LastSeenTick = nowTick;
+        _swapChainSlots[slotIndex].WindowCount++;
+        _swapChainSlots[slotIndex].LastSeenTicks = nowTicks;
 
-        if (_primarySwapChain == 0)
+        if (_activeSwapChainPtr == 0)
         {
-            _primarySwapChain = swapChainPtr;
+            _activeSwapChainPtr = swapChainPtr;
+            _lastSwapChainEvalTicks = nowTicks;
             return true;
         }
 
-        if (swapChainPtr == _primarySwapChain)
+        // Avaliação periódica por segundo para travar no SwapChain de maior taxa de quadros
+        if (_lastSwapChainEvalTicks == 0)
+        {
+            _lastSwapChainEvalTicks = nowTicks;
+        }
+        else if ((nowTicks - _lastSwapChainEvalTicks) >= _windowTicks)
+        {
+            int activeCount = 0;
+            long activeLastSeen = 0;
+            int topIndex = -1;
+            int topCount = 0;
+
+            for (int i = 0; i < _swapChainSlots.Length; i++)
+            {
+                if (_swapChainSlots[i].Pointer == _activeSwapChainPtr)
+                {
+                    activeCount = _swapChainSlots[i].WindowCount;
+                    activeLastSeen = _swapChainSlots[i].LastSeenTicks;
+                }
+
+                if (_swapChainSlots[i].Pointer != 0 &&
+                    (nowTicks - _swapChainSlots[i].LastSeenTicks) <= _windowTicks &&
+                    _swapChainSlots[i].WindowCount > topCount)
+                {
+                    topCount = _swapChainSlots[i].WindowCount;
+                    topIndex = i;
+                }
+            }
+
+            if (topIndex != -1)
+            {
+                long candidatePtr = _swapChainSlots[topIndex].Pointer;
+                bool activeStale = activeLastSeen == 0 || (nowTicks - activeLastSeen) > _swapChainStaleTicks;
+                if (candidatePtr != _activeSwapChainPtr && (activeStale || topCount >= activeCount + 4))
+                {
+                    SwitchActiveSwapChainNoLock(candidatePtr);
+                }
+            }
+
+            // Reinicia contagem por janela de 1 segundo
+            for (int i = 0; i < _swapChainSlots.Length; i++)
+            {
+                if ((nowTicks - _swapChainSlots[i].LastSeenTicks) > _windowTicks)
+                {
+                    _swapChainSlots[i] = default;
+                }
+                else
+                {
+                    _swapChainSlots[i].WindowCount = 0;
+                }
+            }
+
+            _lastSwapChainEvalTicks = nowTicks;
+        }
+
+        if (swapChainPtr == _activeSwapChainPtr)
             return true;
 
-        int primaryIndex = -1;
+        // Se a SwapChain ativa ficou silenciosa por > 500ms no meio da janela, promove imediatamente a nova candidata
+        long currentActiveSeen = 0;
         for (int i = 0; i < _swapChainSlots.Length; i++)
         {
-            if (_swapChainSlots[i].Pointer == _primarySwapChain)
+            if (_swapChainSlots[i].Pointer == _activeSwapChainPtr)
             {
-                primaryIndex = i;
+                currentActiveSeen = _swapChainSlots[i].LastSeenTicks;
                 break;
             }
         }
 
-        bool primaryStale = primaryIndex == -1 ||
-                            (nowTick - _swapChainSlots[primaryIndex].LastSeenTick) > _swapChainStaleTicks;
-
-        int primaryCount = primaryIndex != -1 ? _swapChainSlots[primaryIndex].RecentCount : 0;
-        int candidateCount = _swapChainSlots[targetIndex].RecentCount;
-
-        if (primaryStale || (candidateCount >= primaryCount + 4 && candidateCount > (primaryCount * 1.25)))
+        if (currentActiveSeen == 0 || (nowTicks - currentActiveSeen) > _swapChainStaleTicks)
         {
-            _primarySwapChain = swapChainPtr;
-            _frameTimesMs.Clear();
-            _hasAcceptedFrame = false;
-            _smoothedFps = 0;
+            SwitchActiveSwapChainNoLock(swapChainPtr);
             return true;
         }
 
         return false;
     }
 
-    private int CalculateCurrentFps()
+    private void SwitchActiveSwapChainNoLock(long newSwapChainPtr)
+    {
+        _activeSwapChainPtr = newSwapChainPtr;
+        _writeIndex = 0;
+        _frameCount = 0;
+        _lastFrameArrivalTicks = 0;
+        _lastSmoothedFrameTicks = 0;
+        _smoothedFps = 0.0;
+    }
+
+    public int GetCurrentFps()
     {
         if (_isDisposed || _isSuspended || _activeForegroundPid <= 4)
             return 0;
 
-        long nowTick = Stopwatch.GetTimestamp();
+        long nowTicks = Stopwatch.GetTimestamp();
 
         lock (_framesLock)
         {
-            if (!_hasAcceptedFrame || _lastFrameArrivalTick == 0 || (nowTick - _lastFrameArrivalTick) > _staleResetTicks)
+            // Reset automático ao ultrapassar 1000ms sem novos quadros
+            if (_lastFrameArrivalTicks == 0 || (nowTicks - _lastFrameArrivalTicks) > _windowTicks)
             {
-                if (_frameTimesMs.Count > 0 || _smoothedFps > 0)
+                if (_frameCount > 0 || _smoothedFps > 0.0)
                 {
-                    _frameTimesMs.Clear();
-                    _hasAcceptedFrame = false;
-                    _smoothedFps = 0;
-                    _lastSmoothedEventTimeMs = 0;
+                    _writeIndex = 0;
+                    _frameCount = 0;
+                    _lastFrameArrivalTicks = 0;
+                    _lastSmoothedFrameTicks = 0;
+                    _smoothedFps = 0.0;
                 }
                 return 0;
             }
 
-            if (_frameTimesMs.Count < 2)
-                return _smoothedFps > 0 ? (int)Math.Round(_smoothedFps) : 0;
+            if (_frameCount < 2)
+                return _smoothedFps > 0.0 ? (int)Math.Round(_smoothedFps) : 0;
 
-            double firstMs = _frameTimesMs.Peek();
-            double elapsedMs = _latestEventTimeMs - firstMs;
+            long cutoffTicks = nowTicks - _windowTicks;
+            int newestIndex = (_writeIndex - 1 + RingBufferCapacity) & RingBufferMask;
+            long newestTick = _ringBuffer[newestIndex];
+            long oldestTickInWindow = newestTick;
+            int framesInWindow = 0;
 
-            if (elapsedMs > StaleResetMs * 1.5 || elapsedMs <= 0.1)
-                return _smoothedFps > 0 ? (int)Math.Round(_smoothedFps) : 0;
+            for (int i = 0; i < _frameCount; i++)
+            {
+                int idx = (_writeIndex - 1 - i + RingBufferCapacity) & RingBufferMask;
+                long tick = _ringBuffer[idx];
+                if (tick < cutoffTicks)
+                    break;
 
-            double rawFps = ((_frameTimesMs.Count - 1) * 1000.0) / elapsedMs;
-            if (double.IsNaN(rawFps) || double.IsInfinity(rawFps) || rawFps <= 0)
+                oldestTickInWindow = tick;
+                framesInWindow++;
+            }
+
+            if (framesInWindow < 2)
+                return _smoothedFps > 0.0 ? (int)Math.Round(_smoothedFps) : 0;
+
+            long tickSpan = newestTick - oldestTickInWindow;
+            if (tickSpan <= _minFrameDeltaTicks)
+                return _smoothedFps > 0.0 ? (int)Math.Round(_smoothedFps) : 0;
+
+            double exactFps = (framesInWindow - 1) * (double)Stopwatch.Frequency / tickSpan;
+            if (double.IsNaN(exactFps) || double.IsInfinity(exactFps) || exactFps <= 0.0)
                 return 0;
 
-            if (rawFps > 2000.0)
-                rawFps = 2000.0;
+            if (exactFps > MaxSaneFps)
+            {
+                exactFps = MaxSaneFps;
+            }
 
             if (_smoothedFps <= 0.0)
             {
-                _smoothedFps = rawFps;
-                _lastSmoothedEventTimeMs = _latestEventTimeMs;
+                _smoothedFps = exactFps;
+                _lastSmoothedFrameTicks = newestTick;
             }
-            else if (Math.Abs(_latestEventTimeMs - _lastSmoothedEventTimeMs) > 0.01)
+            else if (newestTick != _lastSmoothedFrameTicks)
             {
-                _smoothedFps = (_smoothedFps * (1.0 - EmaAlpha)) + (rawFps * EmaAlpha);
-                _lastSmoothedEventTimeMs = _latestEventTimeMs;
+                _smoothedFps = (_smoothedFps * 0.35) + (exactFps * 0.65);
+                _lastSmoothedFrameTicks = newestTick;
             }
 
             return (int)Math.Round(_smoothedFps);

@@ -17,12 +17,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
 {
     public const string DefaultAccentColorHex = "#FAFAFA";
     public const string DefaultBackgroundColorHex = "#09090B";
-    public const string DefaultBorderColorHex = "#2E2E32";
+    public const string DefaultBorderColorHex = "#27272A";
     public const string DefaultHeaderColorHex = "#FAFAFA";
     public const string DefaultValueTextColorHex = "#FAFAFA";
 
     // Pincéis pré-alocados e congelados para alertas térmicos (zero alocação por tick)
-    private static readonly SolidColorBrush ThermalNormalBrush = CreateFrozenBrush("#FFFFFF", Colors.White);
+    private static readonly SolidColorBrush ThermalNormalBrush = CreateFrozenBrush("#FAFAFA", Color.FromRgb(250, 250, 250));
     private static readonly SolidColorBrush ThermalWarningBrush = CreateFrozenBrush("#FACC15", Color.FromRgb(250, 204, 21));
     private static readonly SolidColorBrush ThermalCriticalBrush = CreateFrozenBrush("#EF4444", Color.FromRgb(239, 68, 68));
 
@@ -130,10 +130,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private string _overlayValueTextColorHex = DefaultValueTextColorHex;
 
     [ObservableProperty]
-    private SolidColorBrush _overlayBackgroundBrush = CreateFrozenBrush("#D909090B", Color.FromArgb(217, 9, 9, 11));
+    private SolidColorBrush _overlayBackgroundBrush = CreateFrozenBrush("#09090B", Color.FromRgb(9, 9, 11));
 
     [ObservableProperty]
-    private SolidColorBrush _overlayBorderBrush = CreateFrozenBrush(DefaultBorderColorHex, Color.FromRgb(46, 46, 50));
+    private SolidColorBrush _overlayBorderBrush = CreateFrozenBrush(DefaultBorderColorHex, Color.FromRgb(39, 39, 42));
 
     [ObservableProperty]
     private SolidColorBrush _overlayHeaderBrush = CreateFrozenBrush(DefaultHeaderColorHex, Color.FromRgb(250, 250, 250));
@@ -328,6 +328,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(OverlayOpacityPercentText))]
     [NotifyPropertyChangedFor(nameof(OverlayOpacityDisplayText))]
+    [NotifyPropertyChangedFor(nameof(NormalizedOverlayOpacity))]
     private double _overlayOpacity = 0.85;
 
     [ObservableProperty]
@@ -484,9 +485,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [NotifyPropertyChangedFor(nameof(EffectiveShowRam))]
     private bool _showRam;
 
-    public string OverlayOpacityPercentText => $"{Math.Round(OverlayOpacity * 100.0):0}%";
+    public double NormalizedOverlayOpacity => OverlayOpacity > 1.0
+        ? Math.Clamp(OverlayOpacity / 100.0, 0.05, 1.0)
+        : Math.Clamp(OverlayOpacity, 0.05, 1.0);
 
-    public string OverlayOpacityDisplayText => $"Opacidade do Fundo: {Math.Round(OverlayOpacity * 100.0):0}%";
+    public string OverlayOpacityPercentText => $"{Math.Round(NormalizedOverlayOpacity * 100.0):0}%";
+
+    public string OverlayOpacityDisplayText => $"Opacidade do Fundo: {Math.Round(NormalizedOverlayOpacity * 100.0):0}%";
 
     public string OverlayScalePercentText => $"{Math.Round(OverlayScale * 100.0):0}%";
 
@@ -569,7 +574,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _hardwareMonitorService.HeartbeatTick += OnHeartbeatTick;
         _hardwareMonitorService.MetricsUpdated += OnHardwareMetricsUpdated;
 
-        // Chamada explícita para garantir brushes de opacidade e cores 100% atualizados no final da inicialização
+        // Chamada explícita para garantir opacidade normalizada e brushes 100% atualizados no final da inicialização
+        OnPropertyChanged(nameof(NormalizedOverlayOpacity));
         UpdateOverlayBrushes();
     }
 
@@ -663,9 +669,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
             return;
 
         Color bgColor = isLight ? Color.FromRgb(250, 250, 250) : Color.FromRgb(9, 9, 11);
-        Color cardColor = isLight ? Color.FromRgb(255, 255, 255) : Color.FromRgb(17, 17, 20);
-        Color subCardColor = isLight ? Color.FromRgb(244, 244, 245) : Color.FromRgb(24, 24, 27);
-        Color hoverColor = isLight ? Color.FromRgb(236, 236, 239) : Color.FromRgb(32, 32, 36);
+        Color cardColor = isLight ? Color.FromRgb(255, 255, 255) : Color.FromRgb(18, 18, 21);
+        Color hoverColor = isLight ? Color.FromRgb(244, 244, 245) : Color.FromRgb(24, 24, 27);
+        Color strongHoverColor = isLight ? Color.FromRgb(236, 236, 239) : Color.FromRgb(32, 32, 36);
         Color borderColor = isLight ? Color.FromRgb(228, 228, 231) : Color.FromRgb(39, 39, 42);
         Color primaryTextColor = isLight ? Color.FromRgb(9, 9, 11) : Color.FromRgb(250, 250, 250);
         Color mutedTextColor = isLight ? Color.FromRgb(113, 113, 122) : Color.FromRgb(161, 161, 170);
@@ -680,8 +686,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         var bgBrush = CreateFrozenBrushFromColor(bgColor);
         var cardBrush = CreateFrozenBrushFromColor(cardColor);
-        var subCardBrush = CreateFrozenBrushFromColor(subCardColor);
         var hoverBrush = CreateFrozenBrushFromColor(hoverColor);
+        var strongHoverBrush = CreateFrozenBrushFromColor(strongHoverColor);
         var borderBrush = CreateFrozenBrushFromColor(borderColor);
         var textPrimaryBrush = CreateFrozenBrushFromColor(primaryTextColor);
         var textMutedBrush = CreateFrozenBrushFromColor(mutedTextColor);
@@ -690,9 +696,18 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var accentMutedBrush = CreateFrozenBrushFromColor(accentMutedColor);
         var accentBorderBrush = CreateFrozenBrushFromColor(accentBorderColor);
 
+        // Tokens primários Shadcn / Vercel Design System
+        resources["BgPrimary"] = bgBrush;
+        resources["BgCard"] = cardBrush;
+        resources["BgHover"] = hoverBrush;
+        resources["BorderSubtle"] = borderBrush;
+        resources["TextPrimary"] = textPrimaryBrush;
+        resources["TextMuted"] = textMutedBrush;
+
+        // Aliases de compatibilidade
         resources["AppBackgroundBrush"] = bgBrush;
         resources["AppCardBackgroundBrush"] = cardBrush;
-        resources["AppSubCardBackgroundBrush"] = subCardBrush;
+        resources["AppSubCardBackgroundBrush"] = hoverBrush;
         resources["AppBorderBrush"] = borderBrush;
         resources["AppTextPrimaryBrush"] = textPrimaryBrush;
         resources["AppTextMutedBrush"] = textMutedBrush;
@@ -704,9 +719,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // Sobrescrita dos tokens do WPF-UI para manter estética Shadcn/Linear 100% consistente
         resources["ApplicationBackgroundBrush"] = bgBrush;
         resources["CardBackgroundFillColorDefaultBrush"] = cardBrush;
-        resources["CardBackgroundFillColorSecondaryBrush"] = subCardBrush;
-        resources["ControlFillColorDefaultBrush"] = subCardBrush;
-        resources["ControlFillColorSecondaryBrush"] = hoverBrush;
+        resources["CardBackgroundFillColorSecondaryBrush"] = hoverBrush;
+        resources["ControlFillColorDefaultBrush"] = hoverBrush;
+        resources["ControlFillColorSecondaryBrush"] = strongHoverBrush;
         resources["ControlStrokeColorDefaultBrush"] = borderBrush;
         resources["CardStrokeColorDefaultBrush"] = borderBrush;
         resources["TextFillColorPrimaryBrush"] = textPrimaryBrush;
@@ -799,20 +814,18 @@ public partial class MainViewModel : ObservableObject, IDisposable
             OverlayOpacity = normalizedOpacity;
         }
 
-        byte alpha = (byte)Math.Clamp(normalizedOpacity * 255.0, 10, 255);
-
+        // Mantém Background opaco RGB (#09090B padrão) pois Layer 0 OverlayBgBorder controla a transparência via NormalizedOverlayOpacity
         Color baseColor = ParseHexColor(OverlayBackgroundColorHex, Color.FromRgb(9, 9, 11));
-        var brush = new SolidColorBrush(Color.FromArgb(alpha, baseColor.R, baseColor.G, baseColor.B));
+        var brush = new SolidColorBrush(Color.FromRgb(baseColor.R, baseColor.G, baseColor.B));
         brush.Freeze();
         OverlayBackgroundBrush = brush;
 
-        Color baseBorderColor = ParseHexColor(OverlayBorderColorHex, Color.FromRgb(46, 46, 50));
-        byte borderAlpha = baseBorderColor.A >= 250
-            ? alpha
-            : (byte)Math.Clamp(alpha * Math.Max(0.18, baseBorderColor.A / 255.0), 10, 255);
-        var borderBrush = new SolidColorBrush(Color.FromArgb(borderAlpha, baseBorderColor.R, baseBorderColor.G, baseBorderColor.B));
+        Color baseBorderColor = ParseHexColor(OverlayBorderColorHex, Color.FromRgb(39, 39, 42));
+        var borderBrush = new SolidColorBrush(baseBorderColor);
         borderBrush.Freeze();
         OverlayBorderBrush = borderBrush;
+
+        OnPropertyChanged(nameof(NormalizedOverlayOpacity));
     }
 
     private void OnHardwareSpecsInitialized(HardwareSpecs specs)
@@ -864,6 +877,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         IsOverlayLocked = settings.IsOverlayLocked;
 
         OverlayOpacity = NormalizeOverlayOpacity(settings.OverlayOpacity);
+        OnPropertyChanged(nameof(NormalizedOverlayOpacity));
         OverlayScale = Math.Clamp(Math.Round(settings.OverlayScale <= 0 ? 1.0 : settings.OverlayScale, 2), 0.70, 2.00);
         OverlayLeft = Math.Round(settings.OverlayLeft);
         OverlayTop = Math.Round(settings.OverlayTop);
@@ -887,7 +901,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         OverlayBackgroundColorHex = string.Equals(rawBgHex, "#141418", StringComparison.OrdinalIgnoreCase)
             ? DefaultBackgroundColorHex
             : rawBgHex;
-        OverlayBorderColorHex = string.Equals(rawBorderHex, "#33FFFFFF", StringComparison.OrdinalIgnoreCase)
+        OverlayBorderColorHex = string.Equals(rawBorderHex, "#33FFFFFF", StringComparison.OrdinalIgnoreCase) ||
+                                string.Equals(rawBorderHex, "#2E2E32", StringComparison.OrdinalIgnoreCase)
             ? DefaultBorderColorHex
             : rawBorderHex;
         OverlayHeaderColorHex = string.Equals(rawHeaderHex, "#00E5FF", StringComparison.OrdinalIgnoreCase)
@@ -1838,6 +1853,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
+        OnPropertyChanged(nameof(NormalizedOverlayOpacity));
         UpdateOverlayBrushes();
         SaveSettings();
     }
