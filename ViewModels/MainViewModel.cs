@@ -601,6 +601,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         try
         {
+            if (Application.Current?.Dispatcher is { } dispatcher && !dispatcher.CheckAccess())
+            {
+                dispatcher.Invoke(() => ApplyApplicationTheme(themeSetting, accentHex));
+                return;
+            }
+
             ApplicationTheme targetTheme = ApplicationTheme.Dark;
 
             if (string.Equals(themeSetting, "Light", StringComparison.OrdinalIgnoreCase))
@@ -832,41 +838,51 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         Application.Current?.Dispatcher.InvokeAsync(() =>
         {
-            OsName = specs.OsName;
-            OsEdition = specs.OsEdition;
-            OsBuild = specs.OsBuild;
+            if (_isDisposed)
+                return;
 
-            CpuName = specs.CpuName;
-            CpuShortName = specs.CpuShortName;
-            GpuShortName = specs.PrimaryGpuShortName;
-            CpuPhysicalCores = specs.CpuPhysicalCores;
-            CpuLogicalThreads = specs.CpuLogicalThreads;
-            CpuCoresThreadsSummary = specs.CpuCoresThreadsSummary;
-            IsIntelHybridCpu = specs.IsIntelHybridCpu;
-
-            if (specs.TotalRamGb > 0f)
+            try
             {
-                double roundedTotalRam = Math.Round(specs.TotalRamGb, 1);
-                RamTotalText = string.Create(CultureInfo.InvariantCulture, $"{roundedTotalRam:0.0} GB");
-            }
+                OsName = specs.OsName;
+                OsEdition = specs.OsEdition;
+                OsBuild = specs.OsBuild;
 
-            if (Gpus.Count == 0 && specs.Gpus.Count > 0)
-            {
-                foreach (GpuSpecInfo gpuSpec in specs.Gpus)
+                CpuName = specs.CpuName;
+                CpuShortName = specs.CpuShortName;
+                GpuShortName = specs.PrimaryGpuShortName;
+                CpuPhysicalCores = specs.CpuPhysicalCores;
+                CpuLogicalThreads = specs.CpuLogicalThreads;
+                CpuCoresThreadsSummary = specs.CpuCoresThreadsSummary;
+                IsIntelHybridCpu = specs.IsIntelHybridCpu;
+
+                if (specs.TotalRamGb > 0f)
                 {
-                    Gpus.Add(new GpuDetailedMetrics
-                    {
-                        Id = gpuSpec.Id,
-                        Name = gpuSpec.Name,
-                        Vendor = gpuSpec.Vendor,
-                        TotalVramGb = gpuSpec.TotalVramGb,
-                        IsIntegratedOrSharedVram = gpuSpec.IsIntegratedOrSharedVram,
-                        TotalVramDisplay = gpuSpec.TotalVramDisplay
-                    });
+                    double roundedTotalRam = Math.Round(specs.TotalRamGb, 1);
+                    RamTotalText = string.Create(CultureInfo.InvariantCulture, $"{roundedTotalRam:0.0} GB");
                 }
 
-                SelectedGpu ??= Gpus.FirstOrDefault();
-                UpdateGpuCountBadge();
+                if (Gpus.Count == 0 && specs.Gpus.Count > 0)
+                {
+                    foreach (GpuSpecInfo gpuSpec in specs.Gpus)
+                    {
+                        Gpus.Add(new GpuDetailedMetrics
+                        {
+                            Id = gpuSpec.Id,
+                            Name = gpuSpec.Name,
+                            Vendor = gpuSpec.Vendor,
+                            TotalVramGb = gpuSpec.TotalVramGb,
+                            IsIntegratedOrSharedVram = gpuSpec.IsIntegratedOrSharedVram,
+                            TotalVramDisplay = gpuSpec.TotalVramDisplay
+                        });
+                    }
+
+                    SelectedGpu ??= Gpus.FirstOrDefault();
+                    UpdateGpuCountBadge();
+                }
+            }
+            catch (Exception ex)
+            {
+                App.LogCrash("MainViewModel.OnHardwareSpecsInitialized", ex);
             }
         }, DispatcherPriority.Background);
     }
@@ -1384,97 +1400,104 @@ public partial class MainViewModel : ObservableObject, IDisposable
             if (_isDisposed)
                 return;
 
-            // FPS
-            FpsValueText = $"{metrics.CurrentFps}";
-            FpsText = $"{metrics.CurrentFps} FPS";
-
-            // CPU & Alertas Térmicos
-            UpdateThermalAlertBrushes(roundedCpuTemp, roundedGpuTemp);
-            CpuTemperatureText = roundedCpuTemp > 0 ? $"{roundedCpuTemp} °C" : "N/D";
-            CpuLoadText = $"{roundedCpuLoad:0}%";
-            CpuLoadBarValue = roundedCpuLoad;
-
-            CpuClockText = roundedCpuClock > 0 ? $"{roundedCpuClock} MHz" : "N/D";
-            CpuMaxClockText = roundedCpuMaxClock > 0 ? $"{roundedCpuMaxClock} MHz" : "N/D";
-
-            CpuClockAvgMaxText = roundedCpuClock > 0
-                ? (roundedCpuMaxClock > 0
-                    ? $"{roundedCpuClock} MHz (Máx: {roundedCpuMaxClock} MHz)"
-                    : $"{roundedCpuClock} MHz")
-                : "N/D";
-
-            CpuPowerText = roundedCpuPower > 0.0
-                ? string.Create(CultureInfo.InvariantCulture, $"{roundedCpuPower:0.0} W")
-                : "N/D";
-
-            CpuVoltageText = roundedCpuVcore is > 0.0
-                ? string.Create(CultureInfo.InvariantCulture, $"{roundedCpuVcore.Value:0.000} V")
-                : "N/D";
-
-            if (metrics.IsHybridCpu)
+            try
             {
-                CpuPCoreLoad = (float)roundedPCoreLoad;
-                CpuECoreLoad = (float)roundedECoreLoad;
-                CpuPCoreClock = roundedPCoreClock;
-                CpuECoreClock = roundedECoreClock;
+                // FPS
+                FpsValueText = $"{metrics.CurrentFps}";
+                FpsText = $"{metrics.CurrentFps} FPS";
 
-                CpuPCoreLoadText = $"{roundedPCoreLoad:0}%";
-                CpuECoreLoadText = $"{roundedECoreLoad:0}%";
+                // CPU & Alertas Térmicos
+                UpdateThermalAlertBrushes(roundedCpuTemp, roundedGpuTemp);
+                CpuTemperatureText = roundedCpuTemp > 0 ? $"{roundedCpuTemp} °C" : "N/D";
+                CpuLoadText = $"{roundedCpuLoad:0}%";
+                CpuLoadBarValue = roundedCpuLoad;
 
-                CpuPCoreClockText = roundedPCoreClock > 0 ? $"{roundedPCoreClock} MHz" : "N/D";
-                CpuECoreClockText = roundedECoreClock > 0 ? $"{roundedECoreClock} MHz" : "N/D";
+                CpuClockText = roundedCpuClock > 0 ? $"{roundedCpuClock} MHz" : "N/D";
+                CpuMaxClockText = roundedCpuMaxClock > 0 ? $"{roundedCpuMaxClock} MHz" : "N/D";
 
-                CpuHybridCompactLoadText = $"P: {roundedPCoreLoad:0}% | E: {roundedECoreLoad:0}%";
-            }
+                CpuClockAvgMaxText = roundedCpuClock > 0
+                    ? (roundedCpuMaxClock > 0
+                        ? $"{roundedCpuClock} MHz (Máx: {roundedCpuMaxClock} MHz)"
+                        : $"{roundedCpuClock} MHz")
+                    : "N/D";
 
-            // GPU Primária do Overlay
-            GpuTemperatureText = roundedGpuTemp > 0 ? $"{roundedGpuTemp} °C" : "N/D";
-            GpuLoadText = $"{roundedGpuLoad}%";
-            GpuClockText = roundedGpuClock > 0 ? $"{roundedGpuClock} MHz" : "N/D";
-            GpuPowerText = roundedGpuPower > 0.0
-                ? string.Create(CultureInfo.InvariantCulture, $"{roundedGpuPower:0.0} W")
-                : "N/D";
+                CpuPowerText = roundedCpuPower > 0.0
+                    ? string.Create(CultureInfo.InvariantCulture, $"{roundedCpuPower:0.0} W")
+                    : "N/D";
 
-            if (roundedGpuVramUsed > 0.0)
-            {
-                if (roundedGpuVramTotal is > 0.0)
+                CpuVoltageText = roundedCpuVcore is > 0.0
+                    ? string.Create(CultureInfo.InvariantCulture, $"{roundedCpuVcore.Value:0.000} V")
+                    : "N/D";
+
+                if (metrics.IsHybridCpu)
                 {
-                    int vramPct = (int)Math.Clamp(Math.Round((roundedGpuVramUsed / roundedGpuVramTotal.Value) * 100.0), 0.0, 100.0);
-                    GpuVramText = string.Create(CultureInfo.InvariantCulture, $"{roundedGpuVramUsed:0.0} GB ({vramPct}%)");
+                    CpuPCoreLoad = (float)roundedPCoreLoad;
+                    CpuECoreLoad = (float)roundedECoreLoad;
+                    CpuPCoreClock = roundedPCoreClock;
+                    CpuECoreClock = roundedECoreClock;
+
+                    CpuPCoreLoadText = $"{roundedPCoreLoad:0}%";
+                    CpuECoreLoadText = $"{roundedECoreLoad:0}%";
+
+                    CpuPCoreClockText = roundedPCoreClock > 0 ? $"{roundedPCoreClock} MHz" : "N/D";
+                    CpuECoreClockText = roundedECoreClock > 0 ? $"{roundedECoreClock} MHz" : "N/D";
+
+                    CpuHybridCompactLoadText = $"P: {roundedPCoreLoad:0}% | E: {roundedECoreLoad:0}%";
+                }
+
+                // GPU Primária do Overlay
+                GpuTemperatureText = roundedGpuTemp > 0 ? $"{roundedGpuTemp} °C" : "N/D";
+                GpuLoadText = $"{roundedGpuLoad}%";
+                GpuClockText = roundedGpuClock > 0 ? $"{roundedGpuClock} MHz" : "N/D";
+                GpuPowerText = roundedGpuPower > 0.0
+                    ? string.Create(CultureInfo.InvariantCulture, $"{roundedGpuPower:0.0} W")
+                    : "N/D";
+
+                if (roundedGpuVramUsed > 0.0)
+                {
+                    if (roundedGpuVramTotal is > 0.0)
+                    {
+                        int vramPct = (int)Math.Clamp(Math.Round((roundedGpuVramUsed / roundedGpuVramTotal.Value) * 100.0), 0.0, 100.0);
+                        GpuVramText = string.Create(CultureInfo.InvariantCulture, $"{roundedGpuVramUsed:0.0} GB ({vramPct}%)");
+                    }
+                    else
+                    {
+                        GpuVramText = string.Create(CultureInfo.InvariantCulture, $"{roundedGpuVramUsed:0.0} GB");
+                    }
                 }
                 else
                 {
-                    GpuVramText = string.Create(CultureInfo.InvariantCulture, $"{roundedGpuVramUsed:0.0} GB");
+                    GpuVramText = "N/D";
+                }
+
+                // Memória RAM
+                RamUsageText = string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"{roundedRamUsed:0.0} GB ({roundedRamPct:0}%)");
+
+                RamUsedText = string.Create(CultureInfo.InvariantCulture, $"{roundedRamUsed:0.0} GB");
+                RamPercentText = $"{roundedRamPct:0}%";
+                RamUsageBarValue = roundedRamPct;
+
+                if (roundedRamTotal > 0.0)
+                {
+                    RamTotalText = string.Create(CultureInfo.InvariantCulture, $"{roundedRamTotal:0.0} GB");
+                    RamFreeText = string.Create(CultureInfo.InvariantCulture, $"{roundedRamFree:0.0} GB");
+                    RamDetailedSummaryText = string.Create(
+                        CultureInfo.InvariantCulture,
+                        $"{roundedRamUsed:0.0} GB usados de {roundedRamTotal:0.0} GB ({roundedRamFree:0.0} GB livres)");
+                }
+
+                if (metrics.IsDetailedSnapshot)
+                {
+                    SyncCpuCoresCollection(metrics.CpuCores);
+                    SyncGpusCollection(metrics.Gpus);
+                    SyncStorageCollections(metrics.StorageDrives, metrics.PhysicalDisks);
                 }
             }
-            else
+            catch (Exception ex)
             {
-                GpuVramText = "N/D";
-            }
-
-            // Memória RAM
-            RamUsageText = string.Create(
-                CultureInfo.InvariantCulture,
-                $"{roundedRamUsed:0.0} GB ({roundedRamPct:0}%)");
-
-            RamUsedText = string.Create(CultureInfo.InvariantCulture, $"{roundedRamUsed:0.0} GB");
-            RamPercentText = $"{roundedRamPct:0}%";
-            RamUsageBarValue = roundedRamPct;
-
-            if (roundedRamTotal > 0.0)
-            {
-                RamTotalText = string.Create(CultureInfo.InvariantCulture, $"{roundedRamTotal:0.0} GB");
-                RamFreeText = string.Create(CultureInfo.InvariantCulture, $"{roundedRamFree:0.0} GB");
-                RamDetailedSummaryText = string.Create(
-                    CultureInfo.InvariantCulture,
-                    $"{roundedRamUsed:0.0} GB usados de {roundedRamTotal:0.0} GB ({roundedRamFree:0.0} GB livres)");
-            }
-
-            if (metrics.IsDetailedSnapshot)
-            {
-                SyncCpuCoresCollection(metrics.CpuCores);
-                SyncGpusCollection(metrics.Gpus);
-                SyncStorageCollections(metrics.StorageDrives, metrics.PhysicalDisks);
+                App.LogCrash("MainViewModel.OnHardwareMetricsUpdated", ex);
             }
         }, DispatcherPriority.Background);
     }
@@ -1789,51 +1812,69 @@ public partial class MainViewModel : ObservableObject, IDisposable
         SaveSettings();
     }
 
+    private bool _isUpdatingThermalThresholds;
+    private bool _isUpdatingOpacity;
+    private bool _isUpdatingScale;
+
     partial void OnTempWarningThresholdChanged(double value)
     {
-        if (_isInitializing)
+        if (_isInitializing || _isUpdatingThermalThresholds)
             return;
 
-        double clamped = double.IsNaN(value) ? 70.0 : Math.Clamp(Math.Round(value), 30.0, 110.0);
-        if (Math.Abs(clamped - value) > 0.001)
+        _isUpdatingThermalThresholds = true;
+        try
         {
-            TempWarningThreshold = clamped;
-            return;
-        }
-
-        if (TempCriticalThreshold <= clamped)
-        {
-            double nextCritical = Math.Clamp(clamped + 5.0, 35.0, 120.0);
-            if (nextCritical <= clamped)
+            double clamped = double.IsNaN(value) || double.IsInfinity(value) ? 70.0 : Math.Clamp(Math.Round(value), 30.0, 110.0);
+            if (Math.Abs(clamped - value) > 0.001)
             {
-                nextCritical = Math.Min(120.0, clamped + 1.0);
+                TempWarningThreshold = clamped;
             }
-            TempCriticalThreshold = nextCritical;
-        }
 
-        UpdateThermalAlertBrushes(_lastCpuTemp, _lastGpuTemp);
-        SaveSettings();
+            if (TempCriticalThreshold <= clamped)
+            {
+                double nextCritical = Math.Clamp(clamped + 5.0, 35.0, 120.0);
+                if (nextCritical <= clamped)
+                {
+                    nextCritical = Math.Min(120.0, clamped + 1.0);
+                }
+                TempCriticalThreshold = nextCritical;
+            }
+
+            UpdateThermalAlertBrushes(_lastCpuTemp, _lastGpuTemp);
+            SaveSettings();
+        }
+        finally
+        {
+            _isUpdatingThermalThresholds = false;
+        }
     }
 
     partial void OnTempCriticalThresholdChanged(double value)
     {
-        if (_isInitializing)
+        if (_isInitializing || _isUpdatingThermalThresholds)
             return;
 
-        double clamped = double.IsNaN(value) ? 85.0 : Math.Clamp(Math.Round(value), 35.0, 120.0);
-        if (Math.Abs(clamped - value) > 0.001)
+        _isUpdatingThermalThresholds = true;
+        try
         {
-            TempCriticalThreshold = clamped;
-            return;
-        }
+            double clamped = double.IsNaN(value) || double.IsInfinity(value) ? 85.0 : Math.Clamp(Math.Round(value), 35.0, 120.0);
+            if (Math.Abs(clamped - value) > 0.001)
+            {
+                TempCriticalThreshold = clamped;
+            }
 
-        if (clamped <= TempWarningThreshold)
+            if (clamped <= TempWarningThreshold)
+            {
+                TempWarningThreshold = Math.Max(30.0, clamped - 1.0);
+            }
+
+            UpdateThermalAlertBrushes(_lastCpuTemp, _lastGpuTemp);
+            SaveSettings();
+        }
+        finally
         {
-            TempWarningThreshold = Math.Max(30.0, clamped - 1.0);
+            _isUpdatingThermalThresholds = false;
         }
-
-        UpdateThermalAlertBrushes(_lastCpuTemp, _lastGpuTemp);
-        SaveSettings();
     }
 
     partial void OnIsOverlayVisibleChanged(bool value)
@@ -1846,19 +1887,52 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     partial void OnOverlayOpacityChanged(double value)
     {
-        double normalized = NormalizeOverlayOpacity(value);
-        if (Math.Abs(normalized - value) > 0.0001)
-        {
-            OverlayOpacity = normalized;
+        if (_isUpdatingOpacity)
             return;
-        }
 
-        OnPropertyChanged(nameof(NormalizedOverlayOpacity));
-        UpdateOverlayBrushes();
-        SaveSettings();
+        _isUpdatingOpacity = true;
+        try
+        {
+            double normalized = NormalizeOverlayOpacity(value);
+            if (Math.Abs(normalized - value) > 0.0001)
+            {
+                OverlayOpacity = normalized;
+            }
+
+            OnPropertyChanged(nameof(NormalizedOverlayOpacity));
+            UpdateOverlayBrushes();
+            SaveSettings();
+        }
+        finally
+        {
+            _isUpdatingOpacity = false;
+        }
     }
 
-    partial void OnOverlayScaleChanged(double value) => SaveSettings();
+    partial void OnOverlayScaleChanged(double value)
+    {
+        if (_isUpdatingScale)
+            return;
+
+        _isUpdatingScale = true;
+        try
+        {
+            double clamped = double.IsNaN(value) || double.IsInfinity(value) || value <= 0.0
+                ? 1.0
+                : Math.Clamp(Math.Round(value, 2), 0.70, 2.00);
+
+            if (Math.Abs(clamped - value) > 0.0001)
+            {
+                OverlayScale = clamped;
+            }
+
+            SaveSettings();
+        }
+        finally
+        {
+            _isUpdatingScale = false;
+        }
+    }
 
     partial void OnStartWithWindowsChanged(bool value)
     {
@@ -1871,8 +1945,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     partial void OnIsCompactModeChanged(bool value)
     {
-        IsHorizontalLayout = value;
-        OnPropertyChanged(nameof(IsHorizontalLayout));
+        if (IsHorizontalLayout != value)
+        {
+            IsHorizontalLayout = value;
+            OnPropertyChanged(nameof(IsHorizontalLayout));
+        }
 
         UpdatePollingAndSmartVisibilityState();
         SaveSettings();
@@ -1930,6 +2007,11 @@ public partial class OverlaySectionItemViewModel : ObservableObject
     public string DisplayTitle { get; }
     public string IconSymbol { get; }
     public MainViewModel Parent { get; }
+
+    public bool IsFps => Key == "FPS";
+    public bool IsCpu => Key == "CPU";
+    public bool IsGpu => Key == "GPU";
+    public bool IsRam => Key == "RAM";
 
     public bool IsFpsSection => Key == "FPS";
     public bool IsCpuSection => Key == "CPU";

@@ -52,13 +52,17 @@ public partial class OverlayWindow : Window
             if (hwnd != IntPtr.Zero)
             {
                 WindowWin32Helper.DisableDwmSystemBackdrop(hwnd);
+                Wpf.Ui.Controls.WindowBackdrop.RemoveBackdrop(this);
             }
-
-            Wpf.Ui.Controls.WindowBackdrop.RemoveBackdrop(this);
         }
         catch
         {
             // Ignora caso o handle DWM ainda não esteja pronto ou não possua backdrop
+        }
+
+        if (WindowStyle != WindowStyle.None)
+        {
+            WindowStyle = WindowStyle.None;
         }
 
         if (Background != System.Windows.Media.Brushes.Transparent)
@@ -71,7 +75,11 @@ public partial class OverlayWindow : Window
     {
         base.OnPropertyChanged(e);
 
-        if (e.Property == BackgroundProperty && Background != System.Windows.Media.Brushes.Transparent)
+        if (e.Property == WindowStyleProperty && WindowStyle != WindowStyle.None)
+        {
+            WindowStyle = WindowStyle.None;
+        }
+        else if (e.Property == BackgroundProperty && Background != System.Windows.Media.Brushes.Transparent)
         {
             Background = System.Windows.Media.Brushes.Transparent;
         }

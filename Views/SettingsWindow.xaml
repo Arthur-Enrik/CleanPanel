@@ -413,11 +413,11 @@
                                            FontWeight="Bold"
                                            Foreground="{DynamicResource TextPrimary}" />
                                 <TextBlock Margin="0,4,0,0" Style="{StaticResource ShadcnMutedLabelStyle}">
-                                    <Run Text="{Binding OsName}" />
+                                    <Run Text="{Binding OsName, Mode=OneWay}" />
                                     <Run Text=" • " />
-                                    <Run Text="{Binding OsEdition}" />
+                                    <Run Text="{Binding OsEdition, Mode=OneWay}" />
                                     <Run Text=" (" />
-                                    <Run Text="{Binding OsBuild}" />
+                                    <Run Text="{Binding OsBuild, Mode=OneWay}" />
                                     <Run Text=")" />
                                 </TextBlock>
                             </StackPanel>
@@ -447,7 +447,7 @@
                                     <TextBlock Text="PROCESSADOR" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextMuted}" />
                                     <TextBlock Text="{Binding CpuLoadText}" FontSize="26" FontWeight="Bold" Margin="0,6,0,2" Style="{StaticResource ShadcnTabularMetricStyle}" />
                                     <TextBlock Text="{Binding CpuShortName}" Style="{StaticResource ShadcnMutedLabelStyle}" Margin="0,0,0,10" />
-                                    <ProgressBar Value="{Binding CpuLoadBarValue}" Style="{StaticResource ShadcnProgressBarStyle}" Margin="0,0,0,8" />
+                                    <ProgressBar Value="{Binding CpuLoadBarValue, Mode=OneWay}" Style="{StaticResource ShadcnProgressBarStyle}" Margin="0,0,0,8" />
                                     <DockPanel>
                                         <TextBlock Text="{Binding CpuClockText}" FontSize="11" Foreground="{DynamicResource TextMuted}" />
                                         <TextBlock Text="{Binding CpuTemperatureText}" FontSize="11" FontWeight="SemiBold" Foreground="{Binding CpuTempBrush}" HorizontalAlignment="Right" />
@@ -461,7 +461,7 @@
                                     <TextBlock Text="PLACA DE VÍDEO" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextMuted}" />
                                     <TextBlock Text="{Binding GpuLoadText}" FontSize="26" FontWeight="Bold" Margin="0,6,0,2" Style="{StaticResource ShadcnTabularMetricStyle}" />
                                     <TextBlock Text="{Binding GpuShortName}" Style="{StaticResource ShadcnMutedLabelStyle}" Margin="0,0,0,10" />
-                                    <ProgressBar Value="{Binding SelectedGpu.CoreLoadBarValue, FallbackValue=0}" Style="{StaticResource ShadcnProgressBarStyle}" Margin="0,0,0,8" />
+                                    <ProgressBar Value="{Binding SelectedGpu.CoreLoadBarValue, Mode=OneWay, FallbackValue=0}" Style="{StaticResource ShadcnProgressBarStyle}" Margin="0,0,0,8" />
                                     <DockPanel>
                                         <TextBlock Text="{Binding GpuClockText}" FontSize="11" Foreground="{DynamicResource TextMuted}" />
                                         <TextBlock Text="{Binding GpuTemperatureText}" FontSize="11" FontWeight="SemiBold" Foreground="{Binding GpuTempBrush}" HorizontalAlignment="Right" />
@@ -475,7 +475,7 @@
                                     <TextBlock Text="MEMÓRIA RAM" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextMuted}" />
                                     <TextBlock Text="{Binding RamPercentText}" FontSize="26" FontWeight="Bold" Margin="0,6,0,2" Style="{StaticResource ShadcnTabularMetricStyle}" />
                                     <TextBlock Text="{Binding RamTotalText}" Style="{StaticResource ShadcnMutedLabelStyle}" Margin="0,0,0,10" />
-                                    <ProgressBar Value="{Binding RamUsageBarValue}" Style="{StaticResource ShadcnProgressBarStyle}" Margin="0,0,0,8" />
+                                    <ProgressBar Value="{Binding RamUsageBarValue, Mode=OneWay}" Style="{StaticResource ShadcnProgressBarStyle}" Margin="0,0,0,8" />
                                     <DockPanel>
                                         <TextBlock Text="{Binding RamUsedText}" FontSize="11" Foreground="{DynamicResource TextMuted}" />
                                         <TextBlock Text="{Binding RamFreeText}" FontSize="11" Foreground="{DynamicResource TextMuted}" HorizontalAlignment="Right" />
@@ -528,12 +528,12 @@
                                                             <TextBlock Text="{Binding TotalVramDisplay}" DockPanel.Dock="Right" FontSize="11" Foreground="{DynamicResource TextMuted}" Margin="8,0,0,0" VerticalAlignment="Center" />
                                                             <TextBlock Text="{Binding Name}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                                                         </DockPanel>
-                                                        <ProgressBar Value="{Binding CoreLoadBarValue}" Style="{StaticResource ShadcnProgressBarStyle}" Margin="0,0,0,6" />
+                                                        <ProgressBar Value="{Binding CoreLoadBarValue, Mode=OneWay}" Style="{StaticResource ShadcnProgressBarStyle}" Margin="0,0,0,6" />
                                                         <DockPanel>
                                                             <TextBlock Text="{Binding CoreTemperatureText}" DockPanel.Dock="Right" FontSize="11" FontWeight="SemiBold" HorizontalAlignment="Right" />
                                                             <TextBlock FontSize="11" Foreground="{DynamicResource TextMuted}">
                                                                 <Run Text="Uso: " />
-                                                                <Run Text="{Binding CoreLoadText}" />
+                                                                <Run Text="{Binding CoreLoadText, Mode=OneWay}" />
                                                             </TextBlock>
                                                         </DockPanel>
                                                     </StackPanel>
@@ -558,7 +558,7 @@
                                                             <TextBlock Text="{Binding DisplayTitle}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                                                         </DockPanel>
                                                         <TextBlock Text="{Binding PhysicalDiskModel}" FontSize="11" Foreground="{DynamicResource TextMuted}" Margin="0,0,0,6" />
-                                                        <ProgressBar Value="{Binding UsagePercent}" Style="{StaticResource ShadcnProgressBarStyle}" Margin="0,0,0,6" />
+                                                        <ProgressBar Value="{Binding UsagePercent, Mode=OneWay}" Style="{StaticResource ShadcnProgressBarStyle}" Margin="0,0,0,6" />
                                                         <TextBlock Text="{Binding OverviewLineText}" FontSize="11" Foreground="{DynamicResource TextMuted}" />
                                                     </StackPanel>
                                                 </Border>
@@ -587,7 +587,7 @@
                                 <StackPanel>
                                     <TextBlock Text="USO TOTAL" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextMuted}" />
                                     <TextBlock Text="{Binding CpuLoadText}" FontSize="22" Margin="0,6,0,6" Style="{StaticResource ShadcnTabularMetricStyle}" />
-                                    <ProgressBar Value="{Binding CpuLoadBarValue}" Style="{StaticResource ShadcnProgressBarStyle}" />
+                                    <ProgressBar Value="{Binding CpuLoadBarValue, Mode=OneWay}" Style="{StaticResource ShadcnProgressBarStyle}" />
                                 </StackPanel>
                             </Border>
                             <Border Style="{StaticResource ShadcnCardStyle}" Margin="4,0,4,0">
@@ -626,18 +626,18 @@
                                         <Border Style="{StaticResource ShadcnSubCardStyle}" Margin="0,0,8,0" Padding="10,6">
                                             <TextBlock FontSize="12" Style="{StaticResource ShadcnTabularMetricStyle}">
                                                 <Run Text="P-Cores: " Foreground="{DynamicResource TextMuted}" />
-                                                <Run Text="{Binding CpuPCoreLoadText}" />
+                                                <Run Text="{Binding CpuPCoreLoadText, Mode=OneWay}" />
                                                 <Run Text=" (" Foreground="{DynamicResource TextMuted}" />
-                                                <Run Text="{Binding CpuPCoreClockText}" />
+                                                <Run Text="{Binding CpuPCoreClockText, Mode=OneWay}" />
                                                 <Run Text=")" Foreground="{DynamicResource TextMuted}" />
                                             </TextBlock>
                                         </Border>
                                         <Border Style="{StaticResource ShadcnSubCardStyle}" Padding="10,6">
                                             <TextBlock FontSize="12" Style="{StaticResource ShadcnTabularMetricStyle}">
                                                 <Run Text="E-Cores: " Foreground="{DynamicResource TextMuted}" />
-                                                <Run Text="{Binding CpuECoreLoadText}" />
+                                                <Run Text="{Binding CpuECoreLoadText, Mode=OneWay}" />
                                                 <Run Text=" (" Foreground="{DynamicResource TextMuted}" />
-                                                <Run Text="{Binding CpuECoreClockText}" />
+                                                <Run Text="{Binding CpuECoreClockText, Mode=OneWay}" />
                                                 <Run Text=")" Foreground="{DynamicResource TextMuted}" />
                                             </TextBlock>
                                         </Border>
@@ -655,9 +655,9 @@
                             <StackPanel>
                                 <DockPanel Margin="0,0,0,12">
                                     <TextBlock DockPanel.Dock="Right" FontSize="11" Foreground="{DynamicResource TextMuted}" HorizontalAlignment="Right" VerticalAlignment="Center">
-                                        <Run Text="{Binding CpuPhysicalCores}" />
+                                        <Run Text="{Binding CpuPhysicalCores, Mode=OneWay}" />
                                         <Run Text=" Cores / " />
-                                        <Run Text="{Binding CpuLogicalThreads}" />
+                                        <Run Text="{Binding CpuLogicalThreads, Mode=OneWay}" />
                                         <Run Text=" Threads" />
                                     </TextBlock>
                                     <TextBlock Text="UTILIZAÇÃO INDIVIDUAL POR NÚCLEO" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center" />
@@ -677,7 +677,7 @@
                                                         <TextBlock Text="{Binding LoadText}" DockPanel.Dock="Right" FontSize="12" Style="{StaticResource ShadcnTabularMetricStyle}" Margin="8,0,0,0" />
                                                         <TextBlock Text="{Binding CoreName}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextMuted}" TextTrimming="CharacterEllipsis" />
                                                     </DockPanel>
-                                                    <ProgressBar Value="{Binding LoadBarValue}" Style="{StaticResource ShadcnProgressBarStyle}" Margin="0,0,0,6" />
+                                                    <ProgressBar Value="{Binding LoadBarValue, Mode=OneWay}" Style="{StaticResource ShadcnProgressBarStyle}" Margin="0,0,0,6" />
                                                     <TextBlock Text="{Binding ClockText}" FontSize="11" Foreground="{DynamicResource TextMuted}" />
                                                 </StackPanel>
                                             </Border>
@@ -721,7 +721,7 @@
                                 <StackPanel>
                                     <TextBlock Text="CARGA DO NÚCLEO (CORE)" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextMuted}" />
                                     <TextBlock Text="{Binding SelectedGpu.CoreLoadText, FallbackValue=0 %}" FontSize="24" Margin="0,6,0,8" Style="{StaticResource ShadcnTabularMetricStyle}" />
-                                    <ProgressBar Value="{Binding SelectedGpu.CoreLoadBarValue, FallbackValue=0}" Style="{StaticResource ShadcnProgressBarStyle}" />
+                                    <ProgressBar Value="{Binding SelectedGpu.CoreLoadBarValue, Mode=OneWay, FallbackValue=0}" Style="{StaticResource ShadcnProgressBarStyle}" />
                                 </StackPanel>
                             </Border>
 
@@ -729,7 +729,7 @@
                                 <StackPanel>
                                     <TextBlock Text="MEMÓRIA VRAM DEDICADA" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextMuted}" />
                                     <TextBlock Text="{Binding SelectedGpu.VramUsageText, FallbackValue=N/D}" FontSize="20" Margin="0,6,0,10" Style="{StaticResource ShadcnTabularMetricStyle}" />
-                                    <ProgressBar Value="{Binding SelectedGpu.VramUsagePercent, FallbackValue=0}" Style="{StaticResource ShadcnProgressBarStyle}" />
+                                    <ProgressBar Value="{Binding SelectedGpu.VramUsagePercent, Mode=OneWay, FallbackValue=0}" Style="{StaticResource ShadcnProgressBarStyle}" />
                                 </StackPanel>
                             </Border>
 
@@ -739,7 +739,7 @@
                                     <TextBlock Text="{Binding SelectedGpu.CoreTemperatureText, FallbackValue=N/D}" FontSize="24" FontWeight="Bold" Margin="0,6,0,4" Foreground="{Binding GpuTempBrush}" Typography.NumeralAlignment="Tabular" />
                                     <TextBlock FontSize="11" Foreground="{DynamicResource TextMuted}">
                                         <Run Text="HotSpot: " />
-                                        <Run Text="{Binding SelectedGpu.HotSpotTemperatureText, FallbackValue=N/D}" />
+                                        <Run Text="{Binding SelectedGpu.HotSpotTemperatureText, Mode=OneWay, FallbackValue=N/D}" />
                                     </TextBlock>
                                 </StackPanel>
                             </Border>
@@ -787,7 +787,7 @@
                                     <TextBlock Text="{Binding RamPercentText}" DockPanel.Dock="Right" FontSize="14" Style="{StaticResource ShadcnTabularMetricStyle}" Margin="10,0,0,0" />
                                     <TextBlock Text="MEMÓRIA FÍSICA (RAM)" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center" />
                                 </DockPanel>
-                                <ProgressBar Value="{Binding RamUsageBarValue}" Style="{StaticResource ShadcnProgressBarStyle}" Margin="0,0,0,12" />
+                                <ProgressBar Value="{Binding RamUsageBarValue, Mode=OneWay}" Style="{StaticResource ShadcnProgressBarStyle}" Margin="0,0,0,12" />
                                 <UniformGrid Columns="3">
                                     <Border Style="{StaticResource ShadcnSubCardStyle}" Margin="0,0,6,0">
                                         <StackPanel>
@@ -830,7 +830,7 @@
                                                         <TextBlock Text="{Binding DisplayTitle}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
                                                     </DockPanel>
                                                     <TextBlock Text="{Binding PhysicalDiskModel}" FontSize="11" Foreground="{DynamicResource TextMuted}" Margin="0,0,0,8" />
-                                                    <ProgressBar Value="{Binding UsagePercent}" Style="{StaticResource ShadcnProgressBarStyle}" Margin="0,0,0,6" />
+                                                    <ProgressBar Value="{Binding UsagePercent, Mode=OneWay}" Style="{StaticResource ShadcnProgressBarStyle}" Margin="0,0,0,6" />
                                                     <DockPanel>
                                                         <TextBlock Text="{Binding FreeSpaceSummaryText}" DockPanel.Dock="Right" FontSize="11" FontWeight="SemiBold" Margin="8,0,0,0" />
                                                         <TextBlock Text="{Binding CapacitySummaryText}" FontSize="11" Foreground="{DynamicResource TextMuted}" />
@@ -1021,7 +1021,7 @@
                                                 <TextBlock Text="Alerta (Amarelo)" FontSize="12" Foreground="{DynamicResource TextMuted}" />
                                             </StackPanel>
                                             <TextBlock HorizontalAlignment="Right" FontSize="12" Style="{StaticResource ShadcnTabularMetricStyle}">
-                                                <Run Text="{Binding TempWarningThreshold, StringFormat={}{0:0}}" />
+                                                <Run Text="{Binding TempWarningThreshold, Mode=OneWay, StringFormat={}{0:0}}" />
                                                 <Run Text=" °C" />
                                             </TextBlock>
                                         </DockPanel>
@@ -1033,7 +1033,7 @@
                                                 <TextBlock Text="Crítico (Vermelho)" FontSize="12" Foreground="{DynamicResource TextMuted}" />
                                             </StackPanel>
                                             <TextBlock HorizontalAlignment="Right" FontSize="12" Style="{StaticResource ShadcnTabularMetricStyle}">
-                                                <Run Text="{Binding TempCriticalThreshold, StringFormat={}{0:0}}" />
+                                                <Run Text="{Binding TempCriticalThreshold, Mode=OneWay, StringFormat={}{0:0}}" />
                                                 <Run Text=" °C" />
                                             </TextBlock>
                                         </DockPanel>

@@ -200,52 +200,83 @@ public class FpsMonitorService : IDisposable
 
     private void OnEtwEvent(TraceEvent data)
     {
-        if (data.ProcessID != _activeForegroundPid) return;
-
-        if (_isDisposed || _isSuspended)
-            return;
-
-        int eventId = (int)data.ID;
-        bool isDxgi = eventId == DxgiPresentStartEventId && data.ProviderGuid == DxgiProviderGuid;
-        bool isD3D9 = !isDxgi && eventId == D3D9PresentStartEventId && data.ProviderGuid == D3D9ProviderGuid;
-
-        if (!isDxgi && !isD3D9)
-            return;
-
-        long swapChainPtr = isDxgi ? ExtractDxgiSwapChainPointer(data) : D3D9SwapChainSentinel;
-        long nowTicks = Stopwatch.GetTimestamp();
-
-        lock (_framesLock)
+        try
         {
-            if (!TryAcceptPrimarySwapChainNoLock(swapChainPtr, nowTicks))
+            if (data is null || data.ProcessID != _activeForegroundPid)
                 return;
 
-            // Filtro anti-duplicação (< 0.4ms)
-            if (_frameCount > 0)
+            if (_isDisposed || _isSuspended)
+                return;
+
+            int eventId = (int)data.ID;
+            bool isDxgi = eventId == DxgiPresentStartEventId && data.ProviderGuid == DxgiProviderGuid;
+            bool isD3D9 = !isDxgi && eventId == D3D9PresentStartEventId && data.ProviderGuid == D3D9ProviderGuid;
+
+            if (!isDxgi && !isD3D9)
+                return;
+
+            long swapChainPtr = isDxgi ? ExtractDxgiSwapChainPointer(data) : D3D9SwapChainSentinel;
+            long nowTicks = Stopwatch.GetTimestamp();
+
+            lock (_framesLock)
             {
-                long newestTick = _ringBuffer[(_writeIndex - 1 + RingBufferCapacity) & RingBufferMask];
-                if ((nowTicks - newestTick) < _minFrameDeltaTicks)
+                if (!TryAcceptPrimarySwapChainNoLock(swapChainPtr, nowTicks))
                     return;
-            }
 
-            _ringBuffer[_writeIndex] = nowTicks;
-            _writeIndex = (_writeIndex + 1) & RingBufferMask;
-            if (_frameCount < RingBufferCapacity)
-            {
-                _frameCount++;
-            }
+                // Filtro anti-duplicação (< 0.4ms)
+                if (_frameCount > 0)
+                {
+                    long newestTick = _ringBuffer[(_writeIndex - 1 + RingBufferCapacity) & RingBufferMask];
+                    if ((nowTicks - newestTick) < _minFrameDeltaTicks)
+                        return;
+                }
 
-            _lastFrameArrivalTicks = nowTicks;
+                _ringBuffer[_writeIndex] = nowTicks;
+                _writeIndex = (_writeIndex + 1) & RingBufferMask;
+                if (_frameCount < RingBufferCapacity)
+                {
+                    _frameCount++;
+                }
+
+                _lastFrameArrivalTicks = nowTicks;
+            }
+        }
+        catch
+        {
+            // Protege a thread ETW em segundo plano contra qualquer falha inesperada de payload/cast
         }
     }
 
     private static long ExtractDxgiSwapChainPointer(TraceEvent data)
     {
-        if (data.DataStart != IntPtr.Zero && data.EventDataLength >= IntPtr.Size)
+        try
         {
-            long ptr = Marshal.ReadIntPtr(data.DataStart).ToInt64();
-            if (ptr != 0)
-                return ptr;
+            if (data.DataStart != IntPtr.Zero && data.EventDataLength >= IntPtr.Size)
+            {
+                long ptr = Marshal.ReadIntPtr(data.DataStart).ToInt64();
+                if (ptr != 0)
+                    return ptr;
+            }
+
+            object? val = data.PayloadByName("pSwapChain");
+            if (val is not null)
+            {
+                long parsed = val switch
+                {
+                    long l => l,
+                    ulong ul => unchecked((long)ul),
+                    IntPtr ip => ip.ToInt64(),
+                    UIntPtr uip => unchecked((long)uip.ToUInt64()),
+                    _ => unchecked((long)Convert.ToUInt64(val))
+                };
+
+                if (parsed != 0)
+                    return parsed;
+            }
+        }
+        catch
+        {
+            // Fallback seguro caso o payload varie entre versões do Windows/DXGI
         }
 
         return D3D9SwapChainSentinel;

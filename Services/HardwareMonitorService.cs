@@ -193,10 +193,24 @@ public class HardwareMonitorService : IDisposable
                 }
 
                 // Mapeia todas as referências diretas de ISensor para eliminar LINQ no loop de 1s
-                BuildDirectSensorReferencesCache();
+                try
+                {
+                    BuildDirectSensorReferencesCache();
+                }
+                catch
+                {
+                    // Isola qualquer falha na construção inicial do cache de sensores
+                }
 
                 _isComputerOpened = true;
-                SpecsInitialized?.Invoke(_staticSpecs);
+                try
+                {
+                    SpecsInitialized?.Invoke(_staticSpecs);
+                }
+                catch
+                {
+                    // Isola falha em listener de especificações estáticas
+                }
             }
         }
 
@@ -208,17 +222,28 @@ public class HardwareMonitorService : IDisposable
         {
             while (await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false))
             {
-                HeartbeatTick?.Invoke();
+                try
+                {
+                    HeartbeatTick?.Invoke();
 
-                if (_isPollingSuspended && !_isMainWindowVisible)
-                    continue;
+                    if (_isPollingSuspended && !_isMainWindowVisible)
+                        continue;
 
-                ReadAndPublishMetrics();
+                    ReadAndPublishMetrics();
+                }
+                catch
+                {
+                    // Garante que nenhuma exceção transitória de sensor encerre o PeriodicTimer
+                }
             }
         }
         catch (OperationCanceledException)
         {
             // Cancelamento limpo via CancellationTokenSource
+        }
+        catch
+        {
+            // Evita UnobservedTaskException caso ocorra erro inesperado fora do loop
         }
     }
 

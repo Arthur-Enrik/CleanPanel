@@ -700,7 +700,11 @@ public class CpuCoreMetric : ObservableObject
     public float? LoadPercent { get; set; }
     public float? ClockMhz { get; set; }
 
-    public double LoadBarValue => LoadPercent is > 0f ? Math.Clamp(LoadPercent.Value, 0f, 100f) : 0.0;
+    public double LoadBarValue
+    {
+        get => LoadPercent is > 0f ? Math.Clamp(LoadPercent.Value, 0f, 100f) : 0.0;
+        set { }
+    }
 
     public string LoadText => LoadPercent is not null && !float.IsNaN(LoadPercent.Value) && LoadPercent.Value >= 0f
         ? $"{LoadPercent.Value:0} %"
@@ -749,7 +753,11 @@ public class GpuDetailedMetrics : ObservableObject
 
     public string DisplaySelectorTitle => $"{Name} ({TotalVramDisplay})";
 
-    public double CoreLoadBarValue => CoreLoadPercent is > 0f ? Math.Clamp(CoreLoadPercent.Value, 0f, 100f) : 0.0;
+    public double CoreLoadBarValue
+    {
+        get => CoreLoadPercent is > 0f ? Math.Clamp(CoreLoadPercent.Value, 0f, 100f) : 0.0;
+        set { }
+    }
 
     public string CoreLoadText => CoreLoadPercent is not null && !float.IsNaN(CoreLoadPercent.Value) && CoreLoadPercent.Value >= 0f
         ? $"{CoreLoadPercent.Value:0} %"
@@ -798,10 +806,13 @@ public class GpuDetailedMetrics : ObservableObject
         }
     }
 
-    public double VramUsagePercent =>
-        VramUsedGb is > 0f && TotalVramGb is > 0f && !IsIntegratedOrSharedVram
+    public double VramUsagePercent
+    {
+        get => VramUsedGb is > 0f && TotalVramGb is > 0f && !IsIntegratedOrSharedVram
             ? Math.Clamp((VramUsedGb.Value / TotalVramGb.Value) * 100.0, 0.0, 100.0)
             : 0.0;
+        set { }
+    }
 
     public string FanText
     {
