@@ -25,7 +25,7 @@ public class TrayIconService : IDisposable
         _trayIcon = IconGeneratorHelper.CreateTrayIcon();
         _contextMenu = new System.Windows.Forms.ContextMenuStrip();
 
-        var openSettingsItem = new System.Windows.Forms.ToolStripMenuItem("Abrir CleanPanel");
+        var openSettingsItem = new System.Windows.Forms.ToolStripMenuItem("Abrir Cleanpanel");
         openSettingsItem.Click += (_, _) => _openSettingsAction();
 
         var toggleOverlayItem = new System.Windows.Forms.ToolStripMenuItem("Mostrar / Ocultar Overlay (Ctrl+Shift+O)");
@@ -46,7 +46,7 @@ public class TrayIconService : IDisposable
         _notifyIcon = new System.Windows.Forms.NotifyIcon
         {
             Icon = _trayIcon,
-            Text = "CleanPanel - Hardware Monitor",
+            Text = "Cleanpanel",
             ContextMenuStrip = _contextMenu,
             Visible = true
         };

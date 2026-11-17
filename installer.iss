@@ -1,34 +1,42 @@
 ; ==============================================================================
 ; SCRIPT DE INSTALAÇÃO INNO SETUP - CLEANPANEL
-; Compatível com: installer\build_installer.ps1 e .github\workflows\release.yml
+; ==============================================================================
+; Compilado via build-installer.ps1 (repassando versão e diretórios via /D).
+; Também suporta compilação direta pelo compilador Inno Setup usando fallbacks.
 ; ==============================================================================
 
 ; ------------------------------------------------------------------------------
-; 1. CABEÇALHO E CONSTANTES DE VERSÃO / IDENTIDADE
+; 1. CONSTANTES DE IDENTIDADE E DIRETIVAS DINÂMICAS
 ; ------------------------------------------------------------------------------
-#define MyAppName      "CleanPanel"
-#define MyAppPublisher "CleanPanel Contributors"
+#define MyAppName      "Cleanpanel"
+#define MyAppPublisher "Cleanpanel"
 #define MyAppURL       "https://github.com/Arthur-Enrik/CleanPanel"
-#define MyAppExeName   "CleanPanel.exe"
-#define MyAppIcon      "..\Assets\app.ico"
-; Identificador único preservado para atualizações in-place sem duplicar entradas no Painel de Controle
+#define MyAppExeName   "Cleanpanel.exe"
+#define MyAppIcon      "Assets\app.ico"
+; Identificador único preservado para atualizações in-place sem duplicar entradas no Windows
 #define MyAppId        "{{83FE1830-8C9E-4728-8413-3C495EC4B3BB}}"
 
-; Fallback de versão sincronizado com CleanPanel.csproj quando não informado via /DMyAppVersion
 #ifndef MyAppVersion
-  #define MyAppVersion "1.1.0"
+  #define MyAppVersion "1.0.0"
 #endif
 
-; Fallback da pasta de publicação quando não informado via /DMyBuildFolder
+#ifndef MyAppNumericVersion
+  #define MyAppNumericVersion "1.0.0.0"
+#endif
+
 #ifndef MyBuildFolder
-  #define MyBuildFolder "..\publish"
+  #define MyBuildFolder "publish"
+#endif
+
+#ifndef MyOutputDir
+  #define MyOutputDir "installer\Output"
 #endif
 
 ; ------------------------------------------------------------------------------
 ; 2. CONFIGURAÇÕES GERAIS DO INSTALADOR ([Setup])
 ; ------------------------------------------------------------------------------
 [Setup]
-; Identidade e metadados exibidos no Windows (Apps e Recursos / Painel de Controle)
+; Identidade e metadados exibidos estritamente como "Cleanpanel" no Windows
 AppId={#MyAppId}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
@@ -38,26 +46,28 @@ AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
+VersionInfoVersion={#MyAppNumericVersion}
+VersionInfoProductName={#MyAppName}
+VersionInfoProductVersion={#MyAppNumericVersion}
+VersionInfoDescription={#MyAppName} Installer
 
-; Diretórios e comportamento de instalação/atualização
+; Diretórios, arquitetura x64 exclusiva e privilégios administrativos
 DefaultDirName={autopf}\{#MyAppName}
 DisableProgramGroupPage=yes
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-; Privilégios administrativos necessários para driver WinRing0/LibreHardwareMonitor e sessões ETW
 PrivilegesRequired=admin
-; Permite limpeza preventiva de áreas de usuário em [UninstallDelete] sem emitir aviso do compilador
 UsedUserAreasWarning=no
 CloseApplications=yes
 RestartApplications=no
 
-; Saída e compactação máxima
-OutputDir=Output
-OutputBaseFilename={#MyAppName}_Setup_v{#MyAppVersion}
+; Saída e compressão otimizada LZMA2
+OutputDir={#MyOutputDir}
+OutputBaseFilename={#MyAppName}_Setup_{#MyAppVersion}
 Compression=lzma2/ultra64
 SolidCompression=yes
 
-; Aparência moderna e ícones
+; Aparência moderna e ícones oficiais
 WizardStyle=modern
 SetupIconFile={#MyAppIcon}
 UninstallDisplayIcon={app}\{#MyAppExeName}
@@ -80,7 +90,6 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 [Files]
 Source: "{#MyBuildFolder}\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#MyBuildFolder}\*"; DestDir: "{app}"; Excludes: "{#MyAppExeName},settings.json,*.log"; Flags: ignoreversion recursesubdirs createallsubdirs
-; Garante a disponibilidade física de app.ico na pasta de instalação para os atalhos do Windows
 Source: "{#MyAppIcon}"; DestDir: "{app}"; Flags: ignoreversion
 
 ; ------------------------------------------------------------------------------
@@ -97,53 +106,66 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilen
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
 
 ; ------------------------------------------------------------------------------
-; 8. LIMPEZA DE CONFIGURAÇÕES, LOGS E RESÍDUOS NA DESINSTALAÇÃO ([UninstallDelete])
+; 8. LIMPEZA COMPLETA NA DESINSTALAÇÃO ([UninstallDelete])
 ; ------------------------------------------------------------------------------
 [UninstallDelete]
-; Arquivos gerados em tempo de execução na pasta do aplicativo
 Type: files; Name: "{app}\settings.json"
 Type: files; Name: "{app}\*.json"
 Type: files; Name: "{app}\*.log"
 Type: filesandordirs; Name: "{app}"
-; Limpeza preventiva de eventuais diretórios de cache ou dados de usuário
+Type: filesandordirs; Name: "{localappdata}\Cleanpanel"
 Type: filesandordirs; Name: "{localappdata}\CleanPanel"
+Type: filesandordirs; Name: "{userappdata}\Cleanpanel"
 Type: filesandordirs; Name: "{userappdata}\CleanPanel"
 
 ; ------------------------------------------------------------------------------
-; 9. PASCAL SCRIPT DE CICLO DE VIDA DA DESINSTALAÇÃO ([Code])
+; 9. PASCAL SCRIPT DE CICLO DE VIDA DA INSTALAÇÃO E DESINSTALAÇÃO ([Code])
 ; ------------------------------------------------------------------------------
 [Code]
 const
   StartupTaskName       = 'CleanPanelAutoStart';
   LegacyStartupTaskName = 'HardwareOverlayMonitorApp';
 
-// Executa um utilitário de sistema de forma silenciosa (janela oculta) aguardando a conclusão.
+// Executa um comando do sistema de forma silenciosa (janela oculta) aguardando o término.
 function RunSilentCommand(const ExecutablePath, Params: String; var ResultCode: Integer): Boolean;
 begin
   Result := Exec(ExecutablePath, Params, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 end;
 
-// Antes de iniciar a remoção dos arquivos, encerra qualquer instância ativa do CleanPanel
-// para evitar erros de "arquivo em uso" nos binários ou handles abertos.
-function InitializeUninstall(): Boolean;
+// Encerra qualquer instância em execução do aplicativo (Windows é case-insensitive no nome da imagem).
+function TerminateRunningInstances(): Boolean;
 var
   ResultCode: Integer;
 begin
-  if RunSilentCommand(
-       ExpandConstant('{sys}\taskkill.exe'),
-       '/F /IM {#MyAppExeName} /T',
-       ResultCode) and (ResultCode = 0) then
+  Result := RunSilentCommand(
+    ExpandConstant('{sys}\taskkill.exe'),
+    '/F /IM {#MyAppExeName} /T',
+    ResultCode) and (ResultCode = 0);
+end;
+
+// Fecha instâncias ativas antes de sobrescrever binários em atualizações/reinstalações.
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  if TerminateRunningInstances() then
   begin
-    // Pequena pausa para garantir liberação de handles do processo encerrado pelo Windows
+    Sleep(300);
+  end;
+
+  Result := '';
+end;
+
+// Encerra processos ativos do aplicativo antes de iniciar a remoção de arquivos.
+function InitializeUninstall(): Boolean;
+begin
+  if TerminateRunningInstances() then
+  begin
     Sleep(300);
   end;
 
   Result := True;
 end;
 
-// Executa rotinas adicionais nas etapas da desinstalação:
-// - usUninstall: remove as tarefas agendadas de inicialização automática no Windows
-// - usPostUninstall: garante a remoção integral do diretório {app} residual
+// Remove tarefas agendadas de auto-start e garante a exclusão integral do diretório residual.
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
   ResultCode: Integer;

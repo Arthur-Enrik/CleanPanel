@@ -25,16 +25,6 @@ public partial class App : Application
         // mesmo ao iniciar pelo Agendador de Tarefas do Windows (schtasks no logon aponta para System32).
         System.IO.Directory.SetCurrentDirectory(AppDomain.CurrentDomain.BaseDirectory);
 
-        if (e.Args.Any(arg => arg.Equals("--generate-icon", StringComparison.OrdinalIgnoreCase)))
-        {
-            IconGeneratorHelper.EnsureIconFileExists();
-            string repoAssetIcon = System.IO.Path.GetFullPath(
-                System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "Assets", "app.ico"));
-            IconGeneratorHelper.EnsureIconFileExists(repoAssetIcon, forceOverwrite: true);
-            Shutdown(0);
-            return;
-        }
-
         // Garante que o executável só possa ser aberto como Administrador
         if (!IsRunningAsAdministrator())
         {
@@ -44,8 +34,6 @@ public partial class App : Application
         }
 
         base.OnStartup(e);
-
-        IconGeneratorHelper.EnsureIconFileExists();
 
         _settingsService = new SettingsService();
         var startupService = new StartupService();
@@ -115,7 +103,7 @@ public partial class App : Application
         catch
         {
             MessageBox.Show(
-                "O CleanPanel exige privilégios de Administrador para acessar os sensores físicos de hardware e o monitor de FPS.",
+                "O Cleanpanel exige privilégios de Administrador para acessar os sensores físicos de hardware e o monitor de FPS.",
                 "Execução como Administrador Obrigatória",
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
