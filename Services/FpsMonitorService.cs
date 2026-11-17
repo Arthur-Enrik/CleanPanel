@@ -1,55 +1,126 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using HardwareOverlayApp.Helpers;
 using Microsoft.Diagnostics.Tracing;
 using Microsoft.Diagnostics.Tracing.Session;
 
 namespace HardwareOverlayApp.Services;
 
+/// <summary>
+/// Motor de captura e cálculo de FPS via ETW (Event Tracing for Windows) sem injeção de DLLs.
+/// Suporta DX9, DX10/11/12 (DXGI), Vulkan/OpenGL (DXGI e DxgKrnl) e fallback via compositor DWM.
+/// </summary>
 public class FpsMonitorService : IDisposable
 {
     private const string SessionName = "CleanPanelFpsSession";
     private const string LegacySessionName = "HardwareOverlayFpsSession";
 
-    // Microsoft-Windows-DXGI (Present_Start = EventID 42)
+    // Provedores e Event IDs verificados nos manifestos ETW do Windows
     private static readonly Guid DxgiProviderGuid = new("CA11C036-0102-4A2D-A6AD-F03CFED5D3C9");
     private const int DxgiPresentStartEventId = 42;
+    private const int DxgiPresentMpoStartEventId = 55;
+    private const ulong DxgiEventsKeyword = 0x2UL; // Microsoft-Windows-DXGI: Events
 
-    // Microsoft-Windows-D3D9 (Present_Start = EventID 1)
     private static readonly Guid D3D9ProviderGuid = new("783ACA0A-790E-4D7F-8451-AA850511C6B9");
     private const int D3D9PresentStartEventId = 1;
+    private const ulong D3D9EventsKeyword = 0x2UL; // Microsoft-Windows-D3D9: Events
 
-    // Microsoft-Windows-Dwm-Core (Schedule_Present_Start = EventID 15, Commit/FlipChain = EventID 46)
-    private static readonly Guid DwmProviderGuid = new("9E9BBA3C-2E38-40CB-99F4-9E8281425158");
-    private const int DwmSchedulePresentStartEventId = 15;
-    private const int DwmFlipChainEventId = 46;
+    private static readonly Guid DxgKrnlProviderGuid = new("802EC45A-1E99-4B83-9920-87C98277BA9D");
+    private const int DxgKrnlPresentEventId = 184;             // Task 107 (Present)
+    private const int DxgKrnlPresentHistoryStartEventId = 171; // Task 6 (PresentHistory), Opcode 1 (Start)
+    private const ulong DxgKrnlPresentKeyword = 0x08000000UL;  // Present
 
-    // Chave reservada no dicionário para armazenar quadros capturados via fallback DWM
-    private const ulong DwmSwapChainKey = ulong.MaxValue;
+    private static readonly Guid DwmCoreProviderGuid = new("9E9BBA3C-2E38-40CB-99F4-9E8281425158");
+    private const int DwmSchedulePresentStartEventId = 15;     // SCHEDULE_PRESENT (Start)
+    private const int DwmUcePresentEventStartEventId = 61;     // MILEVENT_MEDIA_UCE_PRESENTEVENT (Start)
+    private const ulong DwmCoreCompositionAndSchedulingKeyword = 0x81UL; // Composition (0x01) | Scheduling (0x80)
 
-    // Parâmetros de janela deslizante de frametime, suavização e fallbacks
-    private const double SlidingWindowSeconds = 0.6; // 600 ms
-    private const double DwmFallbackThresholdSeconds = 0.5; // 500 ms
-    private const double MinValidDeltaMs = 0.5; // Descarta micro-deltas > 2000 FPS (artefatos/duplicatas)
-    private const double EmaSignificantDeltaRatio = 0.20; // > 20% atualiza instantaneamente
-    private const int EtWBufferSizeMb = 4;
+    // Chaves fallback para fluxos sem ponteiro explícito
+    private const ulong DxgiDefaultStreamKey = 0x1UL;
+    private const ulong D3D9DefaultStreamKey = 0x2UL;
+    private const ulong DxgKrnlDefaultStreamKey = 0x3UL;
+    private const ulong DxgKrnlHistoryStreamKey = 0x4UL;
+    private const ulong DwmStreamKey = 0x5UL;
+
+    // Parâmetros ETW e cálculo de frametime em janela deslizante
+    private const int EtwBufferSizeMb = 16;
+    private const int EtwBufferQuantumKb = 16;
+    private const int SessionRestartDelayMs = 1000;
+    private const int ThreadJoinTimeoutMs = 500;
+    private const int MaxTrackedStreams = 64;
+
+    private const double SlidingWindowMs = 1000.0;
+    private const double MinFrametimeMs = 0.35;       // Filtra bursts duplicados (> 2857 FPS)
+    private const double MaxFrametimeMs = 500.0;      // Ignora pausas longas acima de 500 ms (2 FPS)
+    private const double TierFallbackTimeoutSeconds = 0.5;
+    private const double IdleResetSeconds = 1.35;     // Superior ao FlushTimer de 1s do kernel ETW
+    private const double EmaStableWeight = 0.70;
+    private const double EmaImmediateJumpRatio = 0.18;
+    private const double OutputHysteresisFps = 0.65;
+
+    private enum FrameTier : byte
+    {
+        Tier1Direct = 1,      // DXGI (42/55) e D3D9 (1) por PID
+        Tier2KernelWddm = 2,  // DxgKrnl (184/171) por PID (Vulkan/OpenGL nativos)
+        Tier3Dwm = 3          // Dwm-Core (15/61) fallback fullscreen
+    }
+
+    private enum FrameEventKind : byte
+    {
+        DxgiPresent = 1,
+        DxgiPresentMpo = 2,
+        D3D9Present = 3,
+        DxgKrnlPresent = 4,
+        DxgKrnlPresentHistory = 5,
+        DwmSchedulePresent = 6,
+        DwmUcePresent = 7
+    }
+
+    private readonly struct FrameStreamId(FrameTier tier, ulong streamKey) : IEquatable<FrameStreamId>
+    {
+        public FrameTier Tier { get; } = tier;
+        public ulong StreamKey { get; } = streamKey;
+
+        public bool Equals(FrameStreamId other) => Tier == other.Tier && StreamKey == other.StreamKey;
+        public override bool Equals(object? obj) => obj is FrameStreamId other && Equals(other);
+        public override int GetHashCode() => HashCode.Combine((byte)Tier, StreamKey);
+    }
+
+    private sealed class SwapChainTrack
+    {
+        public readonly List<double> EventTimestampsMs = new(256);
+        public long LastArrivalWallTicks;
+        public double LatestEventTimeMs;
+    }
+
+    private static readonly long TierFallbackTimeoutTicks = (long)(Stopwatch.Frequency * TierFallbackTimeoutSeconds);
+    private static readonly long IdleResetTicks = (long)(Stopwatch.Frequency * IdleResetSeconds);
 
     private readonly object _framesLock = new();
     private readonly object _sessionLock = new();
-    private readonly Dictionary<ulong, List<long>> _swapChainTimestamps = new();
-    private readonly Dictionary<ulong, long> _swapChainLastTicks = new();
-    private readonly List<ulong> _staleKeysBuffer = new(16);
+    private readonly Dictionary<FrameStreamId, SwapChainTrack> _tracks = new();
+    private readonly List<FrameStreamId> _staleKeysBuffer = new(16);
+    private readonly ManualResetEventSlim _disposeSignal = new(false);
     private readonly int _currentAppPid = Environment.ProcessId;
 
     private TraceEventSession? _session;
     private Thread? _etwThread;
 
-    // PID em foco cacheado (atualizado 1x por segundo fora do hot-path ETW)
+    // Estado de janela em primeiro plano atualizado fora do hot-path ETW
     private volatile int _activeForegroundPid = -1;
+    private volatile bool _isForegroundFullscreen;
     private int _lastEvaluatedRawPid = -1;
 
-    private long _lastDirectGraphicsEventTick;
-    private long _lastDwmEvent15Tick;
+    // Controle de precedência entre provedores/tiers (ticks do Stopwatch em tempo de parede)
+    private long _lastDxgi42WallTicks;
+    private long _lastTier1WallTicks;
+    private long _lastDxgKrnl184WallTicks;
+    private long _lastTier2WallTicks;
+    private long _lastDwm15WallTicks;
+
+    // Suavização e histerese
     private double _smoothedFps;
+    private int _lastDisplayedFps;
 
     private volatile bool _isDisposed;
     private volatile bool _isSuspended;
@@ -63,6 +134,7 @@ public class FpsMonitorService : IDisposable
             if (value)
             {
                 _activeForegroundPid = -1;
+                _isForegroundFullscreen = false;
                 _lastEvaluatedRawPid = -1;
                 lock (_framesLock)
                 {
@@ -78,8 +150,7 @@ public class FpsMonitorService : IDisposable
         {
             lock (_framesLock)
             {
-                UpdateSmoothedFpsLocked();
-                return (int)Math.Round(_smoothedFps);
+                return ComputeCurrentFpsLocked();
             }
         }
     }
@@ -91,7 +162,7 @@ public class FpsMonitorService : IDisposable
 
         RefreshActiveForegroundProcess();
 
-        _etwThread = new Thread(RunEtwSession)
+        _etwThread = new Thread(RunEtwSessionLoop)
         {
             Name = "CleanPanelEtwFpsThread",
             IsBackground = true,
@@ -101,33 +172,41 @@ public class FpsMonitorService : IDisposable
     }
 
     /// <summary>
-    /// Atualiza o PID do processo em primeiro plano apenas 1 vez por segundo (fora do callback de alta frequência do ETW).
+    /// Atualiza o PID do processo em primeiro plano e o estado de tela cheia fora do callback ETW.
     /// </summary>
     public void RefreshActiveForegroundProcess()
     {
         if (_isDisposed || _isSuspended)
         {
             _activeForegroundPid = -1;
+            _isForegroundFullscreen = false;
             return;
         }
 
         try
         {
             int rawPid = WindowWin32Helper.GetForegroundProcessId();
+            if (rawPid <= 4 || rawPid == _currentAppPid || IsIgnoredSystemProcess(rawPid))
+            {
+                if (_activeForegroundPid != -1 || _lastEvaluatedRawPid != rawPid)
+                {
+                    _activeForegroundPid = -1;
+                    _isForegroundFullscreen = false;
+                    _lastEvaluatedRawPid = rawPid;
+                    lock (_framesLock)
+                    {
+                        ClearFrameHistoryLocked();
+                    }
+                }
+                return;
+            }
+
+            _isForegroundFullscreen = WindowWin32Helper.IsForegroundWindowFullScreen();
+
             if (rawPid == _lastEvaluatedRawPid)
                 return;
 
             _lastEvaluatedRawPid = rawPid;
-
-            if (rawPid <= 4 || rawPid == _currentAppPid || IsSystemShellOrDwmProcess(rawPid))
-            {
-                _activeForegroundPid = -1;
-                lock (_framesLock)
-                {
-                    ClearFrameHistoryLocked();
-                }
-                return;
-            }
 
             lock (_framesLock)
             {
@@ -139,77 +218,133 @@ public class FpsMonitorService : IDisposable
         catch
         {
             _activeForegroundPid = -1;
+            _isForegroundFullscreen = false;
         }
     }
 
-    private void RunEtwSession()
+    private void RunEtwSessionLoop()
     {
-        TraceEventSession? session = null;
-
-        try
+        while (!_isDisposed)
         {
-            lock (_sessionLock)
+            TraceEventSession? session = null;
+
+            try
             {
-                if (_isDisposed)
-                    return;
-
-                // Limpeza preventiva de sessões ETW órfãs deixadas por encerramentos abruptos anteriores
-                CleanupOrphanSession(LegacySessionName);
-                CleanupOrphanSession(SessionName);
-
-                if (_isDisposed)
-                    return;
-
-                session = new TraceEventSession(SessionName)
+                lock (_sessionLock)
                 {
-                    StopOnDispose = true,
-                    BufferSizeMB = EtWBufferSizeMb
-                };
+                    if (_isDisposed)
+                        return;
 
-                session.Source.AllEvents += OnEtwEvent;
+                    StopOrphanSession(LegacySessionName);
+                    StopOrphanSession(SessionName);
 
-                session.EnableProvider(DxgiProviderGuid, TraceEventLevel.Informational);
-                session.EnableProvider(D3D9ProviderGuid, TraceEventLevel.Informational);
-                session.EnableProvider(DwmProviderGuid, TraceEventLevel.Informational);
+                    if (_isDisposed)
+                        return;
 
-                _session = session;
-            }
+                    session = new TraceEventSession(SessionName, TraceEventSessionOptions.Create)
+                    {
+                        StopOnDispose = true,
+                        BufferSizeMB = EtwBufferSizeMb
+                    };
 
-            // Loop bloqueante em thread dedicada para entrega em tempo real sem rajadas do ThreadPool
-            session.Source.Process();
-        }
-        catch
-        {
-            // Mantém o aplicativo estável caso falte privilégio de administrador ou ocorra interrupção externa da sessão
-        }
-        finally
-        {
-            lock (_sessionLock)
-            {
-                if (ReferenceEquals(_session, session))
-                {
-                    _session = null;
+                    try
+                    {
+                        session.BufferQuantumKB = EtwBufferQuantumKb;
+                    }
+                    catch
+                    {
+                        // Ignora caso o kernel não permita alterar o tamanho do quantum
+                    }
+
+                    session.Source.AllEvents += OnEtwEvent;
+
+                    bool anyEnabled =
+                        TryEnableProvider(session, DxgiProviderGuid, TraceEventLevel.Informational, DxgiEventsKeyword) |
+                        TryEnableProvider(session, D3D9ProviderGuid, TraceEventLevel.Informational, D3D9EventsKeyword) |
+                        TryEnableProvider(session, DxgKrnlProviderGuid, TraceEventLevel.Informational, DxgKrnlPresentKeyword) |
+                        TryEnableProvider(session, DwmCoreProviderGuid, TraceEventLevel.Informational, DwmCoreCompositionAndSchedulingKeyword);
+
+                    if (!anyEnabled)
+                    {
+                        CloseSessionSafe(session);
+                        session = null;
+                        break;
+                    }
+
+                    _session = session;
                 }
+
+                // Loop bloqueante em tempo real na thread dedicada
+                session.Source.Process();
+            }
+            catch
+            {
+                // Mantém estabilidade caso falte privilégio de administrador ou ocorra falha transitória na sessão
+            }
+            finally
+            {
+                lock (_sessionLock)
+                {
+                    if (ReferenceEquals(_session, session))
+                    {
+                        _session = null;
+                    }
+                }
+
+                CloseSessionSafe(session);
             }
 
-            CloseSessionSafe(session);
+            if (!_isDisposed)
+            {
+                _disposeSignal.Wait(SessionRestartDelayMs);
+            }
         }
     }
 
-    private static void CleanupOrphanSession(string sessionName)
+    private static bool TryEnableProvider(
+        TraceEventSession session,
+        Guid providerGuid,
+        TraceEventLevel level,
+        ulong matchAnyKeywords)
     {
         try
         {
-            using TraceEventSession? existingSession = TraceEventSession.GetActiveSession(sessionName);
-            if (existingSession is not null)
+            session.EnableProvider(providerGuid, level, matchAnyKeywords);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static void StopOrphanSession(string sessionName)
+    {
+        try
+        {
+            using TraceEventSession? existing = TraceEventSession.GetActiveSession(sessionName);
+            if (existing is not null)
             {
-                existingSession.StopOnDispose = true;
-                existingSession.Stop();
+                existing.StopOnDispose = true;
+                existing.Stop(noThrow: true);
             }
         }
         catch
         {
-            // Ignora caso não exista sessão órfã ativa
+            // Ignora caso não haja sessão vinculada no processo atual
+        }
+
+        try
+        {
+            using var attached = new TraceEventSession(sessionName, TraceEventSessionOptions.Attach)
+            {
+                StopOnDispose = true
+            };
+            attached.Stop(noThrow: true);
+        }
+        catch
+        {
+            // Ignora caso não exista sessão órfã ativa no kernel
         }
     }
 
@@ -221,12 +356,28 @@ public class FpsMonitorService : IDisposable
         try
         {
             session.Source.AllEvents -= OnEtwEvent;
-            session.Stop();
+        }
+        catch
+        {
+            // Ignora se a fonte já foi encerrada
+        }
+
+        try
+        {
+            session.Stop(noThrow: true);
+        }
+        catch
+        {
+            // Ignora erros ao parar a sessão
+        }
+
+        try
+        {
             session.Dispose();
         }
         catch
         {
-            // Ignora erros no encerramento da sessão ETW
+            // Ignora erros ao liberar a sessão
         }
     }
 
@@ -235,258 +386,472 @@ public class FpsMonitorService : IDisposable
         if (_isDisposed || _isSuspended)
             return;
 
-        Guid provider = data.ProviderGuid;
-        TraceEventID eventId = data.ID;
+        int activePid = _activeForegroundPid;
+        if (activePid <= 4)
+            return;
 
-        bool isDxgiPresent = provider == DxgiProviderGuid && eventId == (TraceEventID)DxgiPresentStartEventId;
-        bool isD3D9Present = !isDxgiPresent && provider == D3D9ProviderGuid && eventId == (TraceEventID)D3D9PresentStartEventId;
+        if (!TryClassifyEvent(data, activePid, out FrameTier tier, out FrameEventKind kind))
+            return;
 
-        if (isDxgiPresent || isD3D9Present)
+        double eventTimeMs = data.TimeStampRelativeMSec;
+        if (double.IsNaN(eventTimeMs) || double.IsInfinity(eventTimeMs))
+            return;
+
+        ulong streamKey = ExtractStreamKey(data, kind);
+        long nowWallTicks = Stopwatch.GetTimestamp();
+
+        lock (_framesLock)
         {
-            // 1ª linha obrigatória do callback DXGI/D3D9: filtro O(1) por PID ativo
-            if (data.ProcessID != _activeForegroundPid || _activeForegroundPid <= 0)
+            // Revalida após adquirir o lock para evitar gravar estado obsoleto após suspensão/troca de foco
+            if (_isDisposed || _isSuspended || _activeForegroundPid != activePid)
                 return;
 
-            ulong swapChain = isD3D9Present ? 1UL : 0UL;
-            try
+            if (!AcceptByTierAndPrecedenceLocked(tier, kind, nowWallTicks))
+                return;
+
+            RecordFrameSampleLocked(new FrameStreamId(tier, streamKey), eventTimeMs, nowWallTicks);
+        }
+    }
+
+    private bool TryClassifyEvent(TraceEvent data, int activePid, out FrameTier tier, out FrameEventKind kind)
+    {
+        Guid provider = data.ProviderGuid;
+        int eventId = (int)data.ID;
+
+        if (provider == DxgiProviderGuid)
+        {
+            if (data.ProcessID == activePid)
             {
-                object? rawSwapChain = data.PayloadByName("SwapChainAddress");
-                if (rawSwapChain is ulong unsignedAddr)
+                if (eventId == DxgiPresentStartEventId)
                 {
-                    if (unsignedAddr != 0 || isDxgiPresent)
-                    {
-                        swapChain = unsignedAddr;
-                    }
-                }
-                else if (rawSwapChain is long signedAddr)
-                {
-                    ulong converted = unchecked((ulong)signedAddr);
-                    if (converted != 0 || isDxgiPresent)
-                    {
-                        swapChain = converted;
-                    }
-                }
-                else if (rawSwapChain is not null)
-                {
-                    ulong converted = Convert.ToUInt64(rawSwapChain);
-                    if (converted != 0 || isDxgiPresent)
-                    {
-                        swapChain = converted;
-                    }
+                    tier = FrameTier.Tier1Direct;
+                    kind = FrameEventKind.DxgiPresent;
+                    return true;
                 }
 
-                if (swapChain == DwmSwapChainKey)
+                if (eventId == DxgiPresentMpoStartEventId)
                 {
-                    swapChain = isD3D9Present ? 1UL : 0UL;
+                    tier = FrameTier.Tier1Direct;
+                    kind = FrameEventKind.DxgiPresentMpo;
+                    return true;
                 }
             }
-            catch
+        }
+        else if (provider == D3D9ProviderGuid)
+        {
+            if (eventId == D3D9PresentStartEventId && data.ProcessID == activePid)
             {
-                // Mantém o endereço fallback caso o payload do evento ETW seja ausente ou malformado
+                tier = FrameTier.Tier1Direct;
+                kind = FrameEventKind.D3D9Present;
+                return true;
+            }
+        }
+        else if (provider == DxgKrnlProviderGuid)
+        {
+            if (data.ProcessID == activePid)
+            {
+                if (eventId == DxgKrnlPresentEventId)
+                {
+                    tier = FrameTier.Tier2KernelWddm;
+                    kind = FrameEventKind.DxgKrnlPresent;
+                    return true;
+                }
+
+                if (eventId == DxgKrnlPresentHistoryStartEventId && (byte)data.Opcode == 1)
+                {
+                    tier = FrameTier.Tier2KernelWddm;
+                    kind = FrameEventKind.DxgKrnlPresentHistory;
+                    return true;
+                }
+            }
+        }
+        else if (provider == DwmCoreProviderGuid && _isForegroundFullscreen)
+        {
+            if (eventId == DwmSchedulePresentStartEventId)
+            {
+                tier = FrameTier.Tier3Dwm;
+                kind = FrameEventKind.DwmSchedulePresent;
+                return true;
             }
 
-            long now = Stopwatch.GetTimestamp();
-            lock (_framesLock)
+            if (eventId == DwmUcePresentEventStartEventId)
             {
-                _lastDirectGraphicsEventTick = now;
-                RecordTimestampLocked(swapChain, now);
+                tier = FrameTier.Tier3Dwm;
+                kind = FrameEventKind.DwmUcePresent;
+                return true;
+            }
+        }
+
+        tier = default;
+        kind = default;
+        return false;
+    }
+
+    private bool AcceptByTierAndPrecedenceLocked(FrameTier tier, FrameEventKind kind, long nowWallTicks)
+    {
+        switch (tier)
+        {
+            case FrameTier.Tier1Direct:
+                if (kind == FrameEventKind.DxgiPresent)
+                {
+                    _lastDxgi42WallTicks = nowWallTicks;
+                    _lastTier1WallTicks = nowWallTicks;
+                    return true;
+                }
+
+                if (kind == FrameEventKind.DxgiPresentMpo)
+                {
+                    if (_lastDxgi42WallTicks > 0 && (nowWallTicks - _lastDxgi42WallTicks) <= TierFallbackTimeoutTicks)
+                        return false;
+
+                    _lastTier1WallTicks = nowWallTicks;
+                    return true;
+                }
+
+                _lastTier1WallTicks = nowWallTicks;
+                return true;
+
+            case FrameTier.Tier2KernelWddm:
+                if (_lastTier1WallTicks > 0 && (nowWallTicks - _lastTier1WallTicks) <= TierFallbackTimeoutTicks)
+                    return false;
+
+                if (kind == FrameEventKind.DxgKrnlPresent)
+                {
+                    _lastDxgKrnl184WallTicks = nowWallTicks;
+                    _lastTier2WallTicks = nowWallTicks;
+                    return true;
+                }
+
+                if (_lastDxgKrnl184WallTicks > 0 && (nowWallTicks - _lastDxgKrnl184WallTicks) <= TierFallbackTimeoutTicks)
+                    return false;
+
+                _lastTier2WallTicks = nowWallTicks;
+                return true;
+
+            case FrameTier.Tier3Dwm:
+                if (_lastTier1WallTicks > 0 && (nowWallTicks - _lastTier1WallTicks) <= TierFallbackTimeoutTicks)
+                    return false;
+
+                if (_lastTier2WallTicks > 0 && (nowWallTicks - _lastTier2WallTicks) <= TierFallbackTimeoutTicks)
+                    return false;
+
+                if (kind == FrameEventKind.DwmSchedulePresent)
+                {
+                    _lastDwm15WallTicks = nowWallTicks;
+                    return true;
+                }
+
+                return _lastDwm15WallTicks == 0 || (nowWallTicks - _lastDwm15WallTicks) > TierFallbackTimeoutTicks;
+
+            default:
+                return false;
+        }
+    }
+
+    private void RecordFrameSampleLocked(FrameStreamId streamId, double eventTimeMs, long nowWallTicks)
+    {
+        if (!_tracks.TryGetValue(streamId, out SwapChainTrack? track))
+        {
+            if (_tracks.Count >= MaxTrackedStreams)
+            {
+                EvictOldestTrackLocked();
             }
 
+            track = new SwapChainTrack();
+            _tracks[streamId] = track;
+        }
+
+        track.LastArrivalWallTicks = nowWallTicks;
+
+        List<double> timestamps = track.EventTimestampsMs;
+        int count = timestamps.Count;
+
+        if (count == 0)
+        {
+            timestamps.Add(eventTimeMs);
+            track.LatestEventTimeMs = eventTimeMs;
             return;
         }
 
-        if (provider == DwmProviderGuid &&
-            (eventId == (TraceEventID)DwmSchedulePresentStartEventId || eventId == (TraceEventID)DwmFlipChainEventId))
+        double lastTimeMs = timestamps[count - 1];
+        double deltaMs = eventTimeMs - lastTimeMs;
+
+        if (deltaMs >= 0.0)
         {
-            if (_activeForegroundPid <= 0)
+            if (deltaMs < MinFrametimeMs)
                 return;
 
-            try
+            timestamps.Add(eventTimeMs);
+            track.LatestEventTimeMs = eventTimeMs;
+        }
+        else if (deltaMs > -50.0)
+        {
+            // Trata eventual entrega fora de ordem entre buffers por núcleo
+            int insertIndex = count;
+            while (insertIndex > 0 && timestamps[insertIndex - 1] > eventTimeMs)
             {
-                long now = Stopwatch.GetTimestamp();
-                long fallbackThresholdTicks = (long)(Stopwatch.Frequency * DwmFallbackThresholdSeconds);
-
-                lock (_framesLock)
-                {
-                    // Se o processo ativo está emitindo DXGI/D3D9 diretamente, ignora o fallback do compositor DWM
-                    if (_lastDirectGraphicsEventTick > 0 &&
-                        (now - _lastDirectGraphicsEventTick) <= fallbackThresholdTicks)
-                    {
-                        return;
-                    }
-
-                    // Evita dupla contagem quando DWM emite ID 15 e ID 46 dentro do mesmo ciclo de composição
-                    if (eventId == (TraceEventID)DwmSchedulePresentStartEventId)
-                    {
-                        _lastDwmEvent15Tick = now;
-                    }
-                    else if (_lastDwmEvent15Tick > 0 &&
-                             (now - _lastDwmEvent15Tick) < fallbackThresholdTicks)
-                    {
-                        return;
-                    }
-
-                    RecordTimestampLocked(DwmSwapChainKey, now);
-                }
+                insertIndex--;
             }
-            catch
+
+            if ((insertIndex > 0 && Math.Abs(eventTimeMs - timestamps[insertIndex - 1]) < MinFrametimeMs) ||
+                (insertIndex < count && Math.Abs(timestamps[insertIndex] - eventTimeMs) < MinFrametimeMs))
             {
-                // Ignora silenciosamente falhas no parser de eventos DWM
+                return;
             }
+
+            timestamps.Insert(insertIndex, eventTimeMs);
+            if (eventTimeMs > track.LatestEventTimeMs)
+            {
+                track.LatestEventTimeMs = eventTimeMs;
+            }
+        }
+        else
+        {
+            // Reinício de sessão ETW (relógio relativo reiniciado)
+            timestamps.Clear();
+            timestamps.Add(eventTimeMs);
+            track.LatestEventTimeMs = eventTimeMs;
+        }
+
+        // Mantém a janela deslizante enxuta mesmo antes da próxima leitura da UI
+        double pruneCutoffMs = track.LatestEventTimeMs - SlidingWindowMs;
+        if (timestamps.Count > 2 && timestamps[0] < pruneCutoffMs)
+        {
+            PruneOlderThan(timestamps, pruneCutoffMs);
         }
     }
 
-    private void RecordTimestampLocked(ulong swapChainKey, long now)
+    private int ComputeCurrentFpsLocked()
     {
-        if (!_swapChainTimestamps.TryGetValue(swapChainKey, out List<long>? timestamps))
-        {
-            timestamps = new List<long>(128);
-            _swapChainTimestamps[swapChainKey] = timestamps;
-        }
-
-        timestamps.Add(now);
-        _swapChainLastTicks[swapChainKey] = now;
-
-        // Evita acúmulo excessivo em memória se CurrentFps ficar temporariamente sem leitura
-        if (timestamps.Count > 2048)
-        {
-            PruneOlderThan(timestamps, now - Stopwatch.Frequency);
-        }
-    }
-
-    private void UpdateSmoothedFpsLocked()
-    {
-        if (_isDisposed || _isSuspended || _activeForegroundPid <= 0)
+        if (_isDisposed || _isSuspended || _activeForegroundPid <= 4)
         {
             _smoothedFps = 0.0;
-            return;
+            _lastDisplayedFps = 0;
+            return 0;
         }
 
-        long now = Stopwatch.GetTimestamp();
-        long windowCutoff = now - (long)(Stopwatch.Frequency * SlidingWindowSeconds);
-        long idleCutoff = now - Stopwatch.Frequency; // 1000 ms
-        long dwmFallbackThresholdTicks = (long)(Stopwatch.Frequency * DwmFallbackThresholdSeconds);
+        long nowWallTicks = Stopwatch.GetTimestamp();
+        long idleCutoffWallTicks = nowWallTicks - IdleResetTicks;
 
-        bool hasRecentDirectEvents = _lastDirectGraphicsEventTick > 0 &&
-                                     (now - _lastDirectGraphicsEventTick) <= dwmFallbackThresholdTicks;
+        FrameTier activePriorityTier = DetermineActiveTierLocked(nowWallTicks);
 
-        // 1. Atualiza janela deslizante (600ms) e identifica SwapChains ociosas (> 1000ms)
+        // Remove fluxos ociosos e seleciona a SwapChain dominante no tier prioritário
         _staleKeysBuffer.Clear();
-        long mostRecentCandidateTick = 0;
-        long mostRecentAnyTick = 0;
+        int bestValidIntervals = 0;
+        double bestSumDeltaMs = 0.0;
+        bool hasAnyActiveTrack = false;
 
-        foreach (KeyValuePair<ulong, List<long>> kvp in _swapChainTimestamps)
+        foreach (KeyValuePair<FrameStreamId, SwapChainTrack> kvp in _tracks)
         {
-            ulong key = kvp.Key;
-            PruneOlderThan(kvp.Value, windowCutoff);
-
-            long lastTick = _swapChainLastTicks.GetValueOrDefault(key);
-            if (lastTick < idleCutoff)
+            SwapChainTrack track = kvp.Value;
+            if (track.LastArrivalWallTicks < idleCutoffWallTicks)
             {
-                _staleKeysBuffer.Add(key);
+                _staleKeysBuffer.Add(kvp.Key);
                 continue;
             }
 
-            if (lastTick > mostRecentAnyTick)
+            hasAnyActiveTrack = true;
+
+            double cutoffEventTimeMs = track.LatestEventTimeMs - SlidingWindowMs;
+            PruneOlderThan(track.EventTimestampsMs, cutoffEventTimeMs);
+
+            if (kvp.Key.Tier != activePriorityTier)
+                continue;
+
+            int count = track.EventTimestampsMs.Count;
+            if (count < 2)
+                continue;
+
+            int validIntervals = 0;
+            double sumDeltaMs = 0.0;
+
+            for (int i = 1; i < count; i++)
             {
-                mostRecentAnyTick = lastTick;
+                double deltaMs = track.EventTimestampsMs[i] - track.EventTimestampsMs[i - 1];
+                if (deltaMs < MinFrametimeMs || deltaMs > MaxFrametimeMs)
+                    continue;
+
+                sumDeltaMs += deltaMs;
+                validIntervals++;
             }
 
-            bool isCandidate = hasRecentDirectEvents ? key != DwmSwapChainKey : key == DwmSwapChainKey;
-            if (isCandidate && lastTick > mostRecentCandidateTick)
+            if (validIntervals > bestValidIntervals)
             {
-                mostRecentCandidateTick = lastTick;
+                bestValidIntervals = validIntervals;
+                bestSumDeltaMs = sumDeltaMs;
             }
         }
 
         for (int i = 0; i < _staleKeysBuffer.Count; i++)
         {
-            ulong staleKey = _staleKeysBuffer[i];
-            _swapChainTimestamps.Remove(staleKey);
-            _swapChainLastTicks.Remove(staleKey);
+            _tracks.Remove(_staleKeysBuffer[i]);
         }
 
-        // 2. Timeout de ociosidade: se nenhuma SwapChain renderizou nos últimos 1000ms, zera histórico e retorna 0 FPS
-        if (mostRecentAnyTick == 0 || mostRecentAnyTick < idleCutoff)
+        if (!hasAnyActiveTrack)
         {
             ClearFrameHistoryLocked();
-            return;
-        }
-
-        // Se nenhum evento direto chegou nos últimos 500ms e DWM também não tem amostras recentes, aguarda até o timeout de 1s
-        if (mostRecentCandidateTick == 0)
-            return;
-
-        // 3. Seleciona a SwapChain dominante com maior número de intervalos válidos (delta >= 0.5ms)
-        int bestValidIntervals = 0;
-        double bestSumDeltaMs = 0.0;
-        double ticksToMs = 1000.0 / Stopwatch.Frequency;
-
-        foreach (KeyValuePair<ulong, List<long>> kvp in _swapChainTimestamps)
-        {
-            bool isCandidate = hasRecentDirectEvents ? kvp.Key != DwmSwapChainKey : kvp.Key == DwmSwapChainKey;
-            if (!isCandidate)
-                continue;
-
-            List<long> timestamps = kvp.Value;
-            int count = timestamps.Count;
-            if (count < 2)
-                continue;
-
-            int validCount = 0;
-            double sumDeltaMs = 0.0;
-
-            for (int i = 1; i < count; i++)
-            {
-                double deltaMs = (timestamps[i] - timestamps[i - 1]) * ticksToMs;
-                if (deltaMs < MinValidDeltaMs)
-                    continue;
-
-                sumDeltaMs += deltaMs;
-                validCount++;
-            }
-
-            if (validCount > bestValidIntervals)
-            {
-                bestValidIntervals = validCount;
-                bestSumDeltaMs = sumDeltaMs;
-            }
+            return 0;
         }
 
         if (bestValidIntervals <= 0 || bestSumDeltaMs <= 0.0)
-            return;
+            return _lastDisplayedFps;
 
-        // 4. Converte frametime médio em FPS e aplica suavização adaptativa (EMA)
         double avgFrametimeMs = bestSumDeltaMs / bestValidIntervals;
         double rawFps = 1000.0 / avgFrametimeMs;
 
-        if (_smoothedFps <= 0.0 || (Math.Abs(rawFps - _smoothedFps) / _smoothedFps) > EmaSignificantDeltaRatio)
+        if (double.IsNaN(rawFps) || double.IsInfinity(rawFps) || rawFps <= 0.0)
+            return _lastDisplayedFps;
+
+        if (_smoothedFps <= 0.0 ||
+            (Math.Abs(rawFps - _smoothedFps) / _smoothedFps) > EmaImmediateJumpRatio)
         {
             _smoothedFps = rawFps;
         }
         else
         {
-            _smoothedFps = (_smoothedFps * 0.65) + (rawFps * 0.35);
+            _smoothedFps = (_smoothedFps * EmaStableWeight) + (rawFps * (1.0 - EmaStableWeight));
+        }
+
+        if (_lastDisplayedFps <= 0 || Math.Abs(_smoothedFps - _lastDisplayedFps) >= OutputHysteresisFps)
+        {
+            _lastDisplayedFps = Math.Max(1, (int)Math.Round(_smoothedFps));
+        }
+
+        return _lastDisplayedFps;
+    }
+
+    private FrameTier DetermineActiveTierLocked(long nowWallTicks)
+    {
+        if (_lastTier1WallTicks > 0 && (nowWallTicks - _lastTier1WallTicks) <= TierFallbackTimeoutTicks)
+            return FrameTier.Tier1Direct;
+
+        if (_lastTier2WallTicks > 0 && (nowWallTicks - _lastTier2WallTicks) <= TierFallbackTimeoutTicks)
+            return FrameTier.Tier2KernelWddm;
+
+        return FrameTier.Tier3Dwm;
+    }
+
+    private void EvictOldestTrackLocked()
+    {
+        FrameStreamId oldestKey = default;
+        long oldestTicks = long.MaxValue;
+        bool found = false;
+
+        foreach (KeyValuePair<FrameStreamId, SwapChainTrack> kvp in _tracks)
+        {
+            if (kvp.Value.LastArrivalWallTicks < oldestTicks)
+            {
+                oldestTicks = kvp.Value.LastArrivalWallTicks;
+                oldestKey = kvp.Key;
+                found = true;
+            }
+        }
+
+        if (found)
+        {
+            _tracks.Remove(oldestKey);
         }
     }
 
     private void ClearFrameHistoryLocked()
     {
-        _swapChainTimestamps.Clear();
-        _swapChainLastTicks.Clear();
-        _lastDirectGraphicsEventTick = 0;
-        _lastDwmEvent15Tick = 0;
+        _tracks.Clear();
+        _lastDxgi42WallTicks = 0;
+        _lastTier1WallTicks = 0;
+        _lastDxgKrnl184WallTicks = 0;
+        _lastTier2WallTicks = 0;
+        _lastDwm15WallTicks = 0;
         _smoothedFps = 0.0;
+        _lastDisplayedFps = 0;
     }
 
-    private static void PruneOlderThan(List<long> timestamps, long cutoff)
+    private static ulong ExtractStreamKey(TraceEvent data, FrameEventKind kind)
+    {
+        try
+        {
+            if (kind is FrameEventKind.DwmSchedulePresent or FrameEventKind.DwmUcePresent)
+                return DwmStreamKey;
+
+            IntPtr dataStart = data.DataStart;
+            int dataLength = data.EventDataLength;
+
+            if (kind == FrameEventKind.DxgKrnlPresent)
+            {
+                // Microsoft-Windows-DxgKrnl v1 ID 184: hContext (UInt32 @ 0) + hWindow (Pointer @ 4)
+                if (dataStart != IntPtr.Zero && dataLength >= sizeof(uint))
+                {
+                    uint hContext = unchecked((uint)Marshal.ReadInt32(dataStart, 0));
+                    int ptrSize = data.PointerSize == 4 ? 4 : 8;
+                    ulong hWindow = 0;
+
+                    if (dataLength >= sizeof(uint) + ptrSize)
+                    {
+                        hWindow = ptrSize == 4
+                            ? unchecked((uint)Marshal.ReadInt32(dataStart, sizeof(uint)))
+                            : unchecked((ulong)Marshal.ReadInt64(dataStart, sizeof(uint)));
+                    }
+
+                    ulong key = unchecked(hWindow * 0x9E3779B97F4A7C15UL) ^ hContext;
+                    return key != 0 ? key : DxgKrnlDefaultStreamKey;
+                }
+
+                return DxgKrnlDefaultStreamKey;
+            }
+
+            if (kind == FrameEventKind.DxgKrnlPresentHistory)
+            {
+                // Microsoft-Windows-DxgKrnl v2 ID 171: hAdapter (Pointer @ 0)
+                if (TryReadPointerAtOffsetZero(data, out ulong hAdapter) && hAdapter != 0)
+                    return hAdapter;
+
+                return DxgKrnlHistoryStreamKey;
+            }
+
+            // Tier 1 (DXGI 42 / DXGI 55 / D3D9 1): ponteiro SwapChain no offset 0
+            if (TryReadPointerAtOffsetZero(data, out ulong ptr) && ptr != 0)
+                return ptr;
+        }
+        catch
+        {
+            // Fallback seguro caso o layout binário varie
+        }
+
+        return kind switch
+        {
+            FrameEventKind.D3D9Present => D3D9DefaultStreamKey,
+            FrameEventKind.DxgiPresent or FrameEventKind.DxgiPresentMpo => DxgiDefaultStreamKey,
+            FrameEventKind.DxgKrnlPresent => DxgKrnlDefaultStreamKey,
+            FrameEventKind.DxgKrnlPresentHistory => DxgKrnlHistoryStreamKey,
+            _ => DwmStreamKey
+        };
+    }
+
+    private static bool TryReadPointerAtOffsetZero(TraceEvent data, out ulong pointer)
+    {
+        pointer = 0;
+        IntPtr dataStart = data.DataStart;
+        if (dataStart == IntPtr.Zero)
+            return false;
+
+        int ptrSize = data.PointerSize == 4 ? 4 : 8;
+        if (data.EventDataLength < ptrSize)
+            return false;
+
+        pointer = ptrSize == 4
+            ? unchecked((uint)Marshal.ReadInt32(dataStart, 0))
+            : unchecked((ulong)Marshal.ReadInt64(dataStart, 0));
+
+        return true;
+    }
+
+    private static void PruneOlderThan(List<double> timestamps, double cutoffMs)
     {
         int count = timestamps.Count;
-        if (count == 0 || timestamps[0] >= cutoff)
+        if (count == 0 || timestamps[0] >= cutoffMs)
             return;
 
         int firstValidIndex = 0;
-        while (firstValidIndex < count && timestamps[firstValidIndex] < cutoff)
+        while (firstValidIndex < count && timestamps[firstValidIndex] < cutoffMs)
         {
             firstValidIndex++;
         }
@@ -501,7 +866,7 @@ public class FpsMonitorService : IDisposable
         }
     }
 
-    private static bool IsSystemShellOrDwmProcess(int pid)
+    private static bool IsIgnoredSystemProcess(int pid)
     {
         try
         {
@@ -510,7 +875,10 @@ public class FpsMonitorService : IDisposable
             return name.Equals("dwm", StringComparison.OrdinalIgnoreCase) ||
                    name.Equals("explorer", StringComparison.OrdinalIgnoreCase) ||
                    name.Equals("SearchHost", StringComparison.OrdinalIgnoreCase) ||
-                   name.Equals("ShellExperienceHost", StringComparison.OrdinalIgnoreCase);
+                   name.Equals("ShellExperienceHost", StringComparison.OrdinalIgnoreCase) ||
+                   name.Equals("StartMenuExperienceHost", StringComparison.OrdinalIgnoreCase) ||
+                   name.Equals("ShellHost", StringComparison.OrdinalIgnoreCase) ||
+                   name.Equals("LockApp", StringComparison.OrdinalIgnoreCase);
         }
         catch
         {
@@ -525,6 +893,16 @@ public class FpsMonitorService : IDisposable
 
         _isDisposed = true;
         _activeForegroundPid = -1;
+        _isForegroundFullscreen = false;
+
+        try
+        {
+            _disposeSignal.Set();
+        }
+        catch
+        {
+            // Ignora caso o sinal já tenha sido liberado
+        }
 
         TraceEventSession? sessionToClose;
         lock (_sessionLock)
@@ -539,12 +917,12 @@ public class FpsMonitorService : IDisposable
         {
             if (_etwThread is not null && _etwThread.IsAlive)
             {
-                _etwThread.Join(TimeSpan.FromMilliseconds(500));
+                _etwThread.Join(TimeSpan.FromMilliseconds(ThreadJoinTimeoutMs));
             }
         }
         catch
         {
-            // Ignora exceções ao aguardar término da thread dedicada ETW
+            // Ignora exceções ao aguardar o encerramento da thread ETW
         }
 
         try
@@ -556,7 +934,16 @@ public class FpsMonitorService : IDisposable
         }
         catch
         {
-            // Ignora exceções na limpeza final dos dicionários
+            // Ignora falhas na limpeza final dos fluxos
+        }
+
+        try
+        {
+            _disposeSignal.Dispose();
+        }
+        catch
+        {
+            // Ignora falhas na liberação do evento de encerramento
         }
     }
 }
