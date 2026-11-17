@@ -8,7 +8,6 @@
         d:DataContext="{d:DesignInstance Type=vm:MainViewModel}"
         Title="CleanPanel Overlay"
         Style="{x:Null}"
-        OverridesDefaultStyle="True"
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
@@ -18,6 +17,17 @@
         SizeToContent="WidthAndHeight"
         FontFamily="Segoe UI Variable Display, Segoe UI"
         MouseLeftButtonDown="Window_MouseLeftButtonDown">
+
+    <Window.Template>
+        <ControlTemplate TargetType="{x:Type Window}">
+            <Border Background="Transparent"
+                    BorderThickness="0">
+                <AdornerDecorator>
+                    <ContentPresenter />
+                </AdornerDecorator>
+            </Border>
+        </ControlTemplate>
+    </Window.Template>
 
     <!-- Border raiz do Overlay Monocromático: Fundo #09090B (com Alpha dinâmico) + Borda #27272A de 1px + Escala Vetorial -->
     <Border Visibility="{Binding EffectiveOverlayVisible, Converter={StaticResource BoolToVis}}"

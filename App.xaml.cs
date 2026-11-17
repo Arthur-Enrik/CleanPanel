@@ -59,9 +59,9 @@ public partial class App : Application
             startupService,
             ExitApplicationCompletely);
 
-        _overlayWindow = new OverlayWindow(_mainViewModel);
         _settingsWindow = new SettingsWindow(_mainViewModel);
         MainWindow = _settingsWindow;
+        _overlayWindow = new OverlayWindow(_mainViewModel);
 
         _trayIconService = new TrayIconService(
             _mainViewModel,

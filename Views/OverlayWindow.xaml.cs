@@ -5,7 +5,6 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using HardwareOverlayApp.Helpers;
 using HardwareOverlayApp.ViewModels;
-using Wpf.Ui.Controls;
 
 namespace HardwareOverlayApp.Views;
 
@@ -47,15 +46,6 @@ public partial class OverlayWindow : Window
         {
             Dispatcher.Invoke(EnsureTransparentWindow);
             return;
-        }
-
-        try
-        {
-            WindowBackdrop.RemoveBackdrop(this);
-        }
-        catch
-        {
-            // Ignora caso o handle da janela ainda não tenha sido criado
         }
 
         ClearValue(BackgroundProperty);
