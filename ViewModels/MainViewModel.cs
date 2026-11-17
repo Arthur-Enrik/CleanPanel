@@ -22,7 +22,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public const string DefaultBorderColorHex = "#27272A";
     public const string DefaultHeaderColorHex = "#FAFAFA";
     public const string DefaultValueTextColorHex = "#FAFAFA";
-    public const string DefaultLabelTextColorHex = "#A1A1AA";
 
     private static readonly string[] DefaultSectionKeys = ["CPU", "GPU", "RAM", "FPS"];
 
@@ -178,33 +177,75 @@ public partial class MainViewModel : ObservableObject, IDisposable
         set { if (value) AppTheme = "Auto"; }
     }
 
-    // ==================== BRUSHES MONOCROMÁTICOS DO OVERLAY (CONGELADOS) ====================
-    [ObservableProperty]
-    private string _overlayBackgroundColorHex = DefaultBackgroundColorHex;
+    // ==================== BRUSHES MONOCROMÁTICOS DO OVERLAY E TEMA (CONGELADOS) ====================
+    private static readonly SolidColorBrush FrozenOverlayHeaderBrush = CreateFrozenRgbBrush(250, 250, 250);
+    private static readonly SolidColorBrush FrozenOverlayValueTextBrush = CreateFrozenRgbBrush(250, 250, 250);
+    private static readonly SolidColorBrush FrozenOverlayLabelTextBrush = CreateFrozenRgbBrush(161, 161, 170);
+
+    private static readonly SolidColorBrush LightWindowBackgroundBrush = CreateFrozenRgbBrush(250, 250, 250);
+    private static readonly SolidColorBrush LightSidebarBackgroundBrush = CreateFrozenRgbBrush(244, 244, 245);
+    private static readonly SolidColorBrush LightCardBackgroundBrush = CreateFrozenRgbBrush(255, 255, 255);
+    private static readonly SolidColorBrush LightSurfaceHoverBrush = CreateFrozenRgbBrush(244, 244, 245);
+    private static readonly SolidColorBrush LightBorderSubtleBrush = CreateFrozenRgbBrush(228, 228, 231);
+    private static readonly SolidColorBrush LightBorderActiveBrush = CreateFrozenRgbBrush(161, 161, 170);
+    private static readonly SolidColorBrush LightTextPrimaryBrush = CreateFrozenRgbBrush(9, 9, 11);
+    private static readonly SolidColorBrush LightTextSecondaryBrush = CreateFrozenRgbBrush(82, 82, 91);
+    private static readonly SolidColorBrush LightTextMutedBrush = CreateFrozenRgbBrush(113, 113, 122);
+    private static readonly SolidColorBrush LightAccentPrimaryBrush = CreateFrozenRgbBrush(9, 9, 11);
+    private static readonly SolidColorBrush LightAccentForegroundBrush = CreateFrozenRgbBrush(250, 250, 250);
+
+    private static readonly SolidColorBrush DarkWindowBackgroundBrush = CreateFrozenRgbBrush(9, 9, 11);
+    private static readonly SolidColorBrush DarkSidebarBackgroundBrush = CreateFrozenRgbBrush(12, 12, 14);
+    private static readonly SolidColorBrush DarkCardBackgroundBrush = CreateFrozenRgbBrush(17, 17, 20);
+    private static readonly SolidColorBrush DarkSurfaceHoverBrush = CreateFrozenRgbBrush(24, 24, 27);
+    private static readonly SolidColorBrush DarkBorderSubtleBrush = CreateFrozenRgbBrush(39, 39, 42);
+    private static readonly SolidColorBrush DarkBorderActiveBrush = CreateFrozenRgbBrush(82, 82, 91);
+    private static readonly SolidColorBrush DarkTextPrimaryBrush = CreateFrozenRgbBrush(250, 250, 250);
+    private static readonly SolidColorBrush DarkTextSecondaryBrush = CreateFrozenRgbBrush(161, 161, 170);
+    private static readonly SolidColorBrush DarkTextMutedBrush = CreateFrozenRgbBrush(113, 113, 122);
+    private static readonly SolidColorBrush DarkAccentPrimaryBrush = CreateFrozenRgbBrush(250, 250, 250);
+    private static readonly SolidColorBrush DarkAccentForegroundBrush = CreateFrozenRgbBrush(9, 9, 11);
+
+    private int _lastAppliedBgAlpha = -1;
+    private int _lastAppliedBorderAlpha = -1;
+
+    // Cache do último ciclo aplicado na UI para evitar alocações de string e notificações redundantes
+    private int _prevFps = int.MinValue;
+    private int _prevCpuTemp = int.MinValue;
+    private double _prevCpuLoad = double.NaN;
+    private int _prevCpuClock = int.MinValue;
+    private int _prevCpuMaxClock = int.MinValue;
+    private double _prevCpuPower = double.NaN;
+    private double _prevCpuVcore = double.NaN;
+    private double _prevPCoreLoad = double.NaN;
+    private double _prevECoreLoad = double.NaN;
+    private int _prevPCoreClock = int.MinValue;
+    private int _prevECoreClock = int.MinValue;
+    private int _prevGpuTemp = int.MinValue;
+    private int _prevGpuLoad = int.MinValue;
+    private int _prevGpuClock = int.MinValue;
+    private double _prevGpuPower = double.NaN;
+    private double _prevGpuVramUsed = double.NaN;
+    private double _prevGpuVramTotal = double.NaN;
+    private double _prevRamUsed = double.NaN;
+    private double _prevRamTotal = double.NaN;
+    private double _prevRamFree = double.NaN;
+    private double _prevRamPct = double.NaN;
 
     [ObservableProperty]
-    private string _overlayBorderColorHex = DefaultBorderColorHex;
+    private SolidColorBrush _overlayBackgroundBrush = CreateFrozenRgbBrush(9, 9, 11, 217);
 
     [ObservableProperty]
-    private string _overlayHeaderColorHex = DefaultHeaderColorHex;
+    private SolidColorBrush _overlayBorderBrush = CreateFrozenRgbBrush(39, 39, 42);
 
     [ObservableProperty]
-    private string _overlayValueTextColorHex = DefaultValueTextColorHex;
+    private SolidColorBrush _overlayHeaderBrush = FrozenOverlayHeaderBrush;
 
     [ObservableProperty]
-    private SolidColorBrush _overlayBackgroundBrush = CreateFrozenBrush("#D909090B", Color.FromArgb(217, 9, 9, 11));
+    private SolidColorBrush _overlayValueTextBrush = FrozenOverlayValueTextBrush;
 
     [ObservableProperty]
-    private SolidColorBrush _overlayBorderBrush = CreateFrozenBrush(DefaultBorderColorHex, Color.FromRgb(39, 39, 42));
-
-    [ObservableProperty]
-    private SolidColorBrush _overlayHeaderBrush = CreateFrozenBrush(DefaultHeaderColorHex, Color.FromRgb(250, 250, 250));
-
-    [ObservableProperty]
-    private SolidColorBrush _overlayValueTextBrush = CreateFrozenBrush(DefaultValueTextColorHex, Color.FromRgb(250, 250, 250));
-
-    [ObservableProperty]
-    private SolidColorBrush _overlayLabelTextBrush = CreateFrozenBrush(DefaultLabelTextColorHex, Color.FromRgb(161, 161, 170));
+    private SolidColorBrush _overlayLabelTextBrush = FrozenOverlayLabelTextBrush;
 
     // ==================== ORDEM PERSONALIZÁVEL DAS SEÇÕES DO OVERLAY ====================
     public ObservableCollection<OverlaySectionItemViewModel> OverlaySections { get; } = [];
@@ -258,9 +299,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private string _cpuClockText = "N/D";
 
     [ObservableProperty]
-    private string _cpuMaxClockText = "N/D";
-
-    [ObservableProperty]
     private string _cpuClockAvgMaxText = "N/D";
 
     [ObservableProperty]
@@ -270,18 +308,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private string _cpuVoltageText = "N/D";
 
     // Métricas dedicadas para CPU Híbrida Intel (P-Cores e E-Cores)
-    [ObservableProperty]
-    private float _cpuPCoreLoad;
-
-    [ObservableProperty]
-    private float _cpuECoreLoad;
-
-    [ObservableProperty]
-    private float _cpuPCoreClock;
-
-    [ObservableProperty]
-    private float _cpuECoreClock;
-
     [ObservableProperty]
     private string _cpuPCoreLoadText = "N/D";
 
@@ -357,7 +383,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(OverlayOpacityPercentText))]
-    [NotifyPropertyChangedFor(nameof(OverlayOpacityDisplayText))]
     private double _overlayOpacity = 0.85;
 
     [ObservableProperty]
@@ -389,15 +414,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [NotifyPropertyChangedFor(nameof(EffectiveShowRam))]
     [NotifyPropertyChangedFor(nameof(ShowCpuSection))]
     [NotifyPropertyChangedFor(nameof(ShowGpuSection))]
-    [NotifyPropertyChangedFor(nameof(ShowCpuRow1))]
-    [NotifyPropertyChangedFor(nameof(ShowCpuRow2))]
-    [NotifyPropertyChangedFor(nameof(ShowCpuRow1Pipe))]
-    [NotifyPropertyChangedFor(nameof(ShowCpuRow2Pipe))]
-    [NotifyPropertyChangedFor(nameof(ShowGpuRow1))]
-    [NotifyPropertyChangedFor(nameof(ShowGpuRow2))]
-    [NotifyPropertyChangedFor(nameof(ShowGpuRow1Pipe))]
-    [NotifyPropertyChangedFor(nameof(ShowGpuVramClockPipe))]
-    [NotifyPropertyChangedFor(nameof(ShowGpuClockPowerPipe))]
     private bool _isCompactMode;
 
     [ObservableProperty]
@@ -420,15 +436,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(EffectiveShowCpuTemp))]
     [NotifyPropertyChangedFor(nameof(ShowCpuSection))]
-    [NotifyPropertyChangedFor(nameof(ShowCpuRow1))]
-    [NotifyPropertyChangedFor(nameof(ShowCpuRow1Pipe))]
     private bool _showCpuTemp;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(EffectiveShowCpuLoad))]
     [NotifyPropertyChangedFor(nameof(ShowCpuSection))]
-    [NotifyPropertyChangedFor(nameof(ShowCpuRow1))]
-    [NotifyPropertyChangedFor(nameof(ShowCpuRow1Pipe))]
     [NotifyPropertyChangedFor(nameof(ShowNormalCpuLoad))]
     [NotifyPropertyChangedFor(nameof(ShowHybridCpuLoad))]
     private bool _showCpuLoad;
@@ -436,8 +448,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(EffectiveShowCpuClock))]
     [NotifyPropertyChangedFor(nameof(ShowCpuSection))]
-    [NotifyPropertyChangedFor(nameof(ShowCpuRow2))]
-    [NotifyPropertyChangedFor(nameof(ShowCpuRow2Pipe))]
     [NotifyPropertyChangedFor(nameof(ShowNormalCpuClock))]
     [NotifyPropertyChangedFor(nameof(ShowHybridCpuClock))]
     private bool _showCpuClock;
@@ -445,8 +455,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(EffectiveShowCpuPower))]
     [NotifyPropertyChangedFor(nameof(ShowCpuSection))]
-    [NotifyPropertyChangedFor(nameof(ShowCpuRow2))]
-    [NotifyPropertyChangedFor(nameof(ShowCpuRow2Pipe))]
     private bool _showCpuPower;
 
     [ObservableProperty]
@@ -475,39 +483,26 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(EffectiveShowGpuTemp))]
     [NotifyPropertyChangedFor(nameof(ShowGpuSection))]
-    [NotifyPropertyChangedFor(nameof(ShowGpuRow1))]
-    [NotifyPropertyChangedFor(nameof(ShowGpuRow1Pipe))]
     private bool _showGpuTemp;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(EffectiveShowGpuLoad))]
     [NotifyPropertyChangedFor(nameof(ShowGpuSection))]
-    [NotifyPropertyChangedFor(nameof(ShowGpuRow1))]
-    [NotifyPropertyChangedFor(nameof(ShowGpuRow1Pipe))]
     private bool _showGpuLoad;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(EffectiveShowGpuVram))]
     [NotifyPropertyChangedFor(nameof(ShowGpuSection))]
-    [NotifyPropertyChangedFor(nameof(ShowGpuRow2))]
-    [NotifyPropertyChangedFor(nameof(ShowGpuVramClockPipe))]
-    [NotifyPropertyChangedFor(nameof(ShowGpuClockPowerPipe))]
     private bool _showGpuVram;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(EffectiveShowGpuClock))]
     [NotifyPropertyChangedFor(nameof(ShowGpuSection))]
-    [NotifyPropertyChangedFor(nameof(ShowGpuRow2))]
-    [NotifyPropertyChangedFor(nameof(ShowGpuVramClockPipe))]
-    [NotifyPropertyChangedFor(nameof(ShowGpuClockPowerPipe))]
     private bool _showGpuClock;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(EffectiveShowGpuPower))]
     [NotifyPropertyChangedFor(nameof(ShowGpuSection))]
-    [NotifyPropertyChangedFor(nameof(ShowGpuRow2))]
-    [NotifyPropertyChangedFor(nameof(ShowGpuVramClockPipe))]
-    [NotifyPropertyChangedFor(nameof(ShowGpuClockPowerPipe))]
     private bool _showGpuPower;
 
     [ObservableProperty]
@@ -515,8 +510,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private bool _showRam;
 
     public string OverlayOpacityPercentText => $"{Math.Round(OverlayOpacity * 100.0):0}%";
-
-    public string OverlayOpacityDisplayText => $"Opacidade do Fundo: {Math.Round(OverlayOpacity * 100.0):0}%";
 
     public string OverlayScalePercentText => $"{Math.Round(OverlayScale * 100.0):0}%";
 
@@ -567,18 +560,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public string EffectiveCompactCpuHeader => ShowHybridCpuMetrics ? "CPU" : "CPU:";
     public string EffectiveCompactCpuHeaderWithSpace => ShowHybridCpuMetrics ? "CPU " : "CPU: ";
     public string EffectiveCompactCpuLoadText => ShowHybridCpuMetrics ? CpuHybridCompactLoadText : CpuLoadText;
-
-    // Visibilidades auxiliares para as linhas agrupadas do Overlay Vertical
-    public bool ShowCpuRow1 => EffectiveShowCpuLoad || EffectiveShowCpuTemp;
-    public bool ShowCpuRow1Pipe => EffectiveShowCpuLoad && EffectiveShowCpuTemp;
-    public bool ShowCpuRow2 => EffectiveShowCpuClock || EffectiveShowCpuPower;
-    public bool ShowCpuRow2Pipe => EffectiveShowCpuClock && EffectiveShowCpuPower;
-
-    public bool ShowGpuRow1 => EffectiveShowGpuLoad || EffectiveShowGpuTemp;
-    public bool ShowGpuRow1Pipe => EffectiveShowGpuLoad && EffectiveShowGpuTemp;
-    public bool ShowGpuRow2 => EffectiveShowGpuVram || EffectiveShowGpuClock || EffectiveShowGpuPower;
-    public bool ShowGpuVramClockPipe => EffectiveShowGpuVram && (EffectiveShowGpuClock || EffectiveShowGpuPower);
-    public bool ShowGpuClockPowerPipe => EffectiveShowGpuClock && EffectiveShowGpuPower;
 
     public MainViewModel(
         SettingsService settingsService,
@@ -728,31 +709,31 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         if (isLight)
         {
-            resources["WindowBackgroundBrush"] = CreateFrozenBrush("#FAFAFA", Color.FromRgb(250, 250, 250));
-            resources["SidebarBackgroundBrush"] = CreateFrozenBrush("#F4F4F5", Color.FromRgb(244, 244, 245));
-            resources["CardBackgroundBrush"] = CreateFrozenBrush("#FFFFFF", Colors.White);
-            resources["SurfaceHoverBrush"] = CreateFrozenBrush("#F4F4F5", Color.FromRgb(244, 244, 245));
-            resources["BorderSubtleBrush"] = CreateFrozenBrush("#E4E4E7", Color.FromRgb(228, 228, 231));
-            resources["BorderActiveBrush"] = CreateFrozenBrush("#A1A1AA", Color.FromRgb(161, 161, 170));
-            resources["TextPrimaryBrush"] = CreateFrozenBrush("#09090B", Color.FromRgb(9, 9, 11));
-            resources["TextSecondaryBrush"] = CreateFrozenBrush("#52525B", Color.FromRgb(82, 82, 91));
-            resources["TextMutedBrush"] = CreateFrozenBrush("#71717A", Color.FromRgb(113, 113, 122));
-            resources["AccentPrimaryBrush"] = CreateFrozenBrush("#09090B", Color.FromRgb(9, 9, 11));
-            resources["AccentForegroundBrush"] = CreateFrozenBrush("#FAFAFA", Color.FromRgb(250, 250, 250));
+            resources["WindowBackgroundBrush"] = LightWindowBackgroundBrush;
+            resources["SidebarBackgroundBrush"] = LightSidebarBackgroundBrush;
+            resources["CardBackgroundBrush"] = LightCardBackgroundBrush;
+            resources["SurfaceHoverBrush"] = LightSurfaceHoverBrush;
+            resources["BorderSubtleBrush"] = LightBorderSubtleBrush;
+            resources["BorderActiveBrush"] = LightBorderActiveBrush;
+            resources["TextPrimaryBrush"] = LightTextPrimaryBrush;
+            resources["TextSecondaryBrush"] = LightTextSecondaryBrush;
+            resources["TextMutedBrush"] = LightTextMutedBrush;
+            resources["AccentPrimaryBrush"] = LightAccentPrimaryBrush;
+            resources["AccentForegroundBrush"] = LightAccentForegroundBrush;
         }
         else
         {
-            resources["WindowBackgroundBrush"] = CreateFrozenBrush("#09090B", Color.FromRgb(9, 9, 11));
-            resources["SidebarBackgroundBrush"] = CreateFrozenBrush("#0C0C0E", Color.FromRgb(12, 12, 14));
-            resources["CardBackgroundBrush"] = CreateFrozenBrush("#111114", Color.FromRgb(17, 17, 20));
-            resources["SurfaceHoverBrush"] = CreateFrozenBrush("#18181B", Color.FromRgb(24, 24, 27));
-            resources["BorderSubtleBrush"] = CreateFrozenBrush("#27272A", Color.FromRgb(39, 39, 42));
-            resources["BorderActiveBrush"] = CreateFrozenBrush("#52525B", Color.FromRgb(82, 82, 91));
-            resources["TextPrimaryBrush"] = CreateFrozenBrush("#FAFAFA", Color.FromRgb(250, 250, 250));
-            resources["TextSecondaryBrush"] = CreateFrozenBrush("#A1A1AA", Color.FromRgb(161, 161, 170));
-            resources["TextMutedBrush"] = CreateFrozenBrush("#71717A", Color.FromRgb(113, 113, 122));
-            resources["AccentPrimaryBrush"] = CreateFrozenBrush("#FAFAFA", Color.FromRgb(250, 250, 250));
-            resources["AccentForegroundBrush"] = CreateFrozenBrush("#09090B", Color.FromRgb(9, 9, 11));
+            resources["WindowBackgroundBrush"] = DarkWindowBackgroundBrush;
+            resources["SidebarBackgroundBrush"] = DarkSidebarBackgroundBrush;
+            resources["CardBackgroundBrush"] = DarkCardBackgroundBrush;
+            resources["SurfaceHoverBrush"] = DarkSurfaceHoverBrush;
+            resources["BorderSubtleBrush"] = DarkBorderSubtleBrush;
+            resources["BorderActiveBrush"] = DarkBorderActiveBrush;
+            resources["TextPrimaryBrush"] = DarkTextPrimaryBrush;
+            resources["TextSecondaryBrush"] = DarkTextSecondaryBrush;
+            resources["TextMutedBrush"] = DarkTextMutedBrush;
+            resources["AccentPrimaryBrush"] = DarkAccentPrimaryBrush;
+            resources["AccentForegroundBrush"] = DarkAccentForegroundBrush;
         }
     }
 
@@ -776,36 +757,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
         return false;
     }
 
-    private static Color ParseHexColor(string? hexColor, Color fallbackColor)
+    private static SolidColorBrush CreateFrozenRgbBrush(byte r, byte g, byte b, byte a = 255)
     {
-        if (!string.IsNullOrWhiteSpace(hexColor))
-        {
-            try
-            {
-                string normalized = hexColor.Trim();
-                if (!normalized.StartsWith('#'))
-                {
-                    normalized = "#" + normalized;
-                }
-
-                if (ColorConverter.ConvertFromString(normalized) is Color c)
-                {
-                    return c;
-                }
-            }
-            catch
-            {
-                // Mantém fallbackColor caso o código Hex digitado seja inválido
-            }
-        }
-
-        return fallbackColor;
-    }
-
-    private static SolidColorBrush CreateFrozenBrush(string? hexColor, Color fallbackColor)
-    {
-        Color parsedColor = ParseHexColor(hexColor, fallbackColor);
-        var brush = new SolidColorBrush(parsedColor);
+        var brush = new SolidColorBrush(Color.FromArgb(a, r, g, b));
         brush.Freeze();
         return brush;
     }
@@ -824,24 +778,17 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
 
         // Mantém o padrão monocromático fosco profundo (#09090B) com canal Alpha guiado pela Opacidade
-        Color baseColor = Color.FromRgb(9, 9, 11);
         byte alpha = (byte)Math.Clamp(OverlayOpacity * 255.0, 20, 255);
-        Color finalBgColor = Color.FromArgb(alpha, baseColor.R, baseColor.G, baseColor.B);
-
-        var bgBrush = new SolidColorBrush(finalBgColor);
-        bgBrush.Freeze();
-        OverlayBackgroundBrush = bgBrush;
-        OnPropertyChanged(nameof(OverlayBackgroundBrush));
-
-        // Borda nítida 1px em #27272A acompanhando suavemente a opacidade
-        Color baseBorderColor = Color.FromRgb(39, 39, 42);
         byte borderAlpha = (byte)Math.Clamp((OverlayOpacity * 0.80 + 0.20) * 255.0, 50, 255);
-        Color finalBorderColor = Color.FromArgb(borderAlpha, baseBorderColor.R, baseBorderColor.G, baseBorderColor.B);
 
-        var borderBrush = new SolidColorBrush(finalBorderColor);
-        borderBrush.Freeze();
-        OverlayBorderBrush = borderBrush;
-        OnPropertyChanged(nameof(OverlayBorderBrush));
+        if (alpha != _lastAppliedBgAlpha || borderAlpha != _lastAppliedBorderAlpha)
+        {
+            _lastAppliedBgAlpha = alpha;
+            _lastAppliedBorderAlpha = borderAlpha;
+
+            OverlayBackgroundBrush = CreateFrozenRgbBrush(9, 9, 11, alpha);
+            OverlayBorderBrush = CreateFrozenRgbBrush(39, 39, 42, borderAlpha);
+        }
 
         EnsureOverlayTransparentAction?.Invoke();
     }
@@ -918,11 +865,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         AppTheme = string.IsNullOrWhiteSpace(settings.AppTheme) ? "Dark" : settings.AppTheme;
 
-        OverlayBackgroundColorHex = DefaultBackgroundColorHex;
-        OverlayBorderColorHex = DefaultBorderColorHex;
-        OverlayHeaderColorHex = DefaultHeaderColorHex;
-        OverlayValueTextColorHex = DefaultValueTextColorHex;
-
         RefreshFrozenColorBrushes();
         InitializeOverlaySectionsOrder(settings.OverlaySectionOrder);
 
@@ -969,9 +911,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private void RefreshFrozenColorBrushes()
     {
         UpdateOverlayBrushes();
-        OverlayHeaderBrush = CreateFrozenBrush(DefaultHeaderColorHex, Color.FromRgb(250, 250, 250));
-        OverlayValueTextBrush = CreateFrozenBrush(DefaultValueTextColorHex, Color.FromRgb(250, 250, 250));
-        OverlayLabelTextBrush = CreateFrozenBrush(DefaultLabelTextColorHex, Color.FromRgb(161, 161, 170));
+        OverlayHeaderBrush = FrozenOverlayHeaderBrush;
+        OverlayValueTextBrush = FrozenOverlayValueTextBrush;
+        OverlayLabelTextBrush = FrozenOverlayLabelTextBrush;
     }
 
     private void InitializeOverlaySectionsOrder(List<string>? savedOrder)
@@ -1018,11 +960,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     private OverlaySectionItemViewModel CreateSectionViewModel(string key) => key switch
     {
-        "FPS" => new OverlaySectionItemViewModel("FPS", "Contador de FPS (Quadros por Segundo)", "TopSpeed24", this),
-        "CPU" => new OverlaySectionItemViewModel("CPU", "Processador (Modelo, Uso, Temp, Clock, Watts)", "DeveloperBoard24", this),
-        "GPU" => new OverlaySectionItemViewModel("GPU", "Placa de Vídeo (Modelo, Uso, Temp, VRAM, Clock, Watts)", "Video24", this),
-        "RAM" => new OverlaySectionItemViewModel("RAM", "Memória RAM Física (GB e %)", "Ram16", this),
-        _ => new OverlaySectionItemViewModel(key, key, "DataHistogram24", this)
+        "FPS" => new OverlaySectionItemViewModel("FPS", "Contador de FPS (Quadros por Segundo)", this),
+        "CPU" => new OverlaySectionItemViewModel("CPU", "Processador (Modelo, Uso, Temp, Clock, Watts)", this),
+        "GPU" => new OverlaySectionItemViewModel("GPU", "Placa de Vídeo (Modelo, Uso, Temp, VRAM, Clock, Watts)", this),
+        "RAM" => new OverlaySectionItemViewModel("RAM", "Memória RAM Física (GB e %)", this),
+        _ => new OverlaySectionItemViewModel(key, key, this)
     };
 
     private void UpdateSectionBoundaryFlags()
@@ -1129,91 +1071,202 @@ public partial class MainViewModel : ObservableObject, IDisposable
         double roundedRamFree = Math.Round(metrics.RamFreeGb, 1);
         double roundedRamPct = Math.Clamp(Math.Round(metrics.RamUsagePercent), 0.0, 100.0);
 
+        double cpuVcoreKey = roundedCpuVcore ?? -1.0;
+        double gpuVramTotalKey = roundedGpuVramTotal ?? -1.0;
+
         Application.Current?.Dispatcher.InvokeAsync(() =>
         {
             if (_isDisposed)
                 return;
 
             // FPS
-            FpsValueText = $"{metrics.CurrentFps}";
-            FpsText = $"{metrics.CurrentFps} FPS";
+            if (currentFps != _prevFps)
+            {
+                _prevFps = currentFps;
+                FpsValueText = currentFps.ToString(CultureInfo.InvariantCulture);
+                FpsText = $"{FpsValueText} FPS";
+            }
 
             // CPU
-            CpuTemperatureText = roundedCpuTemp > 0 ? $"{roundedCpuTemp} °C" : "N/D";
-            CpuLoadText = $"{roundedCpuLoad:0}%";
-            CpuLoadBarValue = roundedCpuLoad;
+            if (roundedCpuTemp != _prevCpuTemp)
+            {
+                _prevCpuTemp = roundedCpuTemp;
+                CpuTemperatureText = roundedCpuTemp > 0 ? $"{roundedCpuTemp} °C" : "N/D";
+            }
 
-            CpuClockText = roundedCpuClock > 0 ? $"{roundedCpuClock} MHz" : "N/D";
-            CpuMaxClockText = roundedCpuMaxClock > 0 ? $"{roundedCpuMaxClock} MHz" : "N/D";
+            if (roundedCpuLoad != _prevCpuLoad)
+            {
+                _prevCpuLoad = roundedCpuLoad;
+                CpuLoadText = $"{roundedCpuLoad:0}%";
+                CpuLoadBarValue = roundedCpuLoad;
+            }
 
-            CpuClockAvgMaxText = roundedCpuClock > 0
-                ? (roundedCpuMaxClock > 0
-                    ? $"{roundedCpuClock} MHz (Máx: {roundedCpuMaxClock} MHz)"
-                    : $"{roundedCpuClock} MHz")
-                : "N/D";
+            bool cpuClockChanged = roundedCpuClock != _prevCpuClock;
+            bool cpuMaxClockChanged = roundedCpuMaxClock != _prevCpuMaxClock;
+            if (cpuClockChanged || cpuMaxClockChanged)
+            {
+                _prevCpuClock = roundedCpuClock;
+                _prevCpuMaxClock = roundedCpuMaxClock;
 
-            CpuPowerText = roundedCpuPower > 0.0
-                ? string.Create(CultureInfo.InvariantCulture, $"{roundedCpuPower:0.0} W")
-                : "N/D";
+                if (cpuClockChanged)
+                {
+                    CpuClockText = roundedCpuClock > 0 ? $"{roundedCpuClock} MHz" : "N/D";
+                }
 
-            CpuVoltageText = roundedCpuVcore is > 0.0
-                ? string.Create(CultureInfo.InvariantCulture, $"{roundedCpuVcore.Value:0.000} V")
-                : "N/D";
+                CpuClockAvgMaxText = roundedCpuClock > 0
+                    ? (roundedCpuMaxClock > 0
+                        ? $"{roundedCpuClock} MHz (Máx: {roundedCpuMaxClock} MHz)"
+                        : $"{roundedCpuClock} MHz")
+                    : "N/D";
+            }
+
+            if (roundedCpuPower != _prevCpuPower)
+            {
+                _prevCpuPower = roundedCpuPower;
+                CpuPowerText = roundedCpuPower > 0.0
+                    ? string.Create(CultureInfo.InvariantCulture, $"{roundedCpuPower:0.0} W")
+                    : "N/D";
+            }
+
+            if (cpuVcoreKey != _prevCpuVcore)
+            {
+                _prevCpuVcore = cpuVcoreKey;
+                CpuVoltageText = cpuVcoreKey > 0.0
+                    ? string.Create(CultureInfo.InvariantCulture, $"{cpuVcoreKey:0.000} V")
+                    : "N/D";
+            }
 
             if (metrics.IsHybridCpu)
             {
-                CpuPCoreLoad = (float)roundedPCoreLoad;
-                CpuECoreLoad = (float)roundedECoreLoad;
-                CpuPCoreClock = roundedPCoreClock;
-                CpuECoreClock = roundedECoreClock;
+                bool pLoadChanged = roundedPCoreLoad != _prevPCoreLoad;
+                bool eLoadChanged = roundedECoreLoad != _prevECoreLoad;
 
-                CpuPCoreLoadText = $"{roundedPCoreLoad:0}%";
-                CpuECoreLoadText = $"{roundedECoreLoad:0}%";
+                if (pLoadChanged)
+                {
+                    _prevPCoreLoad = roundedPCoreLoad;
+                    CpuPCoreLoadText = $"{roundedPCoreLoad:0}%";
+                }
 
-                CpuPCoreClockText = roundedPCoreClock > 0 ? $"{roundedPCoreClock} MHz" : "N/D";
-                CpuECoreClockText = roundedECoreClock > 0 ? $"{roundedECoreClock} MHz" : "N/D";
+                if (eLoadChanged)
+                {
+                    _prevECoreLoad = roundedECoreLoad;
+                    CpuECoreLoadText = $"{roundedECoreLoad:0}%";
+                }
 
-                CpuHybridCompactLoadText = $"P: {roundedPCoreLoad:0}% | E: {roundedECoreLoad:0}%";
+                if (pLoadChanged || eLoadChanged)
+                {
+                    CpuHybridCompactLoadText = $"P: {roundedPCoreLoad:0}% | E: {roundedECoreLoad:0}%";
+                }
+
+                if (roundedPCoreClock != _prevPCoreClock)
+                {
+                    _prevPCoreClock = roundedPCoreClock;
+                    CpuPCoreClockText = roundedPCoreClock > 0 ? $"{roundedPCoreClock} MHz" : "N/D";
+                }
+
+                if (roundedECoreClock != _prevECoreClock)
+                {
+                    _prevECoreClock = roundedECoreClock;
+                    CpuECoreClockText = roundedECoreClock > 0 ? $"{roundedECoreClock} MHz" : "N/D";
+                }
             }
 
             // GPU Primária do Overlay
-            GpuTemperatureText = roundedGpuTemp > 0 ? $"{roundedGpuTemp} °C" : "N/D";
-            GpuLoadText = $"{roundedGpuLoad}%";
-            GpuClockText = roundedGpuClock > 0 ? $"{roundedGpuClock} MHz" : "N/D";
-            GpuPowerText = roundedGpuPower > 0.0
-                ? string.Create(CultureInfo.InvariantCulture, $"{roundedGpuPower:0.0} W")
-                : "N/D";
-
-            if (roundedGpuVramUsed > 0.0)
+            if (roundedGpuTemp != _prevGpuTemp)
             {
-                if (roundedGpuVramTotal is > 0.0)
+                _prevGpuTemp = roundedGpuTemp;
+                GpuTemperatureText = roundedGpuTemp > 0 ? $"{roundedGpuTemp} °C" : "N/D";
+            }
+
+            if (roundedGpuLoad != _prevGpuLoad)
+            {
+                _prevGpuLoad = roundedGpuLoad;
+                GpuLoadText = $"{roundedGpuLoad}%";
+            }
+
+            if (roundedGpuClock != _prevGpuClock)
+            {
+                _prevGpuClock = roundedGpuClock;
+                GpuClockText = roundedGpuClock > 0 ? $"{roundedGpuClock} MHz" : "N/D";
+            }
+
+            if (roundedGpuPower != _prevGpuPower)
+            {
+                _prevGpuPower = roundedGpuPower;
+                GpuPowerText = roundedGpuPower > 0.0
+                    ? string.Create(CultureInfo.InvariantCulture, $"{roundedGpuPower:0.0} W")
+                    : "N/D";
+            }
+
+            if (roundedGpuVramUsed != _prevGpuVramUsed || gpuVramTotalKey != _prevGpuVramTotal)
+            {
+                _prevGpuVramUsed = roundedGpuVramUsed;
+                _prevGpuVramTotal = gpuVramTotalKey;
+
+                if (roundedGpuVramUsed > 0.0)
                 {
-                    int vramPct = (int)Math.Clamp(Math.Round((roundedGpuVramUsed / roundedGpuVramTotal.Value) * 100.0), 0.0, 100.0);
-                    GpuVramText = string.Create(CultureInfo.InvariantCulture, $"{roundedGpuVramUsed:0.0} GB ({vramPct}%)");
+                    if (gpuVramTotalKey > 0.0)
+                    {
+                        int vramPct = (int)Math.Clamp(Math.Round((roundedGpuVramUsed / gpuVramTotalKey) * 100.0), 0.0, 100.0);
+                        GpuVramText = string.Create(CultureInfo.InvariantCulture, $"{roundedGpuVramUsed:0.0} GB ({vramPct}%)");
+                    }
+                    else
+                    {
+                        GpuVramText = string.Create(CultureInfo.InvariantCulture, $"{roundedGpuVramUsed:0.0} GB");
+                    }
                 }
                 else
                 {
-                    GpuVramText = string.Create(CultureInfo.InvariantCulture, $"{roundedGpuVramUsed:0.0} GB");
+                    GpuVramText = "N/D";
                 }
-            }
-            else
-            {
-                GpuVramText = "N/D";
             }
 
             // Memória RAM
-            RamUsageText = string.Create(
-                CultureInfo.InvariantCulture,
-                $"{roundedRamUsed:0.0} GB ({roundedRamPct:0}%)");
+            bool ramUsedChanged = roundedRamUsed != _prevRamUsed;
+            bool ramTotalChanged = roundedRamTotal != _prevRamTotal;
+            bool ramFreeChanged = roundedRamFree != _prevRamFree;
+            bool ramPctChanged = roundedRamPct != _prevRamPct;
 
-            RamUsedText = string.Create(CultureInfo.InvariantCulture, $"{roundedRamUsed:0.0} GB");
-            RamPercentText = $"{roundedRamPct:0}%";
-            RamUsageBarValue = roundedRamPct;
-
-            if (roundedRamTotal > 0.0)
+            if (ramUsedChanged || ramPctChanged)
             {
-                RamTotalText = string.Create(CultureInfo.InvariantCulture, $"{roundedRamTotal:0.0} GB");
-                RamFreeText = string.Create(CultureInfo.InvariantCulture, $"{roundedRamFree:0.0} GB");
+                RamUsageText = string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"{roundedRamUsed:0.0} GB ({roundedRamPct:0}%)");
+            }
+
+            if (ramUsedChanged)
+            {
+                _prevRamUsed = roundedRamUsed;
+                RamUsedText = string.Create(CultureInfo.InvariantCulture, $"{roundedRamUsed:0.0} GB");
+            }
+
+            if (ramPctChanged)
+            {
+                _prevRamPct = roundedRamPct;
+                RamPercentText = $"{roundedRamPct:0}%";
+                RamUsageBarValue = roundedRamPct;
+            }
+
+            if (ramTotalChanged)
+            {
+                _prevRamTotal = roundedRamTotal;
+                if (roundedRamTotal > 0.0)
+                {
+                    RamTotalText = string.Create(CultureInfo.InvariantCulture, $"{roundedRamTotal:0.0} GB");
+                }
+            }
+
+            if (ramFreeChanged)
+            {
+                _prevRamFree = roundedRamFree;
+                if (roundedRamTotal > 0.0)
+                {
+                    RamFreeText = string.Create(CultureInfo.InvariantCulture, $"{roundedRamFree:0.0} GB");
+                }
+            }
+
+            if (roundedRamTotal > 0.0 && (ramUsedChanged || ramTotalChanged || ramFreeChanged))
+            {
                 RamDetailedSummaryText = string.Create(
                     CultureInfo.InvariantCulture,
                     $"{roundedRamUsed:0.0} GB usados de {roundedRamTotal:0.0} GB ({roundedRamFree:0.0} GB livres)");
@@ -1312,15 +1365,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
             {
                 PhysicalDisks.Add(p);
             }
-        }
-    }
-
-    [RelayCommand]
-    private void SelectTab(string? indexParameter)
-    {
-        if (int.TryParse(indexParameter, out int idx) && idx is >= 0 and <= 4)
-        {
-            SelectedNavIndex = idx;
         }
     }
 
@@ -1620,10 +1664,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
             SmartFullscreenOnly = SmartFullscreenOnly,
             IsHorizontalLayout = IsHorizontalLayout,
             AppTheme = AppTheme,
-            OverlayBackgroundColorHex = OverlayBackgroundColorHex,
-            OverlayBorderColorHex = OverlayBorderColorHex,
-            OverlayHeaderColorHex = OverlayHeaderColorHex,
-            OverlayValueTextColorHex = OverlayValueTextColorHex,
+            OverlayBackgroundColorHex = DefaultBackgroundColorHex,
+            OverlayBorderColorHex = DefaultBorderColorHex,
+            OverlayHeaderColorHex = DefaultHeaderColorHex,
+            OverlayValueTextColorHex = DefaultValueTextColorHex,
             OverlaySectionOrder = OverlaySections.Select(s => s.Key).ToList(),
             ShowFps = ShowFps,
             ShowCpuTemp = ShowCpuTemp,
@@ -1654,30 +1698,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
             UpdateOverlayBrushes();
             EnsureOverlayTransparentAction?.Invoke();
         }
-        SaveSettings();
-    }
-
-    partial void OnOverlayBackgroundColorHexChanged(string value)
-    {
-        UpdateOverlayBrushes();
-        SaveSettings();
-    }
-
-    partial void OnOverlayBorderColorHexChanged(string value)
-    {
-        UpdateOverlayBrushes();
-        SaveSettings();
-    }
-
-    partial void OnOverlayHeaderColorHexChanged(string value)
-    {
-        OverlayHeaderBrush = CreateFrozenBrush(DefaultHeaderColorHex, Color.FromRgb(250, 250, 250));
-        SaveSettings();
-    }
-
-    partial void OnOverlayValueTextColorHexChanged(string value)
-    {
-        OverlayValueTextBrush = CreateFrozenBrush(DefaultValueTextColorHex, Color.FromRgb(250, 250, 250));
         SaveSettings();
     }
 
@@ -1785,7 +1805,6 @@ public partial class OverlaySectionItemViewModel : ObservableObject
 {
     public string Key { get; }
     public string DisplayTitle { get; }
-    public string IconSymbol { get; }
     public MainViewModel Parent { get; }
 
     public bool IsFpsSection => Key == "FPS";
@@ -1802,11 +1821,10 @@ public partial class OverlaySectionItemViewModel : ObservableObject
     [ObservableProperty]
     private bool _canMoveDown;
 
-    public OverlaySectionItemViewModel(string key, string displayTitle, string iconSymbol, MainViewModel parent)
+    public OverlaySectionItemViewModel(string key, string displayTitle, MainViewModel parent)
     {
         Key = key;
         DisplayTitle = displayTitle;
-        IconSymbol = iconSymbol;
         Parent = parent;
     }
 }

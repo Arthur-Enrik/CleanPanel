@@ -7,9 +7,12 @@ namespace HardwareOverlayApp.Services;
 public class SettingsService : IDisposable
 {
     private const int DebounceDelayMs = 300;
+    private const double DefaultOverlayOpacity = 0.80;
 
     private readonly string _settingsFilePath;
+    private readonly string _tempSettingsFilePath;
     private readonly object _debounceLock = new();
+    private readonly object _fileIoLock = new();
     private CancellationTokenSource? _debounceCts;
     private AppSettings? _pendingSettings;
     private bool _isDisposed;
@@ -22,42 +25,50 @@ public class SettingsService : IDisposable
     public SettingsService()
     {
         _settingsFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "settings.json");
+        _tempSettingsFilePath = _settingsFilePath + ".tmp";
     }
 
     public AppSettings Load()
     {
-        try
+        lock (_fileIoLock)
         {
-            if (!File.Exists(_settingsFilePath))
+            try
             {
-                var defaultSettings = new AppSettings();
-                WriteToDiskImmediate(defaultSettings);
-                return defaultSettings;
-            }
+                string? sourcePath = null;
+                bool recoveredFromTemp = false;
 
-            string json = File.ReadAllText(_settingsFilePath);
-            var settings = JsonSerializer.Deserialize<AppSettings>(json, JsonOptions) ?? new AppSettings();
+                if (File.Exists(_settingsFilePath))
+                {
+                    sourcePath = _settingsFilePath;
+                }
+                else if (File.Exists(_tempSettingsFilePath))
+                {
+                    sourcePath = _tempSettingsFilePath;
+                    recoveredFromTemp = true;
+                }
 
-            // Normaliza caso um arquivo antigo tenha salvo em escala 10..100
-            if (settings.OverlayOpacity > 1.0 && settings.OverlayOpacity <= 100.0)
-            {
-                settings.OverlayOpacity /= 100.0;
-            }
+                if (sourcePath is null)
+                {
+                    var defaultSettings = new AppSettings();
+                    WriteToDiskImmediateLocked(defaultSettings);
+                    return defaultSettings;
+                }
 
-            // Fallback seguro de 0.80 se o valor for inválido, corrompido ou <= 0.05
-            if (double.IsNaN(settings.OverlayOpacity) || settings.OverlayOpacity <= 0.05 || settings.OverlayOpacity > 1.0)
-            {
-                settings.OverlayOpacity = 0.80;
+                string json = File.ReadAllText(sourcePath);
+                var settings = JsonSerializer.Deserialize<AppSettings>(json, JsonOptions) ?? new AppSettings();
+                NormalizeOpacity(settings);
+
+                if (recoveredFromTemp)
+                {
+                    WriteToDiskImmediateLocked(settings);
+                }
+
+                return settings;
             }
-            else
+            catch
             {
-                settings.OverlayOpacity = Math.Clamp(settings.OverlayOpacity, 0.1, 1.0);
+                return new AppSettings();
             }
-            return settings;
-        }
-        catch
-        {
-            return new AppSettings();
         }
     }
 
@@ -67,13 +78,13 @@ public class SettingsService : IDisposable
     /// </summary>
     public void Save(AppSettings settings)
     {
-        if (_isDisposed)
-            return;
-
         CancellationToken token;
 
         lock (_debounceLock)
         {
+            if (_isDisposed)
+                return;
+
             _pendingSettings = settings;
             _debounceCts?.Cancel();
             _debounceCts?.Dispose();
@@ -90,7 +101,7 @@ public class SettingsService : IDisposable
                 AppSettings? toWrite;
                 lock (_debounceLock)
                 {
-                    if (token.IsCancellationRequested)
+                    if (_isDisposed || token.IsCancellationRequested)
                         return;
 
                     toWrite = _pendingSettings;
@@ -133,19 +144,20 @@ public class SettingsService : IDisposable
 
     private void WriteToDiskImmediate(AppSettings settings)
     {
+        lock (_fileIoLock)
+        {
+            WriteToDiskImmediateLocked(settings);
+        }
+    }
+
+    private void WriteToDiskImmediateLocked(AppSettings settings)
+    {
         try
         {
-            if (double.IsNaN(settings.OverlayOpacity) || settings.OverlayOpacity <= 0.05 || settings.OverlayOpacity > 1.0)
-            {
-                settings.OverlayOpacity = 0.80;
-            }
-            else
-            {
-                settings.OverlayOpacity = Math.Clamp(Math.Round(settings.OverlayOpacity, 2), 0.1, 1.0);
-            }
-
+            NormalizeOpacity(settings);
             string json = JsonSerializer.Serialize(settings, JsonOptions);
-            File.WriteAllText(_settingsFilePath, json);
+            File.WriteAllText(_tempSettingsFilePath, json);
+            File.Move(_tempSettingsFilePath, _settingsFilePath, overwrite: true);
         }
         catch
         {
@@ -153,12 +165,42 @@ public class SettingsService : IDisposable
         }
     }
 
+    private static void NormalizeOpacity(AppSettings settings)
+    {
+        if (settings.OverlayOpacity > 1.0 && settings.OverlayOpacity <= 100.0)
+        {
+            settings.OverlayOpacity /= 100.0;
+        }
+
+        if (double.IsNaN(settings.OverlayOpacity) || settings.OverlayOpacity <= 0.05 || settings.OverlayOpacity > 1.0)
+        {
+            settings.OverlayOpacity = DefaultOverlayOpacity;
+        }
+        else
+        {
+            settings.OverlayOpacity = Math.Clamp(Math.Round(settings.OverlayOpacity, 2), 0.1, 1.0);
+        }
+    }
+
     public void Dispose()
     {
-        if (_isDisposed)
-            return;
+        AppSettings? pending;
+        lock (_debounceLock)
+        {
+            if (_isDisposed)
+                return;
 
-        _isDisposed = true;
-        FlushImmediate();
+            _isDisposed = true;
+            _debounceCts?.Cancel();
+            _debounceCts?.Dispose();
+            _debounceCts = null;
+            pending = _pendingSettings;
+            _pendingSettings = null;
+        }
+
+        if (pending is not null)
+        {
+            WriteToDiskImmediate(pending);
+        }
     }
 }

@@ -22,9 +22,6 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Publicar C# em Release
-        run: dotnet publish -c Release -o ./publish
-
       - name: Instalar Inno Setup
         run: choco install innosetup -y
 
@@ -32,11 +29,9 @@ jobs:
         shell: pwsh
         run: |
           $rawTag = "${{ github.ref_name }}"
-          $version = if ($rawTag -match '^v?(.*)$') { $matches[1] } else { "1.0.0" }
+          $version = if ($rawTag -match '^v?(\d+(?:\.\d+){1,3}(?:-[0-9A-Za-z.-]+)?)$') { $matches[1] } else { "1.0.0" }
           Write-Host "Compilando instalador para versao: $version"
-
-          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
-          & $iscc /DMyAppVersion="$version" /DMyBuildFolder="../publish" installer/setup.iss
+          ./build-installer.ps1 -Versao "$version"
 
       - name: Publicar Release no GitHub
         uses: softprops/action-gh-release@v2

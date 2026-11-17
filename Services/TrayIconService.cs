@@ -7,6 +7,10 @@ public class TrayIconService : IDisposable
 {
     private readonly System.Windows.Forms.NotifyIcon _notifyIcon;
     private readonly System.Windows.Forms.ContextMenuStrip _contextMenu;
+    private readonly System.Windows.Forms.ToolStripMenuItem _openSettingsItem;
+    private readonly System.Windows.Forms.ToolStripMenuItem _toggleOverlayItem;
+    private readonly System.Windows.Forms.ToolStripMenuItem _toggleLockItem;
+    private readonly System.Windows.Forms.ToolStripMenuItem _exitItem;
     private readonly System.Drawing.Icon _trayIcon;
     private readonly MainViewModel _viewModel;
     private readonly Action _openSettingsAction;
@@ -25,23 +29,23 @@ public class TrayIconService : IDisposable
         _trayIcon = IconGeneratorHelper.CreateTrayIcon();
         _contextMenu = new System.Windows.Forms.ContextMenuStrip();
 
-        var openSettingsItem = new System.Windows.Forms.ToolStripMenuItem("Abrir Cleanpanel");
-        openSettingsItem.Click += (_, _) => _openSettingsAction();
+        _openSettingsItem = new System.Windows.Forms.ToolStripMenuItem("Abrir Cleanpanel");
+        _openSettingsItem.Click += OnOpenSettingsClick;
 
-        var toggleOverlayItem = new System.Windows.Forms.ToolStripMenuItem("Mostrar / Ocultar Overlay (Ctrl+Shift+O)");
-        toggleOverlayItem.Click += (_, _) => _viewModel.IsOverlayVisible = !_viewModel.IsOverlayVisible;
+        _toggleOverlayItem = new System.Windows.Forms.ToolStripMenuItem("Mostrar / Ocultar Overlay (Ctrl+Shift+O)");
+        _toggleOverlayItem.Click += OnToggleOverlayClick;
 
-        var toggleLockItem = new System.Windows.Forms.ToolStripMenuItem("Travar / Destravar Posição do Overlay");
-        toggleLockItem.Click += (_, _) => _viewModel.IsOverlayLocked = !_viewModel.IsOverlayLocked;
+        _toggleLockItem = new System.Windows.Forms.ToolStripMenuItem("Travar / Destravar Posição do Overlay");
+        _toggleLockItem.Click += OnToggleLockClick;
 
-        var exitItem = new System.Windows.Forms.ToolStripMenuItem("Sair Completamente");
-        exitItem.Click += (_, _) => _exitApplicationAction();
+        _exitItem = new System.Windows.Forms.ToolStripMenuItem("Sair Completamente");
+        _exitItem.Click += OnExitClick;
 
-        _contextMenu.Items.Add(openSettingsItem);
-        _contextMenu.Items.Add(toggleOverlayItem);
-        _contextMenu.Items.Add(toggleLockItem);
+        _contextMenu.Items.Add(_openSettingsItem);
+        _contextMenu.Items.Add(_toggleOverlayItem);
+        _contextMenu.Items.Add(_toggleLockItem);
         _contextMenu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
-        _contextMenu.Items.Add(exitItem);
+        _contextMenu.Items.Add(_exitItem);
 
         _notifyIcon = new System.Windows.Forms.NotifyIcon
         {
@@ -51,8 +55,20 @@ public class TrayIconService : IDisposable
             Visible = true
         };
 
-        _notifyIcon.DoubleClick += (_, _) => _openSettingsAction();
+        _notifyIcon.DoubleClick += OnNotifyIconDoubleClick;
     }
+
+    private void OnOpenSettingsClick(object? sender, EventArgs e) => _openSettingsAction();
+
+    private void OnToggleOverlayClick(object? sender, EventArgs e) =>
+        _viewModel.IsOverlayVisible = !_viewModel.IsOverlayVisible;
+
+    private void OnToggleLockClick(object? sender, EventArgs e) =>
+        _viewModel.IsOverlayLocked = !_viewModel.IsOverlayLocked;
+
+    private void OnExitClick(object? sender, EventArgs e) => _exitApplicationAction();
+
+    private void OnNotifyIconDoubleClick(object? sender, EventArgs e) => _openSettingsAction();
 
     public void Dispose()
     {
@@ -60,6 +76,13 @@ public class TrayIconService : IDisposable
             return;
 
         _isDisposed = true;
+
+        _notifyIcon.DoubleClick -= OnNotifyIconDoubleClick;
+        _openSettingsItem.Click -= OnOpenSettingsClick;
+        _toggleOverlayItem.Click -= OnToggleOverlayClick;
+        _toggleLockItem.Click -= OnToggleLockClick;
+        _exitItem.Click -= OnExitClick;
+
         _notifyIcon.Visible = false;
         _notifyIcon.Dispose();
         _contextMenu.Dispose();

@@ -13,14 +13,12 @@ namespace HardwareOverlayApp.Models;
 /// Especificações estáticas e híbridas do sistema (lidas uma única vez na inicialização e cacheadas em memória).
 /// Combina Registro do Windows, WMI (System.Management), System.IO.DriveInfo e LibreHardwareMonitor.
 /// </summary>
-public class HardwareSpecs
+public partial class HardwareSpecs
 {
     // Sistema Operacional
     public string OsName { get; set; } = "Windows";
     public string OsEdition { get; set; } = "N/D";
-    public string OsDisplayVersion { get; set; } = "N/D";
     public string OsBuild { get; set; } = "N/D";
-    public string OsFullSummary => $"{OsName} ({OsDisplayVersion} - Build {OsBuild})";
 
     // Processador (CPU)
     public string CpuName { get; set; } = "Processador Desconhecido";
@@ -41,9 +39,11 @@ public class HardwareSpecs
     public string PrimaryGpuShortName { get; set; } = "GPU";
     public List<GpuSpecInfo> Gpus { get; set; } = [];
 
-    // Mapeamento estático de partições lógicas (ex: "C:") para modelo do disco físico e capacidade
+    // Mapeamento estático de partições lógicas (ex: "C:") para modelo do disco físico, capacidade e metadados de volume
     public Dictionary<string, string> LogicalDriveToPhysicalModel { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, double> PartitionStaticTotalGb { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, string> PartitionStaticVolumeLabel { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, string> PartitionStaticFileSystem { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// Carrega todas as especificações estáticas de forma blindada (try/catch isolado por categoria).
@@ -96,7 +96,6 @@ public class HardwareSpecs
             specs.OsEdition = !string.IsNullOrWhiteSpace(displayVersion) && displayVersion != "N/D"
                 ? $"{editionId} ({displayVersion})"
                 : editionId;
-            specs.OsDisplayVersion = displayVersion;
             specs.OsBuild = !string.IsNullOrWhiteSpace(ubr) ? $"{currentBuild}.{ubr}" : currentBuild;
         }
         catch
@@ -128,23 +127,26 @@ public class HardwareSpecs
 
             foreach (ManagementBaseObject obj in results)
             {
-                if (string.IsNullOrWhiteSpace(cpuName))
+                using (obj)
                 {
-                    cpuName = obj["Name"]?.ToString()?.Trim();
-                }
+                    if (string.IsNullOrWhiteSpace(cpuName))
+                    {
+                        cpuName = obj["Name"]?.ToString()?.Trim();
+                    }
 
-                if (obj["NumberOfCores"] is not null &&
-                    int.TryParse(obj["NumberOfCores"].ToString(), out int cores) &&
-                    cores > 0)
-                {
-                    physicalCores += cores;
-                }
+                    if (obj["NumberOfCores"] is not null &&
+                        int.TryParse(obj["NumberOfCores"].ToString(), out int cores) &&
+                        cores > 0)
+                    {
+                        physicalCores += cores;
+                    }
 
-                if (obj["NumberOfLogicalProcessors"] is not null &&
-                    int.TryParse(obj["NumberOfLogicalProcessors"].ToString(), out int logical) &&
-                    logical > 0)
-                {
-                    logicalProcessors += logical;
+                    if (obj["NumberOfLogicalProcessors"] is not null &&
+                        int.TryParse(obj["NumberOfLogicalProcessors"].ToString(), out int logical) &&
+                        logical > 0)
+                    {
+                        logicalProcessors += logical;
+                    }
                 }
             }
         }
@@ -223,12 +225,15 @@ public class HardwareSpecs
             using ManagementObjectCollection results = searcher.Get();
             foreach (ManagementBaseObject obj in results)
             {
-                if (obj["TotalPhysicalMemory"] is not null &&
-                    ulong.TryParse(obj["TotalPhysicalMemory"].ToString(), out ulong totalBytes) &&
-                    totalBytes > 0)
+                using (obj)
                 {
-                    specs.TotalRamGb = (float)(totalBytes / (1024.0 * 1024.0 * 1024.0));
-                    return;
+                    if (obj["TotalPhysicalMemory"] is not null &&
+                        ulong.TryParse(obj["TotalPhysicalMemory"].ToString(), out ulong totalBytes) &&
+                        totalBytes > 0)
+                    {
+                        specs.TotalRamGb = (float)(totalBytes / (1024.0 * 1024.0 * 1024.0));
+                        return;
+                    }
                 }
             }
         }
@@ -253,6 +258,21 @@ public class HardwareSpecs
                     string key = drive.Name.TrimEnd('\\');
                     double totalGb = drive.TotalSize / (1024.0 * 1024.0 * 1024.0);
                     specs.PartitionStaticTotalGb[key] = totalGb;
+
+                    string volumeLabel = string.Empty;
+                    string fileSystem = "NTFS";
+                    try
+                    {
+                        volumeLabel = drive.VolumeLabel?.Trim() ?? string.Empty;
+                        fileSystem = drive.DriveFormat?.Trim() ?? "NTFS";
+                    }
+                    catch
+                    {
+                        // Mantém metadados padrão caso o rótulo do volume esteja inacessível
+                    }
+
+                    specs.PartitionStaticVolumeLabel[key] = volumeLabel;
+                    specs.PartitionStaticFileSystem[key] = fileSystem;
                 }
                 catch
                 {
@@ -273,41 +293,50 @@ public class HardwareSpecs
 
             foreach (ManagementBaseObject disk in disks)
             {
-                try
+                using (disk)
                 {
-                    string? deviceId = disk["DeviceID"]?.ToString();
-                    string? model = disk["Model"]?.ToString()?.Trim();
-                    if (string.IsNullOrWhiteSpace(deviceId) || string.IsNullOrWhiteSpace(model))
-                        continue;
-
-                    string escapedDeviceId = deviceId.Replace("\\", "\\\\");
-                    using var partitionSearcher = new ManagementObjectSearcher(
-                        $"ASSOCIATORS OF {{Win32_DiskDrive.DeviceID='{escapedDeviceId}'}} WHERE AssocClass = Win32_DiskDriveToDiskPartition");
-                    using ManagementObjectCollection partitions = partitionSearcher.Get();
-
-                    foreach (ManagementBaseObject partition in partitions)
+                    try
                     {
-                        string? partId = partition["DeviceID"]?.ToString();
-                        if (string.IsNullOrWhiteSpace(partId))
+                        string? deviceId = disk["DeviceID"]?.ToString();
+                        string? model = disk["Model"]?.ToString()?.Trim();
+                        if (string.IsNullOrWhiteSpace(deviceId) || string.IsNullOrWhiteSpace(model))
                             continue;
 
-                        using var logicalSearcher = new ManagementObjectSearcher(
-                            $"ASSOCIATORS OF {{Win32_DiskPartition.DeviceID='{partId}'}} WHERE AssocClass = Win32_LogicalDiskToPartition");
-                        using ManagementObjectCollection logicalDisks = logicalSearcher.Get();
+                        string escapedDeviceId = deviceId.Replace("\\", "\\\\");
+                        using var partitionSearcher = new ManagementObjectSearcher(
+                            $"ASSOCIATORS OF {{Win32_DiskDrive.DeviceID='{escapedDeviceId}'}} WHERE AssocClass = Win32_DiskDriveToDiskPartition");
+                        using ManagementObjectCollection partitions = partitionSearcher.Get();
 
-                        foreach (ManagementBaseObject logical in logicalDisks)
+                        foreach (ManagementBaseObject partition in partitions)
                         {
-                            string? driveLetter = logical["DeviceID"]?.ToString()?.Trim()?.TrimEnd('\\');
-                            if (!string.IsNullOrWhiteSpace(driveLetter))
+                            using (partition)
                             {
-                                specs.LogicalDriveToPhysicalModel[driveLetter] = model;
+                                string? partId = partition["DeviceID"]?.ToString();
+                                if (string.IsNullOrWhiteSpace(partId))
+                                    continue;
+
+                                using var logicalSearcher = new ManagementObjectSearcher(
+                                    $"ASSOCIATORS OF {{Win32_DiskPartition.DeviceID='{partId}'}} WHERE AssocClass = Win32_LogicalDiskToPartition");
+                                using ManagementObjectCollection logicalDisks = logicalSearcher.Get();
+
+                                foreach (ManagementBaseObject logical in logicalDisks)
+                                {
+                                    using (logical)
+                                    {
+                                        string? driveLetter = logical["DeviceID"]?.ToString()?.Trim()?.TrimEnd('\\');
+                                        if (!string.IsNullOrWhiteSpace(driveLetter))
+                                        {
+                                            specs.LogicalDriveToPhysicalModel[driveLetter] = model;
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
-                }
-                catch
-                {
-                    // Ignora falha em um disco específico e prossegue para os demais
+                    catch
+                    {
+                        // Ignora falha em um disco específico e prossegue para os demais
+                    }
                 }
             }
         }
@@ -432,18 +461,18 @@ public class HardwareSpecs
         string cleaned = rawName.Trim();
 
         // Remove marcas registradas e símbolos comerciais
-        cleaned = Regex.Replace(cleaned, @"\((R|TM|C)\)|®|™|©", string.Empty, RegexOptions.IgnoreCase);
+        cleaned = TrademarkSymbolsRegex().Replace(cleaned, string.Empty);
 
         if (isGpu)
         {
-            cleaned = Regex.Replace(cleaned, @"\bNVIDIA\s+GeForce\b", string.Empty, RegexOptions.IgnoreCase);
-            cleaned = Regex.Replace(cleaned, @"\bNVIDIA\b", string.Empty, RegexOptions.IgnoreCase);
-            cleaned = Regex.Replace(cleaned, @"\bAMD\s+Radeon\b", string.Empty, RegexOptions.IgnoreCase);
-            cleaned = Regex.Replace(cleaned, @"\bAMD\b", string.Empty, RegexOptions.IgnoreCase);
-            cleaned = Regex.Replace(cleaned, @"\bSeries\b", string.Empty, RegexOptions.IgnoreCase);
-            cleaned = Regex.Replace(cleaned, @"\bLaptop\s+GPU\b", "Laptop", RegexOptions.IgnoreCase);
+            cleaned = NvidiaGeForceRegex().Replace(cleaned, string.Empty);
+            cleaned = NvidiaRegex().Replace(cleaned, string.Empty);
+            cleaned = AmdRadeonRegex().Replace(cleaned, string.Empty);
+            cleaned = AmdRegex().Replace(cleaned, string.Empty);
+            cleaned = SeriesRegex().Replace(cleaned, string.Empty);
+            cleaned = LaptopGpuRegex().Replace(cleaned, "Laptop");
 
-            string withoutGraphics = Regex.Replace(cleaned, @"\bGraphics\b", string.Empty, RegexOptions.IgnoreCase).Trim();
+            string withoutGraphics = GraphicsRegex().Replace(cleaned, string.Empty).Trim();
             if (!string.IsNullOrWhiteSpace(withoutGraphics) &&
                 !withoutGraphics.Equals("Intel", StringComparison.OrdinalIgnoreCase))
             {
@@ -453,23 +482,74 @@ public class HardwareSpecs
         else
         {
             // Limpeza de sufixos e prefixos comerciais de CPU
-            cleaned = Regex.Replace(cleaned, @"\b\d+(st|nd|rd|th)\s+Gen\b", string.Empty, RegexOptions.IgnoreCase);
-            cleaned = Regex.Replace(cleaned, @"\bCPU\s*@\s*[\d\.]+\s*[GM]Hz\b", string.Empty, RegexOptions.IgnoreCase);
-            cleaned = Regex.Replace(cleaned, @"@\s*[\d\.]+\s*[GM]Hz\b", string.Empty, RegexOptions.IgnoreCase);
-            cleaned = Regex.Replace(cleaned, @"\bwith\s+Radeon.*$", string.Empty, RegexOptions.IgnoreCase);
-            cleaned = Regex.Replace(cleaned, @"\bw/\s+Radeon.*$", string.Empty, RegexOptions.IgnoreCase);
-            cleaned = Regex.Replace(cleaned, @"\b\d+-Core\s+Processor\b", string.Empty, RegexOptions.IgnoreCase);
-            cleaned = Regex.Replace(cleaned, @"\bProcessor\b", string.Empty, RegexOptions.IgnoreCase);
-            cleaned = Regex.Replace(cleaned, @"\bCPU\b", string.Empty, RegexOptions.IgnoreCase);
+            cleaned = CpuGenRegex().Replace(cleaned, string.Empty);
+            cleaned = CpuAtFreqRegex().Replace(cleaned, string.Empty);
+            cleaned = AtFreqRegex().Replace(cleaned, string.Empty);
+            cleaned = WithRadeonRegex().Replace(cleaned, string.Empty);
+            cleaned = WRadeonRegex().Replace(cleaned, string.Empty);
+            cleaned = CoreProcessorRegex().Replace(cleaned, string.Empty);
+            cleaned = ProcessorRegex().Replace(cleaned, string.Empty);
+            cleaned = CpuTokenRegex().Replace(cleaned, string.Empty);
         }
 
         // Normaliza espaços múltiplos
-        cleaned = Regex.Replace(cleaned, @"\s{2,}", " ").Trim(' ', '-', ',');
+        cleaned = MultiSpaceRegex().Replace(cleaned, " ").Trim(' ', '-', ',');
 
         return string.IsNullOrWhiteSpace(cleaned)
             ? (isGpu ? "GPU" : "CPU")
             : cleaned;
     }
+
+    [GeneratedRegex(@"\((R|TM|C)\)|®|™|©", RegexOptions.IgnoreCase)]
+    private static partial Regex TrademarkSymbolsRegex();
+
+    [GeneratedRegex(@"\bNVIDIA\s+GeForce\b", RegexOptions.IgnoreCase)]
+    private static partial Regex NvidiaGeForceRegex();
+
+    [GeneratedRegex(@"\bNVIDIA\b", RegexOptions.IgnoreCase)]
+    private static partial Regex NvidiaRegex();
+
+    [GeneratedRegex(@"\bAMD\s+Radeon\b", RegexOptions.IgnoreCase)]
+    private static partial Regex AmdRadeonRegex();
+
+    [GeneratedRegex(@"\bAMD\b", RegexOptions.IgnoreCase)]
+    private static partial Regex AmdRegex();
+
+    [GeneratedRegex(@"\bSeries\b", RegexOptions.IgnoreCase)]
+    private static partial Regex SeriesRegex();
+
+    [GeneratedRegex(@"\bLaptop\s+GPU\b", RegexOptions.IgnoreCase)]
+    private static partial Regex LaptopGpuRegex();
+
+    [GeneratedRegex(@"\bGraphics\b", RegexOptions.IgnoreCase)]
+    private static partial Regex GraphicsRegex();
+
+    [GeneratedRegex(@"\b\d+(st|nd|rd|th)\s+Gen\b", RegexOptions.IgnoreCase)]
+    private static partial Regex CpuGenRegex();
+
+    [GeneratedRegex(@"\bCPU\s*@\s*[\d\.]+\s*[GM]Hz\b", RegexOptions.IgnoreCase)]
+    private static partial Regex CpuAtFreqRegex();
+
+    [GeneratedRegex(@"@\s*[\d\.]+\s*[GM]Hz\b", RegexOptions.IgnoreCase)]
+    private static partial Regex AtFreqRegex();
+
+    [GeneratedRegex(@"\bwith\s+Radeon.*$", RegexOptions.IgnoreCase)]
+    private static partial Regex WithRadeonRegex();
+
+    [GeneratedRegex(@"\bw/\s+Radeon.*$", RegexOptions.IgnoreCase)]
+    private static partial Regex WRadeonRegex();
+
+    [GeneratedRegex(@"\b\d+-Core\s+Processor\b", RegexOptions.IgnoreCase)]
+    private static partial Regex CoreProcessorRegex();
+
+    [GeneratedRegex(@"\bProcessor\b", RegexOptions.IgnoreCase)]
+    private static partial Regex ProcessorRegex();
+
+    [GeneratedRegex(@"\bCPU\b", RegexOptions.IgnoreCase)]
+    private static partial Regex CpuTokenRegex();
+
+    [GeneratedRegex(@"\s{2,}")]
+    private static partial Regex MultiSpaceRegex();
 
     public static (float? VramGb, bool IsShared) ResolveTotalVramForGpu(
         IHardware gpuHardware,
@@ -646,26 +726,29 @@ public class HardwareSpecs
             using ManagementObjectCollection items = searcher.Get();
             foreach (ManagementBaseObject obj in items)
             {
-                try
+                using (obj)
                 {
-                    string? name = obj["Name"]?.ToString()?.Trim();
-                    if (string.IsNullOrWhiteSpace(name))
-                        continue;
+                    try
+                    {
+                        string? name = obj["Name"]?.ToString()?.Trim();
+                        if (string.IsNullOrWhiteSpace(name))
+                            continue;
 
-                    if (obj["AdapterRAM"] is not null &&
-                        ulong.TryParse(obj["AdapterRAM"].ToString(), out ulong bytes) &&
-                        bytes > 0)
-                    {
-                        result[name] = (float)(bytes / (1024.0 * 1024.0 * 1024.0));
+                        if (obj["AdapterRAM"] is not null &&
+                            ulong.TryParse(obj["AdapterRAM"].ToString(), out ulong bytes) &&
+                            bytes > 0)
+                        {
+                            result[name] = (float)(bytes / (1024.0 * 1024.0 * 1024.0));
+                        }
+                        else if (!result.ContainsKey(name))
+                        {
+                            result[name] = 0f;
+                        }
                     }
-                    else if (!result.ContainsKey(name))
+                    catch
                     {
-                        result[name] = 0f;
+                        // Ignora adaptador individual
                     }
-                }
-                catch
-                {
-                    // Ignora adaptador individual
                 }
             }
         }
@@ -695,7 +778,6 @@ public class GpuSpecInfo
 /// </summary>
 public class CpuCoreMetric : ObservableObject
 {
-    public int CoreIndex { get; set; }
     public string CoreName { get; set; } = string.Empty;
     public float? LoadPercent { get; set; }
     public float? ClockMhz { get; set; }
@@ -900,8 +982,6 @@ public class StorageDriveMetrics : ObservableObject
         ? $"{TemperatureC.Value:0} °C"
         : "Sem sensor";
 
-    public bool HasTemperatureSensor => TemperatureC is > 0f;
-
     public void UpdateFrom(StorageDriveMetrics other)
     {
         double newTotal = Math.Round(other.TotalSizeGb, 1);
@@ -939,25 +1019,20 @@ public class PhysicalStorageMetrics : ObservableObject
 {
     public string ModelName { get; set; } = "Disco Físico";
     public float? TemperatureC { get; set; }
-    public float? UsedSpacePercent { get; set; }
 
     public string TemperatureText => TemperatureC is > 0f
         ? $"{TemperatureC.Value:0} °C"
         : "Sem sensor";
 
-    public bool HasTemperatureSensor => TemperatureC is > 0f;
-
     public void UpdateFrom(PhysicalStorageMetrics other)
     {
         float? newTemp = other.TemperatureC is not null ? MathF.Round(other.TemperatureC.Value, 0) : null;
-        float? newUsed = other.UsedSpacePercent is not null ? MathF.Round(other.UsedSpacePercent.Value, 0) : null;
 
-        if (TemperatureC == newTemp && UsedSpacePercent == newUsed && ModelName == other.ModelName)
+        if (TemperatureC == newTemp && ModelName == other.ModelName)
             return;
 
         ModelName = other.ModelName;
         TemperatureC = newTemp;
-        UsedSpacePercent = newUsed;
         OnPropertyChanged(string.Empty);
     }
 }

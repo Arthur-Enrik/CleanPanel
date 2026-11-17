@@ -219,17 +219,6 @@ public static class WindowWin32Helper
     }
 
     /// <summary>
-    /// Remove o registro de um atalho global específico.
-    /// </summary>
-    public static void UnregisterCustomHotKey(IntPtr hwnd, int hotkeyId)
-    {
-        if (hwnd == IntPtr.Zero)
-            return;
-
-        UnregisterHotKey(hwnd, hotkeyId);
-    }
-
-    /// <summary>
     /// Remove o registro de todos os atalhos globais registrados pelo CleanPanel.
     /// </summary>
     public static void UnregisterAllHotKeys(IntPtr hwnd)
@@ -239,22 +228,6 @@ public static class WindowWin32Helper
 
         UnregisterHotKey(hwnd, HOTKEY_ID_TOGGLE_OVERLAY);
         UnregisterHotKey(hwnd, HOTKEY_ID_TOGGLE_COMPACT);
-    }
-
-    /// <summary>
-    /// Registra o atalho global padrão Ctrl + Shift + O para mostrar/ocultar o Overlay de dentro de qualquer jogo.
-    /// </summary>
-    public static bool RegisterToggleOverlayHotKey(IntPtr hwnd)
-    {
-        return RegisterCustomHotKey(hwnd, HOTKEY_ID_TOGGLE_OVERLAY, ModifierKeys.Control | ModifierKeys.Shift, Key.O);
-    }
-
-    /// <summary>
-    /// Remove o registro do atalho global do Overlay ao encerrar a janela.
-    /// </summary>
-    public static void UnregisterToggleOverlayHotKey(IntPtr hwnd)
-    {
-        UnregisterCustomHotKey(hwnd, HOTKEY_ID_TOGGLE_OVERLAY);
     }
 
     /// <summary>

@@ -7,7 +7,7 @@ using LibreHardwareMonitor.Hardware;
 
 namespace HardwareOverlayApp.Services;
 
-public class HardwareMonitorService : IDisposable
+public partial class HardwareMonitorService : IDisposable
 {
     private readonly Computer _computer;
     private readonly CancellationTokenSource _cts = new();
@@ -64,7 +64,6 @@ public class HardwareMonitorService : IDisposable
     public event Action<HardwareSpecs>? SpecsInitialized;
     public event Action? HeartbeatTick;
 
-    public HardwareSpecs StaticSpecs => _staticSpecs;
     public bool IsIntelHybridCpu { get; private set; }
     public bool SplitIntelHybridCores { get; set; }
 
@@ -445,7 +444,6 @@ public class HardwareMonitorService : IDisposable
 
             _cachedCpuCores.Add(new CachedCpuCoreSensors
             {
-                CoreIndex = i + 1,
                 DisplayName = FormatCoreDisplayName(loadSensor.Name, i + 1) + typeTag,
                 LoadSensor = loadSensor,
                 ClockSensor = matchedClock
@@ -493,7 +491,6 @@ public class HardwareMonitorService : IDisposable
             {
                 _cachedCpuCores.Add(new CachedCpuCoreSensors
                 {
-                    CoreIndex = i + 1,
                     DisplayName = $"Núcleo #{i + 1}",
                     LoadSensor = _cpuLoadSensor,
                     ClockSensor = _cpuCoreClockSensors[i]
@@ -662,7 +659,6 @@ public class HardwareMonitorService : IDisposable
 
             var cachedGpu = new CachedGpuSensors
             {
-                Hardware = gpu,
                 Id = gpuId,
                 Name = !string.IsNullOrWhiteSpace(gpu.Name) ? gpu.Name.Trim() : spec?.Name ?? $"GPU #{i + 1}",
                 Vendor = vendor,
@@ -742,26 +738,11 @@ public class HardwareMonitorService : IDisposable
                 "Airflow Temperature")
                 ?? storage.Sensors.FirstOrDefault(s => s.SensorType == SensorType.Temperature);
 
-            ISensor? usedSpaceSensor = ResolveSensorReferenceByAliases(
-                storage.Sensors,
-                SensorType.Load,
-                "Used Space");
-
             _cachedStorages.Add(new CachedStorageSensors
             {
-                Hardware = storage,
                 ModelName = !string.IsNullOrWhiteSpace(storage.Name) ? storage.Name.Trim() : "Unidade Física SSD/HDD",
-                TempSensor = tempSensor,
-                UsedSpaceSensor = usedSpaceSensor
+                TempSensor = tempSensor
             });
-        }
-    }
-
-    public void RequestImmediateRefresh()
-    {
-        if (!_isDisposed && _isComputerOpened)
-        {
-            _ = Task.Run(ReadAndPublishMetrics);
         }
     }
 
@@ -1047,7 +1028,6 @@ public class HardwareMonitorService : IDisposable
 
             metrics.CpuCores.Add(new CpuCoreMetric
             {
-                CoreIndex = core.CoreIndex,
                 CoreName = core.DisplayName,
                 LoadPercent = coreLoadVal,
                 ClockMhz = coreClockVal
@@ -1184,13 +1164,11 @@ public class HardwareMonitorService : IDisposable
         {
             CachedStorageSensors cs = _cachedStorages[i];
             float? temp = IsValidSensorValue(cs.TempSensor, out float tVal) ? tVal : null;
-            float? usedPct = IsValidSensorValue(cs.UsedSpaceSensor, out float uVal) ? uVal : null;
 
             physicalDisks.Add(new PhysicalStorageMetrics
             {
                 ModelName = cs.ModelName,
-                TemperatureC = temp,
-                UsedSpacePercent = usedPct
+                TemperatureC = temp
             });
         }
 
@@ -1216,16 +1194,23 @@ public class HardwareMonitorService : IDisposable
                 double usedGb = Math.Max(0.0, totalGb - freeGb);
                 double usagePct = totalGb > 0.0 ? Math.Clamp((usedGb / totalGb) * 100.0, 0.0, 100.0) : 0.0;
 
-                string volumeLabel = string.Empty;
-                string fileSystem = "NTFS";
-                try
+                if (!_staticSpecs.PartitionStaticVolumeLabel.TryGetValue(driveKey, out string? volumeLabel) ||
+                    !_staticSpecs.PartitionStaticFileSystem.TryGetValue(driveKey, out string? fileSystem))
                 {
-                    volumeLabel = drive.VolumeLabel?.Trim() ?? string.Empty;
-                    fileSystem = drive.DriveFormat?.Trim() ?? "NTFS";
-                }
-                catch
-                {
-                    // Ignora falha de leitura de rótulo secundário
+                    volumeLabel = string.Empty;
+                    fileSystem = "NTFS";
+                    try
+                    {
+                        volumeLabel = drive.VolumeLabel?.Trim() ?? string.Empty;
+                        fileSystem = drive.DriveFormat?.Trim() ?? "NTFS";
+                    }
+                    catch
+                    {
+                        // Ignora falha de leitura de rótulo secundário
+                    }
+
+                    _staticSpecs.PartitionStaticVolumeLabel[driveKey] = volumeLabel;
+                    _staticSpecs.PartitionStaticFileSystem[driveKey] = fileSystem;
                 }
 
                 var (physicalModel, tempC) = ResolvePhysicalDiskForDrive(driveKey, driveIndex, physicalDisks);
@@ -1329,12 +1314,15 @@ public class HardwareMonitorService : IDisposable
 
     private static int ExtractCoreNumber(string sensorName)
     {
-        Match match = Regex.Match(sensorName, @"Core\s*#?(\d+)", RegexOptions.IgnoreCase);
+        Match match = CoreNumberRegex().Match(sensorName);
         if (match.Success && int.TryParse(match.Groups[1].Value, out int num))
             return num;
 
         return -1;
     }
+
+    [GeneratedRegex(@"Core\s*#?(\d+)", RegexOptions.IgnoreCase)]
+    private static partial Regex CoreNumberRegex();
 
     private static string FormatCoreDisplayName(string rawName, int fallbackIndex)
     {
@@ -1381,7 +1369,6 @@ public class HardwareMonitorService : IDisposable
 
     private sealed class CachedCpuCoreSensors
     {
-        public int CoreIndex { get; init; }
         public string DisplayName { get; init; } = string.Empty;
         public ISensor? LoadSensor { get; init; }
         public ISensor? ClockSensor { get; init; }
@@ -1389,7 +1376,6 @@ public class HardwareMonitorService : IDisposable
 
     private sealed class CachedGpuSensors
     {
-        public required IHardware Hardware { get; init; }
         public string Id { get; init; } = string.Empty;
         public string Name { get; init; } = string.Empty;
         public string Vendor { get; init; } = string.Empty;
@@ -1411,9 +1397,7 @@ public class HardwareMonitorService : IDisposable
 
     private sealed class CachedStorageSensors
     {
-        public required IHardware Hardware { get; init; }
         public string ModelName { get; init; } = string.Empty;
         public ISensor? TempSensor { get; init; }
-        public ISensor? UsedSpaceSensor { get; init; }
     }
 }
