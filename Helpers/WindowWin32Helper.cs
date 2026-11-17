@@ -21,6 +21,8 @@ public static class WindowWin32Helper
     private const int WS_SYSMENU = 0x00080000;
 
     private const int DWMWA_EXTENDED_FRAME_BOUNDS = 9;
+    private const int DWMWA_SYSTEMBACKDROP_TYPE = 38;
+    private const int DWMSBT_NONE = 1;
 
     public const int WM_HOTKEY = 0x0312;
     public const int HOTKEY_ID_TOGGLE_OVERLAY = 9001;
@@ -134,6 +136,9 @@ public static class WindowWin32Helper
 
     [DllImport("dwmapi.dll")]
     private static extern int DwmGetWindowAttribute(IntPtr hwnd, int dwAttribute, out RECT pvAttribute, int cbAttribute);
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int dwAttribute, ref int pvAttribute, int cbAttribute);
 
     [DllImport("user32.dll")]
     private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
@@ -250,6 +255,26 @@ public static class WindowWin32Helper
     public static void UnregisterToggleOverlayHotKey(IntPtr hwnd)
     {
         UnregisterCustomHotKey(hwnd, HOTKEY_ID_TOGGLE_OVERLAY);
+    }
+
+    /// <summary>
+    /// Desativa explicitamente qualquer efeito de backdrop DWM (Mica/Acrylic) na janela informada
+    /// para preservar a composição alpha por pixel em janelas AllowsTransparency="True".
+    /// </summary>
+    public static void DisableDwmBackdrop(IntPtr hwnd)
+    {
+        if (hwnd == IntPtr.Zero)
+            return;
+
+        try
+        {
+            int backdropNone = DWMSBT_NONE;
+            _ = DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, ref backdropNone, sizeof(int));
+        }
+        catch
+        {
+            // Ignora em versões do Windows que não suportam o atributo 38
+        }
     }
 
     /// <summary>

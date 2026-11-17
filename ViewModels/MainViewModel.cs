@@ -9,8 +9,10 @@ using CommunityToolkit.Mvvm.Input;
 using HardwareOverlayApp.Helpers;
 using HardwareOverlayApp.Models;
 using HardwareOverlayApp.Services;
+using HardwareOverlayApp.Views;
 using Microsoft.Win32;
 using Wpf.Ui.Appearance;
+using Wpf.Ui.Controls;
 
 namespace HardwareOverlayApp.ViewModels;
 
@@ -35,6 +37,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public Func<(double Width, double Height)>? OverlaySizeProvider { get; set; }
     public Func<(bool OverlayRegistered, bool CompactRegistered)>? ReloadHotkeysProvider { get; set; }
     public Action? SuspendHotkeysAction { get; set; }
+    public Action? EnsureOverlayTransparentAction { get; set; }
 
     // ==================== ATALHOS GLOBAIS PERSONALIZÁVEIS ====================
     public const ModifierKeys DefaultHotkeyModifiers = ModifierKeys.Control | ModifierKeys.Shift;
@@ -601,6 +604,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         ApplyApplicationTheme(AppTheme);
         SystemEvents.UserPreferenceChanged += OnSystemUserPreferenceChanged;
+        ApplicationThemeManager.Changed += OnWpfUiThemeChanged;
 
         UpdatePollingAndSmartVisibilityState();
 
@@ -621,36 +625,98 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private void OnSystemUserPreferenceChanged(object sender, UserPreferenceChangedEventArgs e)
     {
         if (e.Category == UserPreferenceCategory.General &&
-            string.Equals(AppTheme, "Auto", StringComparison.OrdinalIgnoreCase))
+            IsAutoThemeSetting(AppTheme))
         {
             Application.Current?.Dispatcher.InvokeAsync(() =>
             {
                 ApplyApplicationTheme("Auto");
+                UpdateOverlayBrushes();
+                EnsureOverlayTransparentAction?.Invoke();
             }, DispatcherPriority.Background);
         }
     }
+
+    private void OnWpfUiThemeChanged(ApplicationTheme currentApplicationTheme, Color systemAccent)
+    {
+        if (_isDisposed)
+            return;
+
+        Application.Current?.Dispatcher.BeginInvoke(() =>
+        {
+            if (_isDisposed)
+                return;
+
+            UpdateMonochromeThemeResources(currentApplicationTheme == ApplicationTheme.Light);
+            RestoreWindowMonochromeAndTransparency();
+            UpdateOverlayBrushes();
+            EnsureOverlayTransparentAction?.Invoke();
+        }, DispatcherPriority.Send);
+    }
+
+    private static bool IsAutoThemeSetting(string? themeSetting) =>
+        string.Equals(themeSetting, "Auto", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(themeSetting, "Automático", StringComparison.OrdinalIgnoreCase);
 
     public static void ApplyApplicationTheme(string? themeSetting)
     {
         try
         {
+            bool isAuto = IsAutoThemeSetting(themeSetting);
             ApplicationTheme targetTheme = ApplicationTheme.Dark;
 
-            if (string.Equals(themeSetting, "Light", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(themeSetting, "Light", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(themeSetting, "Claro", StringComparison.OrdinalIgnoreCase))
             {
                 targetTheme = ApplicationTheme.Light;
             }
-            else if (string.Equals(themeSetting, "Auto", StringComparison.OrdinalIgnoreCase))
+            else if (isAuto)
             {
                 targetTheme = IsWindowsInLightTheme() ? ApplicationTheme.Light : ApplicationTheme.Dark;
             }
 
-            ApplicationThemeManager.Apply(targetTheme);
+            // WindowBackdropType.None evita que o WPF-UI aplique Mica/Acrylic e quebre o Alpha do OverlayWindow
+            ApplicationThemeManager.Apply(targetTheme, WindowBackdropType.None, false);
             UpdateMonochromeThemeResources(targetTheme == ApplicationTheme.Light);
+
+            if (Application.Current?.MainWindow is SettingsWindow mainSettingsWindow)
+            {
+                try
+                {
+                    SystemThemeWatcher.UnWatch(mainSettingsWindow);
+                    if (isAuto)
+                    {
+                        SystemThemeWatcher.Watch(mainSettingsWindow, WindowBackdropType.None, false);
+                    }
+                }
+                catch
+                {
+                    // Ignora caso o handle da MainWindow ainda não tenha sido criado
+                }
+            }
+
+            RestoreWindowMonochromeAndTransparency();
         }
         catch
         {
             // Fallback seguro caso a troca de tema ocorra antes da janela estar pronta
+        }
+    }
+
+    private static void RestoreWindowMonochromeAndTransparency()
+    {
+        if (Application.Current is null)
+            return;
+
+        foreach (Window window in Application.Current.Windows)
+        {
+            if (window is SettingsWindow settingsWin)
+            {
+                settingsWin.SetResourceReference(System.Windows.Controls.Control.BackgroundProperty, "WindowBackgroundBrush");
+            }
+            else if (window is OverlayWindow overlayWin)
+            {
+                overlayWin.EnsureTransparentWindow();
+            }
         }
     }
 
@@ -765,6 +831,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var bgBrush = new SolidColorBrush(finalBgColor);
         bgBrush.Freeze();
         OverlayBackgroundBrush = bgBrush;
+        OnPropertyChanged(nameof(OverlayBackgroundBrush));
 
         // Borda nítida 1px em #27272A acompanhando suavemente a opacidade
         Color baseBorderColor = Color.FromRgb(39, 39, 42);
@@ -774,6 +841,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var borderBrush = new SolidColorBrush(finalBorderColor);
         borderBrush.Freeze();
         OverlayBorderBrush = borderBrush;
+        OnPropertyChanged(nameof(OverlayBorderBrush));
+
+        EnsureOverlayTransparentAction?.Invoke();
     }
 
     private void OnHardwareSpecsInitialized(HardwareSpecs specs)
@@ -1581,6 +1651,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         if (!_isInitializing)
         {
             ApplyApplicationTheme(value);
+            UpdateOverlayBrushes();
+            EnsureOverlayTransparentAction?.Invoke();
         }
         SaveSettings();
     }
@@ -1686,6 +1758,20 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         _isDisposed = true;
         SystemEvents.UserPreferenceChanged -= OnSystemUserPreferenceChanged;
+        ApplicationThemeManager.Changed -= OnWpfUiThemeChanged;
+
+        try
+        {
+            if (Application.Current?.MainWindow is SettingsWindow mainSettingsWindow)
+            {
+                SystemThemeWatcher.UnWatch(mainSettingsWindow);
+            }
+        }
+        catch
+        {
+            // Ignora falhas de limpeza do watcher ao encerrar
+        }
+
         _hardwareMonitorService.SpecsInitialized -= OnHardwareSpecsInitialized;
         _hardwareMonitorService.HeartbeatTick -= OnHeartbeatTick;
         _hardwareMonitorService.MetricsUpdated -= OnHardwareMetricsUpdated;

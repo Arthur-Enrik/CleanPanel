@@ -61,6 +61,7 @@ public partial class App : Application
 
         _overlayWindow = new OverlayWindow(_mainViewModel);
         _settingsWindow = new SettingsWindow(_mainViewModel);
+        MainWindow = _settingsWindow;
 
         _trayIconService = new TrayIconService(
             _mainViewModel,
@@ -68,6 +69,8 @@ public partial class App : Application
             ExitApplicationCompletely);
 
         _overlayWindow.Show();
+        _overlayWindow.EnsureTransparentWindow();
+        _mainViewModel.UpdateOverlayBrushes();
 
         bool startMinimized = e.Args.Any(arg =>
             arg.Equals("--minimized", StringComparison.OrdinalIgnoreCase));

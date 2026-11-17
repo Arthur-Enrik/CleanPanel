@@ -2,8 +2,10 @@ using System.ComponentModel;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
+using System.Windows.Media;
 using HardwareOverlayApp.Helpers;
 using HardwareOverlayApp.ViewModels;
+using Wpf.Ui.Controls;
 
 namespace HardwareOverlayApp.Views;
 
@@ -26,6 +28,9 @@ public partial class OverlayWindow : Window
         };
         _viewModel.ReloadHotkeysProvider = ReloadGlobalHotkeys;
         _viewModel.SuspendHotkeysAction = SuspendGlobalHotkeys;
+        _viewModel.EnsureOverlayTransparentAction = EnsureTransparentWindow;
+
+        EnsureTransparentWindow();
 
         Left = _viewModel.OverlayLeft;
         Top = _viewModel.OverlayTop;
@@ -36,8 +41,42 @@ public partial class OverlayWindow : Window
         Loaded += OnWindowLoaded;
     }
 
+    public void EnsureTransparentWindow()
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.Invoke(EnsureTransparentWindow);
+            return;
+        }
+
+        try
+        {
+            WindowBackdrop.RemoveBackdrop(this);
+        }
+        catch
+        {
+            // Ignora caso o handle da janela ainda não tenha sido criado
+        }
+
+        ClearValue(BackgroundProperty);
+        Background = Brushes.Transparent;
+
+        IntPtr hwnd = new WindowInteropHelper(this).Handle;
+        if (hwnd != IntPtr.Zero)
+        {
+            WindowWin32Helper.DisableDwmBackdrop(hwnd);
+            if (HwndSource.FromHwnd(hwnd)?.CompositionTarget is { } compositionTarget)
+            {
+                compositionTarget.BackgroundColor = Colors.Transparent;
+            }
+
+            WindowWin32Helper.SetClickThrough(this, _viewModel.IsOverlayLocked);
+        }
+    }
+
     private void OnWindowLoaded(object sender, RoutedEventArgs e)
     {
+        EnsureTransparentWindow();
         _viewModel.UpdateOverlayBrushes();
     }
 
@@ -45,6 +84,7 @@ public partial class OverlayWindow : Window
     {
         base.OnSourceInitialized(e);
 
+        EnsureTransparentWindow();
         _viewModel.UpdateOverlayBrushes();
 
         IntPtr hwnd = new WindowInteropHelper(this).Handle;
@@ -194,8 +234,10 @@ public partial class OverlayWindow : Window
         _viewModel.OverlaySizeProvider = null;
         _viewModel.ReloadHotkeysProvider = null;
         _viewModel.SuspendHotkeysAction = null;
+        _viewModel.EnsureOverlayTransparentAction = null;
         _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
         Deactivated -= OnWindowDeactivated;
+        Loaded -= OnWindowLoaded;
         base.OnClosed(e);
     }
 }
