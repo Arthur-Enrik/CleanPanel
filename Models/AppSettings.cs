@@ -1,3 +1,5 @@
+using System.Windows.Input;
+
 namespace HardwareOverlayApp.Models;
 
 public class AppSettings
@@ -9,6 +11,12 @@ public class AppSettings
     public double OverlayLeft { get; set; } = 50.0;
     public double OverlayTop { get; set; } = 50.0;
     public bool StartWithWindows { get; set; } = false;
+
+    // Atalhos Globais Personalizáveis
+    public ModifierKeys ToggleOverlayModifiers { get; set; } = ModifierKeys.Control | ModifierKeys.Shift;
+    public Key ToggleOverlayKey { get; set; } = Key.O;
+    public ModifierKeys ToggleCompactModifiers { get; set; } = ModifierKeys.Control | ModifierKeys.Shift;
+    public Key ToggleCompactKey { get; set; } = Key.C;
 
     // Personalização avançada e exibição inteligente
     public bool IsCompactMode { get; set; } = false;

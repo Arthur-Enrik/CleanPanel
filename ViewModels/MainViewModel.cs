@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Windows;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -32,6 +33,56 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private bool _isDisposed;
 
     public Func<(double Width, double Height)>? OverlaySizeProvider { get; set; }
+    public Func<(bool OverlayRegistered, bool CompactRegistered)>? ReloadHotkeysProvider { get; set; }
+    public Action? SuspendHotkeysAction { get; set; }
+
+    // ==================== ATALHOS GLOBAIS PERSONALIZÁVEIS ====================
+    public const ModifierKeys DefaultHotkeyModifiers = ModifierKeys.Control | ModifierKeys.Shift;
+    public const Key DefaultToggleOverlayKey = Key.O;
+    public const Key DefaultToggleCompactKey = Key.C;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(OverlayHotkeyDisplayText))]
+    private ModifierKeys _toggleOverlayModifiers = DefaultHotkeyModifiers;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(OverlayHotkeyDisplayText))]
+    private Key _toggleOverlayKey = DefaultToggleOverlayKey;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CompactHotkeyDisplayText))]
+    private ModifierKeys _toggleCompactModifiers = DefaultHotkeyModifiers;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CompactHotkeyDisplayText))]
+    private Key _toggleCompactKey = DefaultToggleCompactKey;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(OverlayHotkeyDisplayText))]
+    private bool _isRecordingOverlayHotkey;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CompactHotkeyDisplayText))]
+    private bool _isRecordingCompactHotkey;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasOverlayHotkeyError))]
+    private string _overlayHotkeyErrorText = string.Empty;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasCompactHotkeyError))]
+    private string _compactHotkeyErrorText = string.Empty;
+
+    public bool HasOverlayHotkeyError => !string.IsNullOrWhiteSpace(OverlayHotkeyErrorText);
+    public bool HasCompactHotkeyError => !string.IsNullOrWhiteSpace(CompactHotkeyErrorText);
+
+    public string OverlayHotkeyDisplayText => IsRecordingOverlayHotkey
+        ? "Pressione o atalho..."
+        : FormatHotkeyText(ToggleOverlayModifiers, ToggleOverlayKey);
+
+    public string CompactHotkeyDisplayText => IsRecordingCompactHotkey
+        ? "Pressione o atalho..."
+        : FormatHotkeyText(ToggleCompactModifiers, ToggleCompactKey);
 
     // ==================== NAVEGAÇÃO LATERAL MINIMALISTA ====================
     // 0 = Visão Geral, 1 = Processador, 2 = Placa de Vídeo, 3 = Sistema & Discos, 4 = Configurações
@@ -821,6 +872,28 @@ public partial class MainViewModel : ObservableObject, IDisposable
         ShowGpuPower = settings.ShowGpuPower;
 
         ShowRam = settings.ShowRam;
+
+        ModifierKeys overlayMods = settings.ToggleOverlayModifiers & (ModifierKeys.Control | ModifierKeys.Shift | ModifierKeys.Alt);
+        Key overlayKey = settings.ToggleOverlayKey;
+        if (overlayMods == ModifierKeys.None || !IsValidHotkeyMainKey(overlayKey))
+        {
+            overlayMods = DefaultHotkeyModifiers;
+            overlayKey = DefaultToggleOverlayKey;
+        }
+
+        ModifierKeys compactMods = settings.ToggleCompactModifiers & (ModifierKeys.Control | ModifierKeys.Shift | ModifierKeys.Alt);
+        Key compactKey = settings.ToggleCompactKey;
+        if (compactMods == ModifierKeys.None || !IsValidHotkeyMainKey(compactKey) ||
+            (compactMods == overlayMods && compactKey == overlayKey))
+        {
+            compactMods = DefaultHotkeyModifiers;
+            compactKey = DefaultToggleCompactKey;
+        }
+
+        ToggleOverlayModifiers = overlayMods;
+        ToggleOverlayKey = overlayKey;
+        ToggleCompactModifiers = compactMods;
+        ToggleCompactKey = compactKey;
     }
 
     private void RefreshFrozenColorBrushes()
@@ -1248,6 +1321,206 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _exitApplicationAction();
     }
 
+    [RelayCommand]
+    private void StartRecordingOverlayHotkey()
+    {
+        if (IsRecordingOverlayHotkey)
+        {
+            CancelHotkeyRecording();
+            return;
+        }
+
+        IsRecordingCompactHotkey = false;
+        IsRecordingOverlayHotkey = true;
+        OverlayHotkeyErrorText = string.Empty;
+        SuspendHotkeysAction?.Invoke();
+    }
+
+    [RelayCommand]
+    private void StartRecordingCompactHotkey()
+    {
+        if (IsRecordingCompactHotkey)
+        {
+            CancelHotkeyRecording();
+            return;
+        }
+
+        IsRecordingOverlayHotkey = false;
+        IsRecordingCompactHotkey = true;
+        CompactHotkeyErrorText = string.Empty;
+        SuspendHotkeysAction?.Invoke();
+    }
+
+    [RelayCommand]
+    private void ResetOverlayHotkey()
+    {
+        IsRecordingOverlayHotkey = false;
+        IsRecordingCompactHotkey = false;
+
+        if (ToggleCompactModifiers == DefaultHotkeyModifiers && ToggleCompactKey == DefaultToggleOverlayKey)
+        {
+            OverlayHotkeyErrorText = "Conflito: Ctrl + Shift + O já está em uso no Modo Compacto.";
+            ReloadHotkeysProvider?.Invoke();
+            return;
+        }
+
+        ToggleOverlayModifiers = DefaultHotkeyModifiers;
+        ToggleOverlayKey = DefaultToggleOverlayKey;
+        OverlayHotkeyErrorText = string.Empty;
+        SaveSettings();
+        ReloadGlobalHotkeys();
+    }
+
+    [RelayCommand]
+    private void ResetCompactHotkey()
+    {
+        IsRecordingOverlayHotkey = false;
+        IsRecordingCompactHotkey = false;
+
+        if (ToggleOverlayModifiers == DefaultHotkeyModifiers && ToggleOverlayKey == DefaultToggleCompactKey)
+        {
+            CompactHotkeyErrorText = "Conflito: Ctrl + Shift + C já está em uso no Overlay.";
+            ReloadHotkeysProvider?.Invoke();
+            return;
+        }
+
+        ToggleCompactModifiers = DefaultHotkeyModifiers;
+        ToggleCompactKey = DefaultToggleCompactKey;
+        CompactHotkeyErrorText = string.Empty;
+        SaveSettings();
+        ReloadGlobalHotkeys();
+    }
+
+    public void ReloadGlobalHotkeys()
+    {
+        if (ReloadHotkeysProvider is null)
+            return;
+
+        (bool overlayOk, bool compactOk) = ReloadHotkeysProvider.Invoke();
+        OverlayHotkeyErrorText = overlayOk
+            ? string.Empty
+            : "Atalho indisponível (em uso por outro programa ou pelo sistema).";
+        CompactHotkeyErrorText = compactOk
+            ? string.Empty
+            : "Atalho indisponível (em uso por outro programa ou pelo sistema).";
+    }
+
+    public void CancelHotkeyRecording()
+    {
+        if (!IsRecordingOverlayHotkey && !IsRecordingCompactHotkey)
+            return;
+
+        IsRecordingOverlayHotkey = false;
+        IsRecordingCompactHotkey = false;
+        ReloadGlobalHotkeys();
+    }
+
+    public void TryApplyRecordedHotkey(ModifierKeys rawModifiers, Key key)
+    {
+        bool recordingOverlay = IsRecordingOverlayHotkey;
+        bool recordingCompact = IsRecordingCompactHotkey;
+        if (!recordingOverlay && !recordingCompact)
+            return;
+
+        ModifierKeys cleanModifiers = rawModifiers & (ModifierKeys.Control | ModifierKeys.Shift | ModifierKeys.Alt);
+        if (cleanModifiers == ModifierKeys.None || !IsValidHotkeyMainKey(key))
+        {
+            if (recordingOverlay)
+            {
+                OverlayHotkeyErrorText = "Combine pelo menos Ctrl, Alt ou Shift com uma tecla válida.";
+            }
+            else
+            {
+                CompactHotkeyErrorText = "Combine pelo menos Ctrl, Alt ou Shift com uma tecla válida.";
+            }
+
+            IsRecordingOverlayHotkey = false;
+            IsRecordingCompactHotkey = false;
+            ReloadHotkeysProvider?.Invoke();
+            return;
+        }
+
+        if (recordingOverlay && cleanModifiers == ToggleCompactModifiers && key == ToggleCompactKey)
+        {
+            OverlayHotkeyErrorText = "Este atalho já está atribuído ao Modo Compacto.";
+            IsRecordingOverlayHotkey = false;
+            ReloadHotkeysProvider?.Invoke();
+            return;
+        }
+
+        if (recordingCompact && cleanModifiers == ToggleOverlayModifiers && key == ToggleOverlayKey)
+        {
+            CompactHotkeyErrorText = "Este atalho já está atribuído ao Overlay.";
+            IsRecordingCompactHotkey = false;
+            ReloadHotkeysProvider?.Invoke();
+            return;
+        }
+
+        if (recordingOverlay)
+        {
+            ToggleOverlayModifiers = cleanModifiers;
+            ToggleOverlayKey = key;
+            OverlayHotkeyErrorText = string.Empty;
+        }
+        else
+        {
+            ToggleCompactModifiers = cleanModifiers;
+            ToggleCompactKey = key;
+            CompactHotkeyErrorText = string.Empty;
+        }
+
+        IsRecordingOverlayHotkey = false;
+        IsRecordingCompactHotkey = false;
+        SaveSettings();
+        ReloadGlobalHotkeys();
+    }
+
+    public static bool IsModifierKeyOnly(Key key) => key is
+        Key.LeftCtrl or Key.RightCtrl or
+        Key.LeftShift or Key.RightShift or
+        Key.LeftAlt or Key.RightAlt or
+        Key.LWin or Key.RWin;
+
+    public static bool IsValidHotkeyMainKey(Key key)
+    {
+        if (IsModifierKeyOnly(key) ||
+            key is Key.None or Key.Escape or Key.DeadCharProcessed or Key.ImeProcessed or Key.System)
+        {
+            return false;
+        }
+
+        return KeyInterop.VirtualKeyFromKey(key) != 0;
+    }
+
+    public static string FormatHotkeyText(ModifierKeys modifiers, Key key)
+    {
+        var parts = new List<string>(4);
+        if (modifiers.HasFlag(ModifierKeys.Control))
+            parts.Add("Ctrl");
+        if (modifiers.HasFlag(ModifierKeys.Alt))
+            parts.Add("Alt");
+        if (modifiers.HasFlag(ModifierKeys.Shift))
+            parts.Add("Shift");
+        if (modifiers.HasFlag(ModifierKeys.Windows))
+            parts.Add("Win");
+
+        parts.Add(FormatKeyName(key));
+        return string.Join(" + ", parts);
+    }
+
+    private static string FormatKeyName(Key key) => key switch
+    {
+        >= Key.D0 and <= Key.D9 => ((char)('0' + (key - Key.D0))).ToString(),
+        >= Key.NumPad0 and <= Key.NumPad9 => $"Num{key - Key.NumPad0}",
+        Key.OemPlus => "+",
+        Key.OemMinus => "-",
+        Key.OemComma => ",",
+        Key.OemPeriod => ".",
+        Key.Prior => "PageUp",
+        Key.Next => "PageDown",
+        _ => key.ToString()
+    };
+
     public void SetOverlayPosition(double left, double top)
     {
         OverlayLeft = Math.Round(left);
@@ -1269,6 +1542,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
             OverlayLeft = OverlayLeft,
             OverlayTop = OverlayTop,
             StartWithWindows = StartWithWindows,
+            ToggleOverlayModifiers = ToggleOverlayModifiers,
+            ToggleOverlayKey = ToggleOverlayKey,
+            ToggleCompactModifiers = ToggleCompactModifiers,
+            ToggleCompactKey = ToggleCompactKey,
             IsCompactMode = IsCompactMode,
             SmartFullscreenOnly = SmartFullscreenOnly,
             IsHorizontalLayout = IsHorizontalLayout,
@@ -1294,6 +1571,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         _settingsService.Save(settings);
     }
+
+    partial void OnSelectedNavIndexChanged(int value) => CancelHotkeyRecording();
+
+    partial void OnSelectedSettingsSubTabIndexChanged(int value) => CancelHotkeyRecording();
 
     partial void OnAppThemeChanged(string value)
     {

@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows;
+using System.Windows.Input;
 using System.Windows.Interop;
 
 namespace HardwareOverlayApp.Helpers;
@@ -23,9 +24,14 @@ public static class WindowWin32Helper
 
     public const int WM_HOTKEY = 0x0312;
     public const int HOTKEY_ID_TOGGLE_OVERLAY = 9001;
+    public const int HOTKEY_ID_TOGGLE_COMPACT = 9002;
+    public const uint MOD_ALT = 0x0001;
     public const uint MOD_CONTROL = 0x0002;
     public const uint MOD_SHIFT = 0x0004;
+    public const uint MOD_WIN = 0x0008;
+    public const uint MOD_NOREPEAT = 0x4000;
     public const uint VK_O = 0x4F;
+    public const uint VK_C = 0x43;
 
     private static readonly IntPtr HWND_TOPMOST = new(-1);
     private const uint SWP_NOSIZE = 0x0001;
@@ -173,25 +179,77 @@ public static class WindowWin32Helper
     }
 
     /// <summary>
-    /// Registra o atalho global Ctrl + Shift + O para mostrar/ocultar o Overlay de dentro de qualquer jogo.
+    /// Converte ModifierKeys do WPF para flags nativas do Win32 RegisterHotKey incluindo MOD_NOREPEAT.
     /// </summary>
-    public static bool RegisterToggleOverlayHotKey(IntPtr hwnd)
+    public static uint ConvertToWin32Modifiers(ModifierKeys modifiers)
     {
-        if (hwnd == IntPtr.Zero)
-            return false;
-
-        return RegisterHotKey(hwnd, HOTKEY_ID_TOGGLE_OVERLAY, MOD_CONTROL | MOD_SHIFT, VK_O);
+        uint fsModifiers = MOD_NOREPEAT;
+        if (modifiers.HasFlag(ModifierKeys.Control))
+            fsModifiers |= MOD_CONTROL;
+        if (modifiers.HasFlag(ModifierKeys.Shift))
+            fsModifiers |= MOD_SHIFT;
+        if (modifiers.HasFlag(ModifierKeys.Alt))
+            fsModifiers |= MOD_ALT;
+        if (modifiers.HasFlag(ModifierKeys.Windows))
+            fsModifiers |= MOD_WIN;
+        return fsModifiers;
     }
 
     /// <summary>
-    /// Remove o registro do atalho global ao encerrar a janela.
+    /// Registra dinamicamente um atalho global personalizado via Win32 RegisterHotKey.
     /// </summary>
-    public static void UnregisterToggleOverlayHotKey(IntPtr hwnd)
+    public static bool RegisterCustomHotKey(IntPtr hwnd, int hotkeyId, ModifierKeys modifiers, Key key)
+    {
+        if (hwnd == IntPtr.Zero || modifiers == ModifierKeys.None || key == Key.None)
+            return false;
+
+        UnregisterHotKey(hwnd, hotkeyId);
+
+        uint fsModifiers = ConvertToWin32Modifiers(modifiers);
+        uint vk = (uint)KeyInterop.VirtualKeyFromKey(key);
+        if (vk == 0)
+            return false;
+
+        return RegisterHotKey(hwnd, hotkeyId, fsModifiers, vk);
+    }
+
+    /// <summary>
+    /// Remove o registro de um atalho global específico.
+    /// </summary>
+    public static void UnregisterCustomHotKey(IntPtr hwnd, int hotkeyId)
+    {
+        if (hwnd == IntPtr.Zero)
+            return;
+
+        UnregisterHotKey(hwnd, hotkeyId);
+    }
+
+    /// <summary>
+    /// Remove o registro de todos os atalhos globais registrados pelo CleanPanel.
+    /// </summary>
+    public static void UnregisterAllHotKeys(IntPtr hwnd)
     {
         if (hwnd == IntPtr.Zero)
             return;
 
         UnregisterHotKey(hwnd, HOTKEY_ID_TOGGLE_OVERLAY);
+        UnregisterHotKey(hwnd, HOTKEY_ID_TOGGLE_COMPACT);
+    }
+
+    /// <summary>
+    /// Registra o atalho global padrão Ctrl + Shift + O para mostrar/ocultar o Overlay de dentro de qualquer jogo.
+    /// </summary>
+    public static bool RegisterToggleOverlayHotKey(IntPtr hwnd)
+    {
+        return RegisterCustomHotKey(hwnd, HOTKEY_ID_TOGGLE_OVERLAY, ModifierKeys.Control | ModifierKeys.Shift, Key.O);
+    }
+
+    /// <summary>
+    /// Remove o registro do atalho global do Overlay ao encerrar a janela.
+    /// </summary>
+    public static void UnregisterToggleOverlayHotKey(IntPtr hwnd)
+    {
+        UnregisterCustomHotKey(hwnd, HOTKEY_ID_TOGGLE_OVERLAY);
     }
 
     /// <summary>

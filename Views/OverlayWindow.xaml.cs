@@ -24,6 +24,8 @@ public partial class OverlayWindow : Window
             UpdateLayout();
             return (ActualWidth, ActualHeight);
         };
+        _viewModel.ReloadHotkeysProvider = ReloadGlobalHotkeys;
+        _viewModel.SuspendHotkeysAction = SuspendGlobalHotkeys;
 
         Left = _viewModel.OverlayLeft;
         Top = _viewModel.OverlayTop;
@@ -53,17 +55,57 @@ public partial class OverlayWindow : Window
         _hwndSource?.AddHook(WndProc);
 
         WindowWin32Helper.SetClickThrough(this, _viewModel.IsOverlayLocked);
-        WindowWin32Helper.RegisterToggleOverlayHotKey(hwnd);
+        _viewModel.ReloadGlobalHotkeys();
         WindowWin32Helper.ForceTopMost(this);
+    }
+
+    public (bool OverlayRegistered, bool CompactRegistered) ReloadGlobalHotkeys()
+    {
+        IntPtr hwnd = new WindowInteropHelper(this).Handle;
+        if (hwnd == IntPtr.Zero)
+            return (true, true);
+
+        WindowWin32Helper.UnregisterAllHotKeys(hwnd);
+
+        bool overlayOk = WindowWin32Helper.RegisterCustomHotKey(
+            hwnd,
+            WindowWin32Helper.HOTKEY_ID_TOGGLE_OVERLAY,
+            _viewModel.ToggleOverlayModifiers,
+            _viewModel.ToggleOverlayKey);
+
+        bool compactOk = WindowWin32Helper.RegisterCustomHotKey(
+            hwnd,
+            WindowWin32Helper.HOTKEY_ID_TOGGLE_COMPACT,
+            _viewModel.ToggleCompactModifiers,
+            _viewModel.ToggleCompactKey);
+
+        return (overlayOk, compactOk);
+    }
+
+    public void SuspendGlobalHotkeys()
+    {
+        IntPtr hwnd = new WindowInteropHelper(this).Handle;
+        if (hwnd != IntPtr.Zero)
+        {
+            WindowWin32Helper.UnregisterAllHotKeys(hwnd);
+        }
     }
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
-        if (msg == WindowWin32Helper.WM_HOTKEY &&
-            wParam.ToInt32() == WindowWin32Helper.HOTKEY_ID_TOGGLE_OVERLAY)
+        if (msg == WindowWin32Helper.WM_HOTKEY)
         {
-            _viewModel.IsOverlayVisible = !_viewModel.IsOverlayVisible;
-            handled = true;
+            int id = wParam.ToInt32();
+            if (id == WindowWin32Helper.HOTKEY_ID_TOGGLE_OVERLAY)
+            {
+                _viewModel.IsOverlayVisible = !_viewModel.IsOverlayVisible;
+                handled = true;
+            }
+            else if (id == WindowWin32Helper.HOTKEY_ID_TOGGLE_COMPACT)
+            {
+                _viewModel.IsCompactMode = !_viewModel.IsCompactMode;
+                handled = true;
+            }
         }
 
         return IntPtr.Zero;
@@ -140,7 +182,7 @@ public partial class OverlayWindow : Window
         IntPtr hwnd = new WindowInteropHelper(this).Handle;
         if (hwnd != IntPtr.Zero)
         {
-            WindowWin32Helper.UnregisterToggleOverlayHotKey(hwnd);
+            WindowWin32Helper.UnregisterAllHotKeys(hwnd);
         }
 
         if (_hwndSource != null)
@@ -150,6 +192,8 @@ public partial class OverlayWindow : Window
         }
 
         _viewModel.OverlaySizeProvider = null;
+        _viewModel.ReloadHotkeysProvider = null;
+        _viewModel.SuspendHotkeysAction = null;
         _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
         Deactivated -= OnWindowDeactivated;
         base.OnClosed(e);

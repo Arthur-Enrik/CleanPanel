@@ -1361,7 +1361,7 @@
                                 </Grid>
                             </Border>
 
-                            <!-- Atalho Global do Overlay -->
+                            <!-- 1. Atalho Global para Exibir / Ocultar Overlay -->
                             <Border Style="{StaticResource SettingsRowBorderStyle}">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -1369,25 +1369,107 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
-                                        <TextBlock Text="Atalho Global do Overlay"
+                                        <TextBlock Text="Atalho para Exibir / Ocultar Overlay"
                                                    FontWeight="Medium"
                                                    FontSize="13.5"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" />
-                                        <TextBlock Text="Mostra ou oculta o Overlay a qualquer momento dentro de aplicativos ou jogos"
+                                        <TextBlock Text="Clique para gravar uma combinação (ex: Ctrl + Shift + O) e pressione Esc para cancelar"
                                                    FontSize="12"
                                                    Foreground="{DynamicResource TextSecondaryBrush}"
                                                    TextWrapping="Wrap"
                                                    Margin="0,2,0,0" />
+                                        <TextBlock Visibility="{Binding HasOverlayHotkeyError, Converter={StaticResource BoolToVis}}"
+                                                   Text="{Binding OverlayHotkeyErrorText}"
+                                                   FontSize="11.5"
+                                                   FontWeight="Medium"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                                   Opacity="0.85"
+                                                   TextWrapping="Wrap"
+                                                   Margin="0,4,0,0" />
                                     </StackPanel>
-                                    <Border Grid.Column="1"
-                                            Style="{StaticResource SubCardBorderStyle}"
-                                            CornerRadius="4"
-                                            Padding="10,5"
-                                            VerticalAlignment="Center">
-                                        <TextBlock Text="Ctrl + Shift + O"
-                                                   Style="{StaticResource TabularValueStyle}"
-                                                   FontSize="12" />
-                                    </Border>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Button MinWidth="150"
+                                                FontFamily="Consolas"
+                                                FontWeight="Bold"
+                                                FontSize="12"
+                                                Content="{Binding OverlayHotkeyDisplayText}"
+                                                ToolTip="Clique para gravar um novo atalho global"
+                                                Command="{Binding StartRecordingOverlayHotkeyCommand}">
+                                            <Button.Style>
+                                                <Style TargetType="Button" BasedOn="{StaticResource MonoActionButtonStyle}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsRecordingOverlayHotkey}" Value="True">
+                                                            <Setter Property="BorderBrush" Value="{DynamicResource BorderActiveBrush}" />
+                                                            <Setter Property="Background" Value="{DynamicResource CardBackgroundBrush}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                        </Button>
+                                        <Button Style="{StaticResource MonoActionButtonStyle}"
+                                                Content="&#x21BA;"
+                                                FontSize="13"
+                                                Padding="9,5"
+                                                Margin="6,0,0,0"
+                                                ToolTip="Restaurar padrão (Ctrl + Shift + O)"
+                                                Command="{Binding ResetOverlayHotkeyCommand}" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
+                            <!-- 2. Atalho Global para Modo Compacto -->
+                            <Border Style="{StaticResource SettingsRowBorderStyle}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                                        <TextBlock Text="Atalho para Modo Compacto"
+                                                   FontWeight="Medium"
+                                                   FontSize="13.5"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}" />
+                                        <TextBlock Text="Alterna instantaneamente entre o modo completo e compacto (padrão: Ctrl + Shift + C)"
+                                                   FontSize="12"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                                   TextWrapping="Wrap"
+                                                   Margin="0,2,0,0" />
+                                        <TextBlock Visibility="{Binding HasCompactHotkeyError, Converter={StaticResource BoolToVis}}"
+                                                   Text="{Binding CompactHotkeyErrorText}"
+                                                   FontSize="11.5"
+                                                   FontWeight="Medium"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                                   Opacity="0.85"
+                                                   TextWrapping="Wrap"
+                                                   Margin="0,4,0,0" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Button MinWidth="150"
+                                                FontFamily="Consolas"
+                                                FontWeight="Bold"
+                                                FontSize="12"
+                                                Content="{Binding CompactHotkeyDisplayText}"
+                                                ToolTip="Clique para gravar um novo atalho global"
+                                                Command="{Binding StartRecordingCompactHotkeyCommand}">
+                                            <Button.Style>
+                                                <Style TargetType="Button" BasedOn="{StaticResource MonoActionButtonStyle}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsRecordingCompactHotkey}" Value="True">
+                                                            <Setter Property="BorderBrush" Value="{DynamicResource BorderActiveBrush}" />
+                                                            <Setter Property="Background" Value="{DynamicResource CardBackgroundBrush}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                        </Button>
+                                        <Button Style="{StaticResource MonoActionButtonStyle}"
+                                                Content="&#x21BA;"
+                                                FontSize="13"
+                                                Padding="9,5"
+                                                Margin="6,0,0,0"
+                                                ToolTip="Restaurar padrão (Ctrl + Shift + C)"
+                                                Command="{Binding ResetCompactHotkeyCommand}" />
+                                    </StackPanel>
                                 </Grid>
                             </Border>
 
