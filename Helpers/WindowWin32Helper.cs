@@ -7,6 +7,12 @@ using System.Windows.Interop;
 
 namespace HardwareOverlayApp.Helpers;
 
+public readonly record struct ForegroundFullscreenInfo(
+    IntPtr WindowHandle,
+    int ProcessId,
+    string ProcessName,
+    string? ExecutablePath);
+
 public static class WindowWin32Helper
 {
     private const int GWL_STYLE = -16;
@@ -23,6 +29,9 @@ public static class WindowWin32Helper
     private const int DWMWA_EXTENDED_FRAME_BOUNDS = 9;
     private const int DWMWA_SYSTEMBACKDROP_TYPE = 38;
     private const int DWMSBT_NONE = 1;
+
+    private const uint PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
+    private const uint STILL_ACTIVE = 259;
 
     public const int WM_HOTKEY = 0x0312;
     public const int HOTKEY_ID_TOGGLE_OVERLAY = 9001;
@@ -97,6 +106,22 @@ public static class WindowWin32Helper
         IntPtr Buffer,
         ref int ReturnedLength);
 
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern IntPtr OpenProcess(uint dwDesiredAccess, bool bInheritHandle, uint dwProcessId);
+
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern bool QueryFullProcessImageName(
+        IntPtr hProcess,
+        uint dwFlags,
+        StringBuilder lpExeName,
+        ref uint lpdwSize);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool GetExitCodeProcess(IntPtr hProcess, out uint lpExitCode);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool CloseHandle(IntPtr hObject);
+
     [DllImport("user32.dll", EntryPoint = "GetWindowLong")]
     private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
 
@@ -155,6 +180,18 @@ public static class WindowWin32Helper
     [DllImport("user32.dll")]
     private static extern bool IsIconic(IntPtr hWnd);
 
+    private static readonly object _foregroundProcessCacheLock = new();
+    private static IntPtr _cachedProcessHwnd;
+    private static uint _cachedProcessPid;
+    private static string? _cachedProcessName;
+    private static string? _cachedProcessExePath;
+
+    [ThreadStatic]
+    private static StringBuilder? t_classNameBuffer;
+
+    [ThreadStatic]
+    private static StringBuilder? t_exePathBuffer;
+
     /// <summary>
     /// Configura o estilo estendido da janela para ocultar do Alt+Tab (WS_EX_TOOLWINDOW)
     /// e ativar/desativar o modo Click-Through (WS_EX_TRANSPARENT).
@@ -165,22 +202,33 @@ public static class WindowWin32Helper
             return;
 
         IntPtr hwnd = new WindowInteropHelper(window).Handle;
+        SetClickThrough(hwnd, locked);
+    }
+
+    /// <summary>
+    /// Sobrecarga direta por HWND que evita alocações de WindowInteropHelper em chamadas recorrentes.
+    /// </summary>
+    public static void SetClickThrough(IntPtr hwnd, bool locked)
+    {
         if (hwnd == IntPtr.Zero)
             return;
 
         int extendedStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
-        extendedStyle |= WS_EX_TOOLWINDOW | WS_EX_LAYERED;
+        int desiredStyle = extendedStyle | WS_EX_TOOLWINDOW | WS_EX_LAYERED;
 
         if (locked)
         {
-            extendedStyle |= WS_EX_TRANSPARENT;
+            desiredStyle |= WS_EX_TRANSPARENT;
         }
         else
         {
-            extendedStyle &= ~WS_EX_TRANSPARENT;
+            desiredStyle &= ~WS_EX_TRANSPARENT;
         }
 
-        SetWindowLong(hwnd, GWL_EXSTYLE, extendedStyle);
+        if (desiredStyle != extendedStyle)
+        {
+            SetWindowLong(hwnd, GWL_EXSTYLE, desiredStyle);
+        }
     }
 
     /// <summary>
@@ -272,6 +320,14 @@ public static class WindowWin32Helper
             return;
 
         IntPtr hwnd = new WindowInteropHelper(window).Handle;
+        ForceTopMost(hwnd);
+    }
+
+    /// <summary>
+    /// Sobrecarga direta por HWND para reforçar TopMost sem alocações repetidas de WindowInteropHelper.
+    /// </summary>
+    public static void ForceTopMost(IntPtr hwnd)
+    {
         if (hwnd == IntPtr.Zero)
             return;
 
@@ -279,12 +335,41 @@ public static class WindowWin32Helper
     }
 
     /// <summary>
+    /// Verifica de forma leve via Win32 (PROCESS_QUERY_LIMITED_INFORMATION) se um PID ainda está ativo.
+    /// </summary>
+    public static bool IsProcessAlive(int pid)
+    {
+        if (pid <= 4)
+            return false;
+
+        IntPtr hProcess = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, (uint)pid);
+        if (hProcess == IntPtr.Zero)
+            return false;
+
+        try
+        {
+            return GetExitCodeProcess(hProcess, out uint exitCode) && exitCode == STILL_ACTIVE;
+        }
+        finally
+        {
+            CloseHandle(hProcess);
+        }
+    }
+
+    /// <summary>
     /// Verifica se a janela atualmente em primeiro plano está em modo Tela Cheia real (Exclusive Fullscreen ou Borderless Fullscreen).
     /// Ignora janelas meramente maximizadas na área de trabalho (navegadores, explorador, editores),
     /// a área de trabalho do Windows e a barra de tarefas.
     /// </summary>
-    public static bool IsForegroundWindowFullScreen()
+    public static bool IsForegroundWindowFullScreen() => TryGetForegroundFullscreenWindow(out _);
+
+    /// <summary>
+    /// Tenta detectar se a janela em primeiro plano está em Tela Cheia real e retorna os metadados do processo associado.
+    /// </summary>
+    public static bool TryGetForegroundFullscreenWindow(out ForegroundFullscreenInfo info)
     {
+        info = default;
+
         try
         {
             IntPtr hwnd = GetForegroundWindow();
@@ -298,8 +383,9 @@ public static class WindowWin32Helper
             if (pid == 0 || pid == (uint)Environment.ProcessId)
                 return false;
 
-            // 1. Ignora classes do shell e da área de trabalho do Windows
-            var classNameBuilder = new StringBuilder(64);
+            // 1. Ignora classes do shell e da área de trabalho do Windows (reutilizando buffer ThreadStatic)
+            StringBuilder classNameBuilder = t_classNameBuffer ??= new StringBuilder(64);
+            classNameBuilder.Clear();
             int charsCopied = GetClassName(hwnd, classNameBuilder, classNameBuilder.Capacity);
             if (charsCopied > 0)
             {
@@ -313,22 +399,7 @@ public static class WindowWin32Helper
                 }
             }
 
-            // 2. Obtém o nome do processo e valida exclusões de shell do Windows
-            string? processName = null;
-            try
-            {
-                using var process = Process.GetProcessById((int)pid);
-                processName = process.ProcessName;
-            }
-            catch
-            {
-                // Ignora falhas caso o processo tenha sido finalizado ou negue acesso
-            }
-
-            if (string.Equals(processName, "explorer", StringComparison.OrdinalIgnoreCase))
-                return false;
-
-            // 3. Verifica estilos de janela Win32
+            // 2. Verifica estilos leves de janela Win32 antes de abrir handle de processo
             int windowStyle = GetWindowLong(hwnd, GWL_STYLE);
             bool isMaximized = (windowStyle & WS_MAXIMIZE) != 0;
             bool hasCaption = (windowStyle & WS_CAPTION) == WS_CAPTION;
@@ -338,15 +409,7 @@ public static class WindowWin32Helper
             if (isMaximized && hasCaption)
                 return false;
 
-            // Para aplicativos de desktop padrão conhecidos (navegadores, IDEs, chat),
-            // só considera tela cheia se não tiver estilo de janela padrão (ex: F11 sem barra de título/menu)
-            if (!string.IsNullOrEmpty(processName) && KnownDesktopApps.Contains(processName))
-            {
-                if (isMaximized || (windowStyle & WS_CAPTION) != 0)
-                    return false;
-            }
-
-            // 4. Obtém o monitor físico correspondente (NUNCA usar rcWork)
+            // 3. Obtém o monitor físico correspondente (NUNCA usar rcWork)
             IntPtr hMonitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
             if (hMonitor == IntPtr.Zero)
                 return false;
@@ -366,7 +429,7 @@ public static class WindowWin32Helper
             if (monitorWidth <= 0 || monitorHeight <= 0)
                 return false;
 
-            // 5. Obtém os limites visíveis reais via DwmGetWindowAttribute (sem as margens invisíveis de redimensionamento do Win10/11)
+            // 4. Obtém os limites visíveis reais via DwmGetWindowAttribute (sem as margens invisíveis de redimensionamento do Win10/11)
             RECT visibleRect;
             int hr = DwmGetWindowAttribute(hwnd, DWMWA_EXTENDED_FRAME_BOUNDS, out visibleRect, Marshal.SizeOf<RECT>());
             if (hr != 0)
@@ -385,8 +448,7 @@ public static class WindowWin32Helper
             if (!visibleCoversMonitor)
                 return false;
 
-            // 6. Validação estrita da área de cliente real (GetClientRect + ClientToScreen)
-            // Em tela cheia real (Exclusive ou Borderless), a área de cliente cobre 100% do monitor físico
+            // 5. Validação estrita da área de cliente real (GetClientRect + ClientToScreen)
             if (!GetClientRect(hwnd, out RECT clientRect))
                 return false;
 
@@ -403,12 +465,89 @@ public static class WindowWin32Helper
                 clientWidth >= monitorWidth - 2 &&
                 clientHeight >= monitorHeight - 2;
 
-            return clientCoversMonitor;
+            if (!clientCoversMonitor)
+                return false;
+
+            // 6. Consulta e cacheia nome e caminho do processo apenas para janelas que de fato cobrem 100% do monitor
+            (string? processName, string? executablePath) = GetCachedProcessInfo(hwnd, pid);
+
+            if (string.Equals(processName, "explorer", StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            if (!string.IsNullOrEmpty(processName) && KnownDesktopApps.Contains(processName))
+            {
+                if (isMaximized || (windowStyle & WS_CAPTION) != 0)
+                    return false;
+            }
+
+            info = new ForegroundFullscreenInfo(
+                hwnd,
+                (int)pid,
+                processName ?? string.Empty,
+                executablePath);
+
+            return true;
         }
         catch
         {
             return false;
         }
+    }
+
+    private static (string? ProcessName, string? ExecutablePath) GetCachedProcessInfo(IntPtr hwnd, uint pid)
+    {
+        lock (_foregroundProcessCacheLock)
+        {
+            if (hwnd == _cachedProcessHwnd && pid == _cachedProcessPid)
+                return (_cachedProcessName, _cachedProcessExePath);
+        }
+
+        string? resolvedName = null;
+        string? resolvedExePath = null;
+
+        try
+        {
+            IntPtr hProcess = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid);
+            if (hProcess != IntPtr.Zero)
+            {
+                try
+                {
+                    StringBuilder pathBuilder = t_exePathBuffer ??= new StringBuilder(512);
+                    pathBuilder.Clear();
+                    uint capacity = (uint)pathBuilder.Capacity;
+
+                    if (QueryFullProcessImageName(hProcess, 0, pathBuilder, ref capacity) && capacity > 0)
+                    {
+                        resolvedExePath = pathBuilder.ToString(0, (int)capacity);
+                        resolvedName = System.IO.Path.GetFileNameWithoutExtension(resolvedExePath);
+                    }
+                }
+                finally
+                {
+                    CloseHandle(hProcess);
+                }
+            }
+
+            if (string.IsNullOrEmpty(resolvedName))
+            {
+                using var process = Process.GetProcessById((int)pid);
+                resolvedName = process.ProcessName;
+            }
+        }
+        catch
+        {
+            // Ignora falhas caso o processo tenha sido finalizado ou negue acesso
+        }
+
+        lock (_foregroundProcessCacheLock)
+        {
+            _cachedProcessHwnd = hwnd;
+            _cachedProcessPid = pid;
+            _cachedProcessName = resolvedName;
+            _cachedProcessExePath = resolvedExePath;
+        }
+
+        return (resolvedName, resolvedExePath);
     }
 
     /// <summary>

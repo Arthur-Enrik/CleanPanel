@@ -37,9 +37,9 @@ public class HardwareMetrics
     // Indica se este ciclo incluiu a telemetria detalhada para a janela principal
     public bool IsDetailedSnapshot { get; set; }
 
-    // Telemetria detalhada (atualizada apenas quando a janela principal está aberta e visível)
-    public List<CpuCoreMetric> CpuCores { get; set; } = [];
-    public List<GpuDetailedMetrics> Gpus { get; set; } = [];
-    public List<StorageDriveMetrics> StorageDrives { get; set; } = [];
-    public List<PhysicalStorageMetrics> PhysicalDisks { get; set; } = [];
+    // Snapshots value-type alocados apenas para as coleções visíveis quando a janela principal está aberta
+    public List<CpuCoreSnapshot>? CpuCores { get; set; }
+    public List<GpuDetailedSnapshot>? Gpus { get; set; }
+    public List<StorageDriveSnapshot>? StorageDrives { get; set; }
+    public List<PhysicalStorageSnapshot>? PhysicalDisks { get; set; }
 }

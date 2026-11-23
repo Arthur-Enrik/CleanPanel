@@ -7,6 +7,14 @@ using Microsoft.Diagnostics.Tracing.Session;
 namespace HardwareOverlayApp.Services;
 
 /// <summary>
+/// Receptor leve de intervalos de frametime da SwapChain dominante em foco.
+/// </summary>
+public interface IFrameSampleSink
+{
+    void OnFrameInterval(int processId, double frametimeMs);
+}
+
+/// <summary>
 /// Motor de captura e cálculo de FPS via ETW (Event Tracing for Windows) sem injeção de DLLs.
 /// Suporta DX9, DX10/11/12 (DXGI), Vulkan/OpenGL (DXGI e DxgKrnl) e fallback via compositor DWM.
 /// </summary>
@@ -89,6 +97,7 @@ public class FpsMonitorService : IDisposable
     private sealed class SwapChainTrack
     {
         public readonly List<double> EventTimestampsMs = new(256);
+        public int HeadIndex;
         public long LastArrivalWallTicks;
         public double LatestEventTimeMs;
     }
@@ -101,15 +110,23 @@ public class FpsMonitorService : IDisposable
     private readonly Dictionary<FrameStreamId, SwapChainTrack> _tracks = new();
     private readonly List<FrameStreamId> _staleKeysBuffer = new(16);
     private readonly ManualResetEventSlim _disposeSignal = new(false);
+    private readonly ManualResetEventSlim _activeSignal = new(true);
     private readonly int _currentAppPid = Environment.ProcessId;
 
     private TraceEventSession? _session;
     private Thread? _etwThread;
+    private volatile bool _isStarted;
+    private volatile IFrameSampleSink? _frameSampleSink;
+
+    // Identificação da SwapChain dominante para encaminhamento sem alocações ao sink
+    private FrameStreamId _dominantStreamId;
+    private bool _hasDominantStream;
 
     // Estado de janela em primeiro plano atualizado fora do hot-path ETW
     private volatile int _activeForegroundPid = -1;
     private volatile bool _isForegroundFullscreen;
     private int _lastEvaluatedRawPid = -1;
+    private bool _lastEvaluatedPidIgnored;
 
     // Controle de precedência entre provedores/tiers (ticks do Stopwatch em tempo de parede)
     private long _lastDxgi42WallTicks;
@@ -125,21 +142,56 @@ public class FpsMonitorService : IDisposable
     private volatile bool _isDisposed;
     private volatile bool _isSuspended;
 
+    public void SetFrameSampleSink(IFrameSampleSink? sink) => _frameSampleSink = sink;
+
     public bool IsSuspended
     {
         get => _isSuspended;
         set
         {
-            _isSuspended = value;
+            bool hasActiveSession = false;
+            bool needStartThread = false;
+
+            lock (_sessionLock)
+            {
+                if (_isDisposed || _isSuspended == value)
+                    return;
+
+                if (value)
+                {
+                    _isSuspended = true;
+                    _activeSignal.Reset();
+                    hasActiveSession = _session is not null;
+                }
+                else
+                {
+                    _isSuspended = false;
+                    _activeSignal.Set();
+                    needStartThread = _isStarted && _etwThread is null;
+                }
+            }
+
             if (value)
             {
                 _activeForegroundPid = -1;
                 _isForegroundFullscreen = false;
                 _lastEvaluatedRawPid = -1;
+                _lastEvaluatedPidIgnored = false;
+
                 lock (_framesLock)
                 {
                     ClearFrameHistoryLocked();
                 }
+
+                if (hasActiveSession)
+                {
+                    _ = Task.Run(StopSessionIfSuspended);
+                }
+            }
+            else if (needStartThread)
+            {
+                RefreshActiveForegroundProcess();
+                EnsureEtwThreadStarted();
             }
         }
     }
@@ -157,18 +209,53 @@ public class FpsMonitorService : IDisposable
 
     public void Start()
     {
-        if (_isDisposed || _etwThread is not null)
-            return;
-
-        RefreshActiveForegroundProcess();
-
-        _etwThread = new Thread(RunEtwSessionLoop)
+        bool shouldStart;
+        lock (_sessionLock)
         {
-            Name = "CleanPanelEtwFpsThread",
-            IsBackground = true,
-            Priority = ThreadPriority.AboveNormal
-        };
-        _etwThread.Start();
+            if (_isDisposed || _isStarted)
+                return;
+
+            _isStarted = true;
+            shouldStart = !_isSuspended && _etwThread is null;
+        }
+
+        if (shouldStart)
+        {
+            RefreshActiveForegroundProcess();
+            EnsureEtwThreadStarted();
+        }
+    }
+
+    private void EnsureEtwThreadStarted()
+    {
+        lock (_sessionLock)
+        {
+            if (_isDisposed || _isSuspended || !_isStarted || _etwThread is not null)
+                return;
+
+            _etwThread = new Thread(RunEtwSessionLoop)
+            {
+                Name = "CleanPanelEtwFpsThread",
+                IsBackground = true,
+                Priority = ThreadPriority.AboveNormal
+            };
+            _etwThread.Start();
+        }
+    }
+
+    private void StopSessionIfSuspended()
+    {
+        TraceEventSession? sessionToClose;
+        lock (_sessionLock)
+        {
+            if (!_isSuspended && !_isDisposed)
+                return;
+
+            sessionToClose = _session;
+            _session = null;
+        }
+
+        CloseSessionSafe(sessionToClose);
     }
 
     /// <summary>
@@ -186,13 +273,16 @@ public class FpsMonitorService : IDisposable
         try
         {
             int rawPid = WindowWin32Helper.GetForegroundProcessId();
-            if (rawPid <= 4 || rawPid == _currentAppPid || IsIgnoredSystemProcess(rawPid))
+            bool samePidAsLast = rawPid == _lastEvaluatedRawPid;
+
+            if (rawPid <= 4 || rawPid == _currentAppPid || (samePidAsLast ? _lastEvaluatedPidIgnored : IsIgnoredSystemProcess(rawPid)))
             {
-                if (_activeForegroundPid != -1 || _lastEvaluatedRawPid != rawPid)
+                if (_activeForegroundPid != -1 || !samePidAsLast)
                 {
                     _activeForegroundPid = -1;
                     _isForegroundFullscreen = false;
                     _lastEvaluatedRawPid = rawPid;
+                    _lastEvaluatedPidIgnored = rawPid > 4 && rawPid != _currentAppPid;
                     lock (_framesLock)
                     {
                         ClearFrameHistoryLocked();
@@ -201,19 +291,28 @@ public class FpsMonitorService : IDisposable
                 return;
             }
 
-            _isForegroundFullscreen = WindowWin32Helper.IsForegroundWindowFullScreen();
-
-            if (rawPid == _lastEvaluatedRawPid)
-                return;
-
-            _lastEvaluatedRawPid = rawPid;
-
-            lock (_framesLock)
+            if (!samePidAsLast)
             {
-                ClearFrameHistoryLocked();
+                _lastEvaluatedRawPid = rawPid;
+                _lastEvaluatedPidIgnored = false;
+
+                lock (_framesLock)
+                {
+                    ClearFrameHistoryLocked();
+                }
+
+                _activeForegroundPid = rawPid;
             }
 
-            _activeForegroundPid = rawPid;
+            // Só consulta IsForegroundWindowFullScreen quando Tiers 1 e 2 estão inativos (fallback DWM)
+            long nowWallTicks = Stopwatch.GetTimestamp();
+            long tier1Ticks = Volatile.Read(ref _lastTier1WallTicks);
+            long tier2Ticks = Volatile.Read(ref _lastTier2WallTicks);
+            bool directOrKernelActive =
+                (tier1Ticks > 0 && (nowWallTicks - tier1Ticks) <= TierFallbackTimeoutTicks) ||
+                (tier2Ticks > 0 && (nowWallTicks - tier2Ticks) <= TierFallbackTimeoutTicks);
+
+            _isForegroundFullscreen = !directOrKernelActive && WindowWin32Helper.IsForegroundWindowFullScreen();
         }
         catch
         {
@@ -226,6 +325,24 @@ public class FpsMonitorService : IDisposable
     {
         while (!_isDisposed)
         {
+            if (_isSuspended)
+            {
+                try
+                {
+                    _activeSignal.Wait();
+                }
+                catch (ObjectDisposedException)
+                {
+                    return;
+                }
+
+                if (_isDisposed)
+                    return;
+
+                if (_isSuspended)
+                    continue;
+            }
+
             TraceEventSession? session = null;
 
             try
@@ -235,11 +352,17 @@ public class FpsMonitorService : IDisposable
                     if (_isDisposed)
                         return;
 
+                    if (_isSuspended)
+                        continue;
+
                     StopOrphanSession(LegacySessionName);
                     StopOrphanSession(SessionName);
 
                     if (_isDisposed)
                         return;
+
+                    if (_isSuspended)
+                        continue;
 
                     session = new TraceEventSession(SessionName, TraceEventSessionOptions.Create)
                     {
@@ -294,7 +417,7 @@ public class FpsMonitorService : IDisposable
                 CloseSessionSafe(session);
             }
 
-            if (!_isDisposed)
+            if (!_isDisposed && !_isSuspended)
             {
                 _disposeSignal.Wait(SessionRestartDelayMs);
             }
@@ -393,12 +516,28 @@ public class FpsMonitorService : IDisposable
         if (!TryClassifyEvent(data, activePid, out FrameTier tier, out FrameEventKind kind))
             return;
 
+        long nowWallTicks = Stopwatch.GetTimestamp();
+
+        // Supressão lock-free antes de ExtractStreamKey ou lock(_framesLock)
+        if (tier == FrameTier.Tier2KernelWddm)
+        {
+            if (IsWithinTierTimeout(Volatile.Read(ref _lastTier1WallTicks), nowWallTicks))
+                return;
+        }
+        else if (tier == FrameTier.Tier3Dwm)
+        {
+            if (IsWithinTierTimeout(Volatile.Read(ref _lastTier1WallTicks), nowWallTicks) ||
+                IsWithinTierTimeout(Volatile.Read(ref _lastTier2WallTicks), nowWallTicks))
+            {
+                return;
+            }
+        }
+
         double eventTimeMs = data.TimeStampRelativeMSec;
         if (double.IsNaN(eventTimeMs) || double.IsInfinity(eventTimeMs))
             return;
 
         ulong streamKey = ExtractStreamKey(data, kind);
-        long nowWallTicks = Stopwatch.GetTimestamp();
 
         lock (_framesLock)
         {
@@ -495,45 +634,45 @@ public class FpsMonitorService : IDisposable
                 if (kind == FrameEventKind.DxgiPresent)
                 {
                     _lastDxgi42WallTicks = nowWallTicks;
-                    _lastTier1WallTicks = nowWallTicks;
+                    Volatile.Write(ref _lastTier1WallTicks, nowWallTicks);
                     return true;
                 }
 
                 if (kind == FrameEventKind.DxgiPresentMpo)
                 {
-                    if (_lastDxgi42WallTicks > 0 && (nowWallTicks - _lastDxgi42WallTicks) <= TierFallbackTimeoutTicks)
+                    if (IsWithinTierTimeout(_lastDxgi42WallTicks, nowWallTicks))
                         return false;
 
-                    _lastTier1WallTicks = nowWallTicks;
+                    Volatile.Write(ref _lastTier1WallTicks, nowWallTicks);
                     return true;
                 }
 
-                _lastTier1WallTicks = nowWallTicks;
+                Volatile.Write(ref _lastTier1WallTicks, nowWallTicks);
                 return true;
 
             case FrameTier.Tier2KernelWddm:
-                if (_lastTier1WallTicks > 0 && (nowWallTicks - _lastTier1WallTicks) <= TierFallbackTimeoutTicks)
+                if (IsWithinTierTimeout(Volatile.Read(ref _lastTier1WallTicks), nowWallTicks))
                     return false;
 
                 if (kind == FrameEventKind.DxgKrnlPresent)
                 {
                     _lastDxgKrnl184WallTicks = nowWallTicks;
-                    _lastTier2WallTicks = nowWallTicks;
+                    Volatile.Write(ref _lastTier2WallTicks, nowWallTicks);
                     return true;
                 }
 
-                if (_lastDxgKrnl184WallTicks > 0 && (nowWallTicks - _lastDxgKrnl184WallTicks) <= TierFallbackTimeoutTicks)
+                if (IsWithinTierTimeout(_lastDxgKrnl184WallTicks, nowWallTicks))
                     return false;
 
-                _lastTier2WallTicks = nowWallTicks;
+                Volatile.Write(ref _lastTier2WallTicks, nowWallTicks);
                 return true;
 
             case FrameTier.Tier3Dwm:
-                if (_lastTier1WallTicks > 0 && (nowWallTicks - _lastTier1WallTicks) <= TierFallbackTimeoutTicks)
+                if (IsWithinTierTimeout(Volatile.Read(ref _lastTier1WallTicks), nowWallTicks) ||
+                    IsWithinTierTimeout(Volatile.Read(ref _lastTier2WallTicks), nowWallTicks))
+                {
                     return false;
-
-                if (_lastTier2WallTicks > 0 && (nowWallTicks - _lastTier2WallTicks) <= TierFallbackTimeoutTicks)
-                    return false;
+                }
 
                 if (kind == FrameEventKind.DwmSchedulePresent)
                 {
@@ -541,7 +680,7 @@ public class FpsMonitorService : IDisposable
                     return true;
                 }
 
-                return _lastDwm15WallTicks == 0 || (nowWallTicks - _lastDwm15WallTicks) > TierFallbackTimeoutTicks;
+                return !IsWithinTierTimeout(_lastDwm15WallTicks, nowWallTicks);
 
             default:
                 return false;
@@ -565,9 +704,15 @@ public class FpsMonitorService : IDisposable
 
         List<double> timestamps = track.EventTimestampsMs;
         int count = timestamps.Count;
+        int head = track.HeadIndex;
 
-        if (count == 0)
+        if (head >= count)
         {
+            if (count > 0)
+            {
+                timestamps.Clear();
+            }
+            track.HeadIndex = 0;
             timestamps.Add(eventTimeMs);
             track.LatestEventTimeMs = eventTimeMs;
             return;
@@ -583,17 +728,47 @@ public class FpsMonitorService : IDisposable
 
             timestamps.Add(eventTimeMs);
             track.LatestEventTimeMs = eventTimeMs;
+
+            if (deltaMs <= MaxFrametimeMs)
+            {
+                IFrameSampleSink? sink = _frameSampleSink;
+                if (sink is not null)
+                {
+                    if (!_hasDominantStream)
+                    {
+                        _dominantStreamId = streamId;
+                        _hasDominantStream = true;
+                    }
+                    else if (!streamId.Equals(_dominantStreamId))
+                    {
+                        int currentStreamSamples = timestamps.Count - track.HeadIndex;
+                        if (!_tracks.TryGetValue(_dominantStreamId, out SwapChainTrack? domTrack) ||
+                            domTrack.LastArrivalWallTicks < nowWallTicks - IdleResetTicks ||
+                            streamId.Tier < _dominantStreamId.Tier ||
+                            (streamId.Tier == _dominantStreamId.Tier &&
+                             currentStreamSamples > (domTrack.EventTimestampsMs.Count - domTrack.HeadIndex)))
+                        {
+                            _dominantStreamId = streamId;
+                        }
+                    }
+
+                    if (streamId.Equals(_dominantStreamId))
+                    {
+                        sink.OnFrameInterval(_activeForegroundPid, deltaMs);
+                    }
+                }
+            }
         }
         else if (deltaMs > -50.0)
         {
             // Trata eventual entrega fora de ordem entre buffers por núcleo
             int insertIndex = count;
-            while (insertIndex > 0 && timestamps[insertIndex - 1] > eventTimeMs)
+            while (insertIndex > head && timestamps[insertIndex - 1] > eventTimeMs)
             {
                 insertIndex--;
             }
 
-            if ((insertIndex > 0 && Math.Abs(eventTimeMs - timestamps[insertIndex - 1]) < MinFrametimeMs) ||
+            if ((insertIndex > head && Math.Abs(eventTimeMs - timestamps[insertIndex - 1]) < MinFrametimeMs) ||
                 (insertIndex < count && Math.Abs(timestamps[insertIndex] - eventTimeMs) < MinFrametimeMs))
             {
                 return;
@@ -609,15 +784,16 @@ public class FpsMonitorService : IDisposable
         {
             // Reinício de sessão ETW (relógio relativo reiniciado)
             timestamps.Clear();
+            track.HeadIndex = 0;
             timestamps.Add(eventTimeMs);
             track.LatestEventTimeMs = eventTimeMs;
         }
 
-        // Mantém a janela deslizante enxuta mesmo antes da próxima leitura da UI
+        // Poda amortizada O(1) via HeadIndex preservando janela deslizante enxuta
         double pruneCutoffMs = track.LatestEventTimeMs - SlidingWindowMs;
-        if (timestamps.Count > 2 && timestamps[0] < pruneCutoffMs)
+        if ((timestamps.Count - track.HeadIndex) > 2 && timestamps[track.HeadIndex] < pruneCutoffMs)
         {
-            PruneOlderThan(timestamps, pruneCutoffMs);
+            PruneOlderThan(track, pruneCutoffMs);
         }
     }
 
@@ -639,6 +815,7 @@ public class FpsMonitorService : IDisposable
         _staleKeysBuffer.Clear();
         int bestValidIntervals = 0;
         double bestSumDeltaMs = 0.0;
+        FrameStreamId bestStreamId = default;
         bool hasAnyActiveTrack = false;
 
         foreach (KeyValuePair<FrameStreamId, SwapChainTrack> kvp in _tracks)
@@ -653,21 +830,23 @@ public class FpsMonitorService : IDisposable
             hasAnyActiveTrack = true;
 
             double cutoffEventTimeMs = track.LatestEventTimeMs - SlidingWindowMs;
-            PruneOlderThan(track.EventTimestampsMs, cutoffEventTimeMs);
+            PruneOlderThan(track, cutoffEventTimeMs);
 
             if (kvp.Key.Tier != activePriorityTier)
                 continue;
 
-            int count = track.EventTimestampsMs.Count;
-            if (count < 2)
+            List<double> timestamps = track.EventTimestampsMs;
+            int head = track.HeadIndex;
+            int count = timestamps.Count;
+            if (count - head < 2)
                 continue;
 
             int validIntervals = 0;
             double sumDeltaMs = 0.0;
 
-            for (int i = 1; i < count; i++)
+            for (int i = head + 1; i < count; i++)
             {
-                double deltaMs = track.EventTimestampsMs[i] - track.EventTimestampsMs[i - 1];
+                double deltaMs = timestamps[i] - timestamps[i - 1];
                 if (deltaMs < MinFrametimeMs || deltaMs > MaxFrametimeMs)
                     continue;
 
@@ -679,7 +858,14 @@ public class FpsMonitorService : IDisposable
             {
                 bestValidIntervals = validIntervals;
                 bestSumDeltaMs = sumDeltaMs;
+                bestStreamId = kvp.Key;
             }
+        }
+
+        if (bestValidIntervals > 0)
+        {
+            _dominantStreamId = bestStreamId;
+            _hasDominantStream = true;
         }
 
         for (int i = 0; i < _staleKeysBuffer.Count; i++)
@@ -722,14 +908,17 @@ public class FpsMonitorService : IDisposable
 
     private FrameTier DetermineActiveTierLocked(long nowWallTicks)
     {
-        if (_lastTier1WallTicks > 0 && (nowWallTicks - _lastTier1WallTicks) <= TierFallbackTimeoutTicks)
+        if (IsWithinTierTimeout(Volatile.Read(ref _lastTier1WallTicks), nowWallTicks))
             return FrameTier.Tier1Direct;
 
-        if (_lastTier2WallTicks > 0 && (nowWallTicks - _lastTier2WallTicks) <= TierFallbackTimeoutTicks)
+        if (IsWithinTierTimeout(Volatile.Read(ref _lastTier2WallTicks), nowWallTicks))
             return FrameTier.Tier2KernelWddm;
 
         return FrameTier.Tier3Dwm;
     }
+
+    private static bool IsWithinTierTimeout(long lastWallTicks, long nowWallTicks) =>
+        lastWallTicks > 0 && (nowWallTicks - lastWallTicks) <= TierFallbackTimeoutTicks;
 
     private void EvictOldestTrackLocked()
     {
@@ -756,10 +945,12 @@ public class FpsMonitorService : IDisposable
     private void ClearFrameHistoryLocked()
     {
         _tracks.Clear();
+        _dominantStreamId = default;
+        _hasDominantStream = false;
         _lastDxgi42WallTicks = 0;
-        _lastTier1WallTicks = 0;
+        Volatile.Write(ref _lastTier1WallTicks, 0);
         _lastDxgKrnl184WallTicks = 0;
-        _lastTier2WallTicks = 0;
+        Volatile.Write(ref _lastTier2WallTicks, 0);
         _lastDwm15WallTicks = 0;
         _smoothedFps = 0.0;
         _lastDisplayedFps = 0;
@@ -844,25 +1035,33 @@ public class FpsMonitorService : IDisposable
         return true;
     }
 
-    private static void PruneOlderThan(List<double> timestamps, double cutoffMs)
+    private static void PruneOlderThan(SwapChainTrack track, double cutoffMs)
     {
+        List<double> timestamps = track.EventTimestampsMs;
         int count = timestamps.Count;
-        if (count == 0 || timestamps[0] >= cutoffMs)
+        int head = track.HeadIndex;
+
+        if (head >= count || timestamps[head] >= cutoffMs)
             return;
 
-        int firstValidIndex = 0;
-        while (firstValidIndex < count && timestamps[firstValidIndex] < cutoffMs)
+        while (head < count && timestamps[head] < cutoffMs)
         {
-            firstValidIndex++;
+            head++;
         }
 
-        if (firstValidIndex >= count)
+        if (head >= count)
         {
             timestamps.Clear();
+            track.HeadIndex = 0;
         }
-        else if (firstValidIndex > 0)
+        else
         {
-            timestamps.RemoveRange(0, firstValidIndex);
+            track.HeadIndex = head;
+            if (head >= 64 && head * 2 >= count)
+            {
+                timestamps.RemoveRange(0, head);
+                track.HeadIndex = 0;
+            }
         }
     }
 
@@ -892,32 +1091,37 @@ public class FpsMonitorService : IDisposable
             return;
 
         _isDisposed = true;
+        _frameSampleSink = null;
         _activeForegroundPid = -1;
         _isForegroundFullscreen = false;
 
         try
         {
+            _activeSignal.Set();
             _disposeSignal.Set();
         }
         catch
         {
-            // Ignora caso o sinal já tenha sido liberado
+            // Ignora caso os sinais já tenham sido liberados
         }
 
         TraceEventSession? sessionToClose;
+        Thread? etwThread;
         lock (_sessionLock)
         {
             sessionToClose = _session;
             _session = null;
+            etwThread = _etwThread;
+            _etwThread = null;
         }
 
         CloseSessionSafe(sessionToClose);
 
         try
         {
-            if (_etwThread is not null && _etwThread.IsAlive)
+            if (etwThread is not null && etwThread.IsAlive)
             {
-                _etwThread.Join(TimeSpan.FromMilliseconds(ThreadJoinTimeoutMs));
+                etwThread.Join(TimeSpan.FromMilliseconds(ThreadJoinTimeoutMs));
             }
         }
         catch
@@ -944,6 +1148,15 @@ public class FpsMonitorService : IDisposable
         catch
         {
             // Ignora falhas na liberação do evento de encerramento
+        }
+
+        try
+        {
+            _activeSignal.Dispose();
+        }
+        catch
+        {
+            // Ignora falhas na liberação do evento de suspensão
         }
     }
 }

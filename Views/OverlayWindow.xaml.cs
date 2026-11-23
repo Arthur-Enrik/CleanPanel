@@ -12,6 +12,7 @@ public partial class OverlayWindow : Window
 {
     private readonly MainViewModel _viewModel;
     private HwndSource? _hwndSource;
+    private IntPtr _hwnd;
 
     public OverlayWindow(MainViewModel viewModel)
     {
@@ -40,6 +41,16 @@ public partial class OverlayWindow : Window
         Loaded += OnWindowLoaded;
     }
 
+    private IntPtr GetOrResolveHwnd()
+    {
+        if (_hwnd == IntPtr.Zero)
+        {
+            _hwnd = new WindowInteropHelper(this).Handle;
+        }
+
+        return _hwnd;
+    }
+
     public void EnsureTransparentWindow()
     {
         if (!Dispatcher.CheckAccess())
@@ -51,16 +62,16 @@ public partial class OverlayWindow : Window
         ClearValue(BackgroundProperty);
         Background = Brushes.Transparent;
 
-        IntPtr hwnd = new WindowInteropHelper(this).Handle;
+        IntPtr hwnd = GetOrResolveHwnd();
         if (hwnd != IntPtr.Zero)
         {
             WindowWin32Helper.DisableDwmBackdrop(hwnd);
-            if (HwndSource.FromHwnd(hwnd)?.CompositionTarget is { } compositionTarget)
+            if ((_hwndSource ?? HwndSource.FromHwnd(hwnd))?.CompositionTarget is { } compositionTarget)
             {
                 compositionTarget.BackgroundColor = Colors.Transparent;
             }
 
-            WindowWin32Helper.SetClickThrough(this, _viewModel.IsOverlayLocked);
+            WindowWin32Helper.SetClickThrough(hwnd, _viewModel.IsOverlayLocked);
         }
     }
 
@@ -74,24 +85,24 @@ public partial class OverlayWindow : Window
     {
         base.OnSourceInitialized(e);
 
+        _hwnd = new WindowInteropHelper(this).Handle;
         EnsureTransparentWindow();
         _viewModel.UpdateOverlayBrushes();
 
-        IntPtr hwnd = new WindowInteropHelper(this).Handle;
-        if (hwnd == IntPtr.Zero)
+        if (_hwnd == IntPtr.Zero)
             return;
 
-        _hwndSource = HwndSource.FromHwnd(hwnd);
+        _hwndSource = HwndSource.FromHwnd(_hwnd);
         _hwndSource?.AddHook(WndProc);
 
-        WindowWin32Helper.SetClickThrough(this, _viewModel.IsOverlayLocked);
+        WindowWin32Helper.SetClickThrough(_hwnd, _viewModel.IsOverlayLocked);
         _viewModel.ReloadGlobalHotkeys();
-        WindowWin32Helper.ForceTopMost(this);
+        WindowWin32Helper.ForceTopMost(_hwnd);
     }
 
     public (bool OverlayRegistered, bool CompactRegistered) ReloadGlobalHotkeys()
     {
-        IntPtr hwnd = new WindowInteropHelper(this).Handle;
+        IntPtr hwnd = GetOrResolveHwnd();
         if (hwnd == IntPtr.Zero)
             return (true, true);
 
@@ -114,7 +125,7 @@ public partial class OverlayWindow : Window
 
     public void SuspendGlobalHotkeys()
     {
-        IntPtr hwnd = new WindowInteropHelper(this).Handle;
+        IntPtr hwnd = GetOrResolveHwnd();
         if (hwnd != IntPtr.Zero)
         {
             WindowWin32Helper.UnregisterAllHotKeys(hwnd);
@@ -146,7 +157,7 @@ public partial class OverlayWindow : Window
         switch (e.PropertyName)
         {
             case nameof(MainViewModel.IsOverlayLocked):
-                WindowWin32Helper.SetClickThrough(this, _viewModel.IsOverlayLocked);
+                WindowWin32Helper.SetClickThrough(_hwnd, _viewModel.IsOverlayLocked);
                 UpdateCursor();
                 break;
 
@@ -154,7 +165,7 @@ public partial class OverlayWindow : Window
             case nameof(MainViewModel.EffectiveOverlayVisible):
                 if (_viewModel.EffectiveOverlayVisible)
                 {
-                    WindowWin32Helper.ForceTopMost(this);
+                    WindowWin32Helper.ForceTopMost(_hwnd);
                 }
                 break;
 
@@ -171,7 +182,7 @@ public partial class OverlayWindow : Window
             case nameof(MainViewModel.FpsText):
                 if (_viewModel.EffectiveOverlayVisible)
                 {
-                    WindowWin32Helper.ForceTopMost(this);
+                    WindowWin32Helper.ForceTopMost(_hwnd);
                 }
                 break;
         }
@@ -203,16 +214,16 @@ public partial class OverlayWindow : Window
         Topmost = true;
         if (_viewModel.EffectiveOverlayVisible)
         {
-            WindowWin32Helper.ForceTopMost(this);
+            WindowWin32Helper.ForceTopMost(_hwnd);
         }
     }
 
     protected override void OnClosed(EventArgs e)
     {
-        IntPtr hwnd = new WindowInteropHelper(this).Handle;
-        if (hwnd != IntPtr.Zero)
+        if (_hwnd != IntPtr.Zero)
         {
-            WindowWin32Helper.UnregisterAllHotKeys(hwnd);
+            WindowWin32Helper.UnregisterAllHotKeys(_hwnd);
+            _hwnd = IntPtr.Zero;
         }
 
         if (_hwndSource != null)

@@ -31,6 +31,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private readonly StartupService _startupService;
     private readonly Action _exitApplicationAction;
     private readonly bool _isInitializing;
+    private GameHistoryService? _gameHistoryService;
     private bool _isDisposed;
 
     public Func<(double Width, double Height)>? OverlaySizeProvider { get; set; }
@@ -87,13 +88,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
         : FormatHotkeyText(ToggleCompactModifiers, ToggleCompactKey);
 
     // ==================== NAVEGAÇÃO LATERAL MINIMALISTA ====================
-    // 0 = Visão Geral, 1 = Processador, 2 = Placa de Vídeo, 3 = Sistema & Discos, 4 = Configurações
+    // 0 = Visão Geral, 1 = Processador, 2 = Placa de Vídeo, 3 = Sistema & Discos, 4 = Configurações, 5 = Histórico
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsOverviewTabSelected))]
     [NotifyPropertyChangedFor(nameof(IsCpuTabSelected))]
     [NotifyPropertyChangedFor(nameof(IsGpuTabSelected))]
     [NotifyPropertyChangedFor(nameof(IsStorageTabSelected))]
     [NotifyPropertyChangedFor(nameof(IsSettingsTabSelected))]
+    [NotifyPropertyChangedFor(nameof(IsHistoryTabSelected))]
     private int _selectedNavIndex;
 
     public bool IsOverviewTabSelected
@@ -125,6 +127,19 @@ public partial class MainViewModel : ObservableObject, IDisposable
         get => SelectedNavIndex == 4;
         set { if (value) SelectedNavIndex = 4; }
     }
+
+    public bool IsHistoryTabSelected
+    {
+        get => SelectedNavIndex == 5;
+        set { if (value) SelectedNavIndex = 5; }
+    }
+
+    // ==================== HISTÓRICO OPCIONAL DE JOGOS (SOB DEMANDA) ====================
+    [ObservableProperty]
+    private bool _enableGameHistory;
+
+    [ObservableProperty]
+    private GameHistoryViewModel? _gameHistory;
 
     // ==================== SUB-ABAS DE CONFIGURAÇÕES ====================
     // 0 = Geral & Sistema, 1 = Overlay & Layout, 2 = Sensores & Ordem
@@ -208,6 +223,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     private int _lastAppliedBgAlpha = -1;
     private int _lastAppliedBorderAlpha = -1;
+    private volatile bool _lastDispatchedFullscreen = true;
+    private volatile int _activeNavTabIndex;
 
     // Cache do último ciclo aplicado na UI para evitar alocações de string e notificações redundantes
     private int _prevFps = int.MinValue;
@@ -583,6 +600,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         _hardwareMonitorService.SplitIntelHybridCores = SplitIntelHybridCores;
 
+        if (EnableGameHistory)
+        {
+            ActivateGameHistory();
+        }
+
         ApplyApplicationTheme(AppTheme);
         SystemEvents.UserPreferenceChanged += OnSystemUserPreferenceChanged;
         ApplicationThemeManager.Changed += OnWpfUiThemeChanged;
@@ -599,8 +621,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     public void SetMainWindowVisible(bool isVisible)
     {
-        _hardwareMonitorService.IsMainWindowVisible = isVisible;
-        UpdatePollingAndSmartVisibilityState();
+        UpdatePollingAndSmartVisibilityState(mainWindowVisibleOverride: isVisible);
     }
 
     private void OnSystemUserPreferenceChanged(object sender, UserPreferenceChangedEventArgs e)
@@ -764,11 +785,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
         return brush;
     }
 
-    public void UpdateOverlayBrushes()
+    public void UpdateOverlayBrushes(bool ensureTransparency = true)
     {
         if (Application.Current?.Dispatcher is { } dispatcher && !dispatcher.CheckAccess())
         {
-            dispatcher.Invoke(UpdateOverlayBrushes);
+            dispatcher.Invoke(() => UpdateOverlayBrushes(ensureTransparency));
             return;
         }
 
@@ -790,7 +811,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
             OverlayBorderBrush = CreateFrozenRgbBrush(39, 39, 42, borderAlpha);
         }
 
-        EnsureOverlayTransparentAction?.Invoke();
+        if (ensureTransparency)
+        {
+            EnsureOverlayTransparentAction?.Invoke();
+        }
     }
 
     private void OnHardwareSpecsInitialized(HardwareSpecs specs)
@@ -884,6 +908,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         ShowGpuPower = settings.ShowGpuPower;
 
         ShowRam = settings.ShowRam;
+        EnableGameHistory = settings.EnableGameHistory;
 
         ModifierKeys overlayMods = settings.ToggleOverlayModifiers & (ModifierKeys.Control | ModifierKeys.Shift | ModifierKeys.Alt);
         Key overlayKey = settings.ToggleOverlayKey;
@@ -1015,28 +1040,65 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     private void OnHeartbeatTick()
     {
-        UpdatePollingAndSmartVisibilityState();
+        UpdatePollingAndSmartVisibilityState(isHeartbeatTick: true);
     }
 
-    private void UpdatePollingAndSmartVisibilityState()
+    private void UpdatePollingAndSmartVisibilityState(
+        bool? mainWindowVisibleOverride = null,
+        bool forceImmediateRefresh = false,
+        bool isHeartbeatTick = false)
     {
-        bool isFullscreen = !SmartFullscreenOnly || WindowWin32Helper.IsForegroundWindowFullScreen();
+        if (_isDisposed)
+            return;
+
+        bool historyEnabled = EnableGameHistory;
+        bool hasFullscreenWindow = false;
+        ForegroundFullscreenInfo fullscreenInfo = default;
+
+        if (SmartFullscreenOnly || historyEnabled)
+        {
+            hasFullscreenWindow = WindowWin32Helper.TryGetForegroundFullscreenWindow(out fullscreenInfo);
+        }
+
+        bool isFullscreen = !SmartFullscreenOnly || hasFullscreenWindow;
         bool shouldOverlayBeVisible = IsOverlayVisible && isFullscreen;
-        bool isMainWindowOpen = _hardwareMonitorService.IsMainWindowVisible;
+        bool isMainWindowOpen = mainWindowVisibleOverride ?? _hardwareMonitorService.IsMainWindowVisible;
 
-        _hardwareMonitorService.IsPollingSuspended = !shouldOverlayBeVisible && !isMainWindowOpen;
-        _fpsMonitorService.IsSuspended = (!shouldOverlayBeVisible || !EffectiveShowFps) && !isMainWindowOpen;
+        _hardwareMonitorService.UpdateMonitoringState(
+            isPollingSuspended: !shouldOverlayBeVisible && !isMainWindowOpen,
+            isMainWindowVisible: isMainWindowOpen,
+            activeDashboardTab: _activeNavTabIndex,
+            needCpu: ShowCpuSection,
+            needGpu: ShowGpuSection,
+            needRam: EffectiveShowRam,
+            forceImmediateRefresh: forceImmediateRefresh);
 
-        if (!_fpsMonitorService.IsSuspended)
+        bool needFpsForHistory = false;
+        GameHistoryService? historyService = _gameHistoryService;
+        if (historyEnabled && historyService is not null)
+        {
+            needFpsForHistory = isHeartbeatTick
+                ? historyService.ProcessHeartbeatTick(hasFullscreenWindow, fullscreenInfo)
+                : historyService.RequiresFpsCapture;
+        }
+
+        bool shouldSuspendFps = (!shouldOverlayBeVisible || !EffectiveShowFps) && !isMainWindowOpen && !needFpsForHistory;
+        _fpsMonitorService.IsSuspended = shouldSuspendFps;
+
+        if (!shouldSuspendFps)
         {
             _fpsMonitorService.RefreshActiveForegroundProcess();
         }
 
-        if (IsForegroundFullScreen != isFullscreen)
+        if (_lastDispatchedFullscreen != isFullscreen)
         {
+            _lastDispatchedFullscreen = isFullscreen;
             Application.Current?.Dispatcher.InvokeAsync(() =>
             {
-                IsForegroundFullScreen = isFullscreen;
+                if (!_isDisposed)
+                {
+                    IsForegroundFullScreen = isFullscreen;
+                }
             }, DispatcherPriority.Background);
         }
     }
@@ -1281,8 +1343,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }, DispatcherPriority.Background);
     }
 
-    private void SyncCpuCoresCollection(List<CpuCoreMetric> incoming)
+    private void SyncCpuCoresCollection(List<CpuCoreSnapshot>? incoming)
     {
+        if (incoming is null)
+            return;
+
         if (CpuCores.Count == incoming.Count)
         {
             for (int i = 0; i < incoming.Count; i++)
@@ -1293,15 +1358,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
 
         CpuCores.Clear();
-        foreach (CpuCoreMetric item in incoming)
+        for (int i = 0; i < incoming.Count; i++)
         {
-            CpuCores.Add(item);
+            CpuCores.Add(CpuCoreMetric.FromSnapshot(incoming[i]));
         }
     }
 
-    private void SyncGpusCollection(List<GpuDetailedMetrics> incoming)
+    private void SyncGpusCollection(List<GpuDetailedSnapshot>? incoming)
     {
-        if (incoming.Count == 0)
+        if (incoming is null || incoming.Count == 0)
             return;
 
         if (Gpus.Count == incoming.Count)
@@ -1317,9 +1382,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         string? previousSelectedId = SelectedGpu?.Id;
         Gpus.Clear();
-        foreach (GpuDetailedMetrics gpu in incoming)
+        for (int i = 0; i < incoming.Count; i++)
         {
-            Gpus.Add(gpu);
+            Gpus.Add(GpuDetailedMetrics.FromSnapshot(incoming[i]));
         }
 
         SelectedGpu = Gpus.FirstOrDefault(g => g.Id == previousSelectedId) ?? Gpus.FirstOrDefault();
@@ -1333,37 +1398,43 @@ public partial class MainViewModel : ObservableObject, IDisposable
             : $"{Gpus.Count} GPUs Detectadas";
     }
 
-    private void SyncStorageCollections(List<StorageDriveMetrics> drives, List<PhysicalStorageMetrics> physicalDisks)
+    private void SyncStorageCollections(List<StorageDriveSnapshot>? drives, List<PhysicalStorageSnapshot>? physicalDisks)
     {
-        if (StorageDrives.Count == drives.Count)
+        if (drives is not null)
         {
-            for (int i = 0; i < drives.Count; i++)
+            if (StorageDrives.Count == drives.Count)
             {
-                StorageDrives[i].UpdateFrom(drives[i]);
+                for (int i = 0; i < drives.Count; i++)
+                {
+                    StorageDrives[i].UpdateFrom(drives[i]);
+                }
             }
-        }
-        else
-        {
-            StorageDrives.Clear();
-            foreach (StorageDriveMetrics d in drives)
+            else
             {
-                StorageDrives.Add(d);
+                StorageDrives.Clear();
+                for (int i = 0; i < drives.Count; i++)
+                {
+                    StorageDrives.Add(StorageDriveMetrics.FromSnapshot(drives[i]));
+                }
             }
         }
 
-        if (PhysicalDisks.Count == physicalDisks.Count)
+        if (physicalDisks is not null)
         {
-            for (int i = 0; i < physicalDisks.Count; i++)
+            if (PhysicalDisks.Count == physicalDisks.Count)
             {
-                PhysicalDisks[i].UpdateFrom(physicalDisks[i]);
+                for (int i = 0; i < physicalDisks.Count; i++)
+                {
+                    PhysicalDisks[i].UpdateFrom(physicalDisks[i]);
+                }
             }
-        }
-        else
-        {
-            PhysicalDisks.Clear();
-            foreach (PhysicalStorageMetrics p in physicalDisks)
+            else
             {
-                PhysicalDisks.Add(p);
+                PhysicalDisks.Clear();
+                for (int i = 0; i < physicalDisks.Count; i++)
+                {
+                    PhysicalDisks.Add(PhysicalStorageMetrics.FromSnapshot(physicalDisks[i]));
+                }
             }
         }
     }
@@ -1680,13 +1751,75 @@ public partial class MainViewModel : ObservableObject, IDisposable
             ShowGpuVram = ShowGpuVram,
             ShowGpuClock = ShowGpuClock,
             ShowGpuPower = ShowGpuPower,
-            ShowRam = ShowRam
+            ShowRam = ShowRam,
+            EnableGameHistory = EnableGameHistory
         };
 
         _settingsService.Save(settings);
     }
 
-    partial void OnSelectedNavIndexChanged(int value) => CancelHotkeyRecording();
+    private void ActivateGameHistory()
+    {
+        if (_isDisposed || _gameHistoryService is not null)
+            return;
+
+        _gameHistoryService = new GameHistoryService(_fpsMonitorService);
+        GameHistory = new GameHistoryViewModel(_gameHistoryService);
+    }
+
+    private void DeactivateGameHistory()
+    {
+        if (GameHistory is not null)
+        {
+            GameHistory.Dispose();
+            GameHistory = null;
+        }
+
+        if (_gameHistoryService is not null)
+        {
+            _gameHistoryService.Dispose();
+            _gameHistoryService = null;
+        }
+    }
+
+    partial void OnEnableGameHistoryChanged(bool value)
+    {
+        if (_isInitializing)
+            return;
+
+        if (value)
+        {
+            ActivateGameHistory();
+        }
+        else
+        {
+            if (SelectedNavIndex == 5)
+            {
+                SelectedNavIndex = 0;
+            }
+
+            DeactivateGameHistory();
+        }
+
+        UpdatePollingAndSmartVisibilityState();
+        SaveSettings();
+    }
+
+    partial void OnSelectedNavIndexChanged(int value)
+    {
+        _activeNavTabIndex = value;
+        CancelHotkeyRecording();
+
+        if (!_isInitializing)
+        {
+            UpdatePollingAndSmartVisibilityState(forceImmediateRefresh: value is >= 0 and <= 3 && _hardwareMonitorService.IsMainWindowVisible);
+
+            if (value == 5 && GameHistory is not null)
+            {
+                _ = GameHistory.EnsureLoadedAsync();
+            }
+        }
+    }
 
     partial void OnSelectedSettingsSubTabIndexChanged(int value) => CancelHotkeyRecording();
 
@@ -1703,7 +1836,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     partial void OnIsOverlayVisibleChanged(bool value)
     {
-        UpdatePollingAndSmartVisibilityState();
+        if (!_isInitializing)
+        {
+            UpdatePollingAndSmartVisibilityState();
+        }
         SaveSettings();
     }
 
@@ -1717,7 +1853,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
-        UpdateOverlayBrushes();
+        UpdateOverlayBrushes(ensureTransparency: false);
         SaveSettings();
     }
 
@@ -1737,39 +1873,49 @@ public partial class MainViewModel : ObservableObject, IDisposable
         IsHorizontalLayout = value;
         OnPropertyChanged(nameof(IsHorizontalLayout));
 
-        UpdatePollingAndSmartVisibilityState();
+        if (!_isInitializing)
+        {
+            UpdatePollingAndSmartVisibilityState();
+        }
         SaveSettings();
     }
 
     partial void OnSmartFullscreenOnlyChanged(bool value)
     {
-        UpdatePollingAndSmartVisibilityState();
+        if (!_isInitializing)
+        {
+            UpdatePollingAndSmartVisibilityState();
+        }
         SaveSettings();
     }
 
     partial void OnIsHorizontalLayoutChanged(bool value) => SaveSettings();
 
-    partial void OnShowFpsChanged(bool value)
-    {
-        UpdatePollingAndSmartVisibilityState();
-        SaveSettings();
-    }
-
-    partial void OnShowCpuTempChanged(bool value) => SaveSettings();
-    partial void OnShowCpuLoadChanged(bool value) => SaveSettings();
-    partial void OnShowCpuClockChanged(bool value) => SaveSettings();
-    partial void OnShowCpuPowerChanged(bool value) => SaveSettings();
+    partial void OnShowFpsChanged(bool value) => OnSensorVisibilityToggled();
+    partial void OnShowCpuTempChanged(bool value) => OnSensorVisibilityToggled();
+    partial void OnShowCpuLoadChanged(bool value) => OnSensorVisibilityToggled();
+    partial void OnShowCpuClockChanged(bool value) => OnSensorVisibilityToggled();
+    partial void OnShowCpuPowerChanged(bool value) => OnSensorVisibilityToggled();
     partial void OnSplitIntelHybridCoresChanged(bool value)
     {
         _hardwareMonitorService.SplitIntelHybridCores = value;
         SaveSettings();
     }
-    partial void OnShowGpuTempChanged(bool value) => SaveSettings();
-    partial void OnShowGpuLoadChanged(bool value) => SaveSettings();
-    partial void OnShowGpuVramChanged(bool value) => SaveSettings();
-    partial void OnShowGpuClockChanged(bool value) => SaveSettings();
-    partial void OnShowGpuPowerChanged(bool value) => SaveSettings();
-    partial void OnShowRamChanged(bool value) => SaveSettings();
+    partial void OnShowGpuTempChanged(bool value) => OnSensorVisibilityToggled();
+    partial void OnShowGpuLoadChanged(bool value) => OnSensorVisibilityToggled();
+    partial void OnShowGpuVramChanged(bool value) => OnSensorVisibilityToggled();
+    partial void OnShowGpuClockChanged(bool value) => OnSensorVisibilityToggled();
+    partial void OnShowGpuPowerChanged(bool value) => OnSensorVisibilityToggled();
+    partial void OnShowRamChanged(bool value) => OnSensorVisibilityToggled();
+
+    private void OnSensorVisibilityToggled()
+    {
+        if (!_isInitializing)
+        {
+            UpdatePollingAndSmartVisibilityState();
+        }
+        SaveSettings();
+    }
 
     public void Dispose()
     {
@@ -1795,6 +1941,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _hardwareMonitorService.SpecsInitialized -= OnHardwareSpecsInitialized;
         _hardwareMonitorService.HeartbeatTick -= OnHeartbeatTick;
         _hardwareMonitorService.MetricsUpdated -= OnHardwareMetricsUpdated;
+
+        DeactivateGameHistory();
     }
 }
 

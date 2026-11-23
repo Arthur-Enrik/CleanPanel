@@ -64,36 +64,48 @@ public partial class HardwareMonitorService : IDisposable
     public event Action<HardwareSpecs>? SpecsInitialized;
     public event Action? HeartbeatTick;
 
+    private volatile int _activeDashboardTab;
+    private volatile bool _needCpuPolling = true;
+    private volatile bool _needGpuPolling = true;
+    private volatile bool _needRamPolling = true;
+
     public bool IsIntelHybridCpu { get; private set; }
     public bool SplitIntelHybridCores { get; set; }
+    public bool IsPollingSuspended => _isPollingSuspended;
+    public bool IsMainWindowVisible => _isMainWindowVisible;
 
-    public bool IsPollingSuspended
+    /// <summary>
+    /// Atualiza de forma coesa a suspensão de polling, visibilidade da janela principal e demanda por bloco/aba,
+    /// disparando no máximo uma leitura imediata quando necessário.
+    /// </summary>
+    public void UpdateMonitoringState(
+        bool isPollingSuspended,
+        bool isMainWindowVisible,
+        int activeDashboardTab,
+        bool needCpu,
+        bool needGpu,
+        bool needRam,
+        bool forceImmediateRefresh = false)
     {
-        get => _isPollingSuspended;
-        set
+        bool wasSuspended = _isPollingSuspended;
+        bool wasVisible = _isMainWindowVisible;
+
+        _isPollingSuspended = isPollingSuspended;
+        _isMainWindowVisible = isMainWindowVisible;
+        _activeDashboardTab = activeDashboardTab;
+        _needCpuPolling = needCpu;
+        _needGpuPolling = needGpu;
+        _needRamPolling = needRam;
+
+        bool shouldRefreshNow =
+            !_isDisposed &&
+            _isComputerOpened &&
+            (!isPollingSuspended || isMainWindowVisible) &&
+            (forceImmediateRefresh || (wasSuspended && !isPollingSuspended) || (!wasVisible && isMainWindowVisible));
+
+        if (shouldRefreshNow)
         {
-            bool wasSuspended = _isPollingSuspended;
-            _isPollingSuspended = value;
-
-            if (wasSuspended && !value && !_isDisposed && _isComputerOpened)
-            {
-                _ = Task.Run(ReadAndPublishMetrics);
-            }
-        }
-    }
-
-    public bool IsMainWindowVisible
-    {
-        get => _isMainWindowVisible;
-        set
-        {
-            bool wasVisible = _isMainWindowVisible;
-            _isMainWindowVisible = value;
-
-            if (!wasVisible && value && !_isDisposed && _isComputerOpened)
-            {
-                _ = Task.Run(ReadAndPublishMetrics);
-            }
+            _ = Task.Run(ReadAndPublishMetrics);
         }
     }
 
@@ -753,48 +765,67 @@ public partial class HardwareMonitorService : IDisposable
 
         try
         {
-            bool readDetailed = _isMainWindowVisible;
+            bool isMainVisible = _isMainWindowVisible;
+            int activeTab = _activeDashboardTab;
+
+            bool needCpu = isMainVisible || _needCpuPolling;
+            bool needGpu = isMainVisible || _needGpuPolling;
+            bool needRam = isMainVisible || _needRamPolling;
+
+            bool readCpuDetails = isMainVisible && activeTab == 1;
+            bool readMultiGpu = isMainVisible && activeTab is 0 or 2;
+            bool readStorage = isMainVisible && activeTab is 0 or 3;
+
             var metrics = new HardwareMetrics
             {
-                IsDetailedSnapshot = readDetailed,
+                IsDetailedSnapshot = isMainVisible,
                 RamTotalGb = _staticSpecs.TotalRamGb
             };
 
-            // 1. Atualiza apenas os hardwares necessários neste ciclo
-            UpdateRequiredHardwares(readDetailed);
+            // 1. Atualiza estritamente os hardwares necessários neste ciclo
+            UpdateRequiredHardwares(needCpu, needGpu, needRam, readMultiGpu, readStorage);
 
             // 2. Leitura direta de CPU via referências cacheadas (Try/Catch isolado)
-            try
+            if (needCpu)
             {
-                ReadCpuMetricsFromCache(metrics, readDetailed);
-            }
-            catch
-            {
-                // Isola falha de leitura da CPU
+                try
+                {
+                    ReadCpuMetricsFromCache(metrics, readCpuDetails);
+                }
+                catch
+                {
+                    // Isola falha de leitura da CPU
+                }
             }
 
             // 3. Leitura direta de GPU(s) via referências cacheadas (Try/Catch isolado)
-            try
+            if (needGpu)
             {
-                ReadGpuMetricsFromCache(metrics, readDetailed);
-            }
-            catch
-            {
-                // Isola falha de leitura da GPU
+                try
+                {
+                    ReadGpuMetricsFromCache(metrics, readMultiGpu);
+                }
+                catch
+                {
+                    // Isola falha de leitura da GPU
+                }
             }
 
             // 4. Leitura direta de Memória RAM via referências cacheadas (Try/Catch isolado)
-            try
+            if (needRam)
             {
-                ReadRamMetricsFromCache(metrics);
-            }
-            catch
-            {
-                // Isola falha de leitura da RAM
+                try
+                {
+                    ReadRamMetricsFromCache(metrics);
+                }
+                catch
+                {
+                    // Isola falha de leitura da RAM
+                }
             }
 
-            // 5. Leitura de Armazenamento apenas quando a janela principal está aberta
-            if (readDetailed)
+            // 5. Leitura de Armazenamento apenas quando a janela principal está nas abas Visão Geral ou Sistema & Discos
+            if (readStorage)
             {
                 try
                 {
@@ -818,39 +849,57 @@ public partial class HardwareMonitorService : IDisposable
         }
     }
 
-    private void UpdateRequiredHardwares(bool readDetailed)
+    private void UpdateRequiredHardwares(
+        bool needCpu,
+        bool needGpu,
+        bool needRam,
+        bool readMultiGpu,
+        bool readStorage)
     {
-        if (_cpuHardware is not null)
+        if (needCpu && _cpuHardware is not null)
         {
             UpdateHardwareTree(_cpuHardware);
         }
 
-        if (readDetailed)
+        if (readMultiGpu)
         {
             for (int i = 0; i < _gpuHardwares.Count; i++)
             {
                 UpdateHardwareTree(_gpuHardwares[i]);
             }
+        }
+        else if (needGpu && _gpuHardwares.Count > 0)
+        {
+            // Em modo Overlay leve ou abas sem Multi-GPU, atualiza apenas a GPU primária
+            UpdateHardwareTree(_gpuHardwares[0]);
+        }
 
-            for (int i = 0; i < _motherboardHardwares.Count; i++)
-            {
-                UpdateHardwareTree(_motherboardHardwares[i]);
-            }
-
+        if (readStorage)
+        {
             for (int i = 0; i < _storageHardwares.Count; i++)
             {
                 UpdateHardwareTree(_storageHardwares[i]);
             }
         }
-        else if (_gpuHardwares.Count > 0)
-        {
-            // Em modo Overlay leve, atualiza apenas a GPU primária
-            UpdateHardwareTree(_gpuHardwares[0]);
-        }
 
-        for (int i = 0; i < _memoryHardwares.Count; i++)
+        if (needRam)
         {
-            UpdateHardwareTree(_memoryHardwares[i]);
+            for (int i = 0; i < _memoryHardwares.Count; i++)
+            {
+                UpdateHardwareTree(_memoryHardwares[i]);
+            }
+        }
+    }
+
+    private void UpdateMotherboardHardwaresOnce(ref bool alreadyUpdated)
+    {
+        if (alreadyUpdated)
+            return;
+
+        alreadyUpdated = true;
+        for (int i = 0; i < _motherboardHardwares.Count; i++)
+        {
+            UpdateHardwareTree(_motherboardHardwares[i]);
         }
     }
 
@@ -879,21 +928,17 @@ public partial class HardwareMonitorService : IDisposable
         }
     }
 
-    private void ReadCpuMetricsFromCache(HardwareMetrics metrics, bool readDetailed)
+    private void ReadCpuMetricsFromCache(HardwareMetrics metrics, bool readCpuDetails)
     {
+        bool motherboardUpdatedThisCycle = false;
+
         if (IsValidSensorValue(_cpuTempSensor, out float cpuTemp))
         {
             metrics.CpuTemperature = cpuTemp;
         }
         else if (_cpuMotherboardTempFallbackSensor is not null)
         {
-            if (!readDetailed)
-            {
-                for (int i = 0; i < _motherboardHardwares.Count; i++)
-                {
-                    UpdateHardwareTree(_motherboardHardwares[i]);
-                }
-            }
+            UpdateMotherboardHardwaresOnce(ref motherboardUpdatedThisCycle);
 
             if (IsValidSensorValue(_cpuMotherboardTempFallbackSensor, out float mbTemp))
             {
@@ -935,7 +980,7 @@ public partial class HardwareMonitorService : IDisposable
         }
 
         // Métricas de arquitetura híbrida Intel (P-Cores vs E-Cores)
-        if (IsIntelHybridCpu && (SplitIntelHybridCores || readDetailed))
+        if (IsIntelHybridCpu && (SplitIntelHybridCores || readCpuDetails))
         {
             metrics.IsHybridCpu = true;
 
@@ -1004,20 +1049,26 @@ public partial class HardwareMonitorService : IDisposable
             }
         }
 
-        if (!readDetailed)
+        if (!readCpuDetails)
             return;
 
-        // VCore direto do sensor cacheado (CPU ou fallback SuperIO da placa-mãe)
+        // VCore direto do sensor cacheado (CPU ou fallback SuperIO sob demanda)
         if (IsValidSensorValue(_cpuVoltageSensor, out float vcore) && vcore is > 0.15f and < 2.6f)
         {
             metrics.CpuVoltageVcore = vcore;
         }
-        else if (IsValidSensorValue(_cpuMotherboardVcoreFallbackSensor, out float mbVcore) && mbVcore is > 0.15f and < 2.6f)
+        else if (_cpuMotherboardVcoreFallbackSensor is not null)
         {
-            metrics.CpuVoltageVcore = mbVcore;
+            UpdateMotherboardHardwaresOnce(ref motherboardUpdatedThisCycle);
+
+            if (IsValidSensorValue(_cpuMotherboardVcoreFallbackSensor, out float mbVcore) && mbVcore is > 0.15f and < 2.6f)
+            {
+                metrics.CpuVoltageVcore = mbVcore;
+            }
         }
 
-        // Telemetria por núcleo direta sem LINQ e sem Regex
+        // Telemetria por núcleo direta via snapshots value-type
+        var coresList = new List<CpuCoreSnapshot>(_cachedCpuCores.Count);
         for (int i = 0; i < _cachedCpuCores.Count; i++)
         {
             CachedCpuCoreSensors core = _cachedCpuCores[i];
@@ -1026,16 +1077,13 @@ public partial class HardwareMonitorService : IDisposable
                 ? cc
                 : (metrics.CpuClock > 0f ? metrics.CpuClock : null);
 
-            metrics.CpuCores.Add(new CpuCoreMetric
-            {
-                CoreName = core.DisplayName,
-                LoadPercent = coreLoadVal,
-                ClockMhz = coreClockVal
-            });
+            coresList.Add(new CpuCoreSnapshot(core.DisplayName, coreLoadVal, coreClockVal));
         }
+
+        metrics.CpuCores = coresList;
     }
 
-    private void ReadGpuMetricsFromCache(HardwareMetrics metrics, bool readDetailed)
+    private void ReadGpuMetricsFromCache(HardwareMetrics metrics, bool readMultiGpu)
     {
         if (IsValidSensorValue(_gpuTempSensor, out float primaryTemp))
             metrics.GpuTemperature = primaryTemp;
@@ -1058,8 +1106,10 @@ public partial class HardwareMonitorService : IDisposable
 
         metrics.GpuVramTotalGb = _gpuPrimaryTotalVramGb;
 
-        if (!readDetailed)
+        if (!readMultiGpu)
             return;
+
+        var gpusList = new List<GpuDetailedSnapshot>(_cachedGpus.Count > 0 ? _cachedGpus.Count : _staticSpecs.Gpus.Count);
 
         for (int i = 0; i < _cachedGpus.Count; i++)
         {
@@ -1076,9 +1126,13 @@ public partial class HardwareMonitorService : IDisposable
 
             if (IsValidSensorValue(g.VramTotalSmallDataSensor, out float totalVramMb) && totalVramMb > 640f)
             {
-                g.TotalVramGb = totalVramMb / 1024f;
-                g.IsIntegratedOrSharedVram = false;
-                g.TotalVramDisplay = string.Create(CultureInfo.InvariantCulture, $"{g.TotalVramGb.Value:0.#} GB");
+                float newTotalGb = totalVramMb / 1024f;
+                if (g.IsIntegratedOrSharedVram || !g.TotalVramGb.HasValue || MathF.Abs(newTotalGb - g.TotalVramGb.Value) > 0.05f)
+                {
+                    g.TotalVramGb = newTotalGb;
+                    g.IsIntegratedOrSharedVram = false;
+                    g.TotalVramDisplay = string.Create(CultureInfo.InvariantCulture, $"{newTotalGb:0.#} GB");
+                }
             }
 
             float? vramUsedGb = null;
@@ -1089,42 +1143,41 @@ public partial class HardwareMonitorService : IDisposable
                     : rawVramUsed;
             }
 
-            metrics.Gpus.Add(new GpuDetailedMetrics
-            {
-                Id = g.Id,
-                Name = g.Name,
-                Vendor = g.Vendor,
-                TotalVramGb = g.TotalVramGb,
-                IsIntegratedOrSharedVram = g.IsIntegratedOrSharedVram,
-                TotalVramDisplay = g.TotalVramDisplay,
-                CoreLoadPercent = coreLoad,
-                CoreTemperatureC = coreTemp,
-                HotSpotTemperatureC = hotSpotTemp,
-                CoreClockMhz = coreClock,
-                MemoryClockMhz = memClock,
-                VramUsedGb = vramUsedGb,
-                PowerWatts = power,
-                FanRpm = fanRpm,
-                FanPercent = fanPct
-            });
+            gpusList.Add(new GpuDetailedSnapshot(
+                g.Id,
+                g.Name,
+                g.Vendor,
+                g.TotalVramGb,
+                g.IsIntegratedOrSharedVram,
+                g.TotalVramDisplay,
+                coreLoad,
+                coreTemp,
+                hotSpotTemp,
+                coreClock,
+                memClock,
+                vramUsedGb,
+                power,
+                fanRpm,
+                fanPct));
         }
 
-        if (metrics.Gpus.Count == 0 && _staticSpecs.Gpus.Count > 0)
+        if (gpusList.Count == 0 && _staticSpecs.Gpus.Count > 0)
         {
             for (int i = 0; i < _staticSpecs.Gpus.Count; i++)
             {
                 GpuSpecInfo spec = _staticSpecs.Gpus[i];
-                metrics.Gpus.Add(new GpuDetailedMetrics
-                {
-                    Id = spec.Id,
-                    Name = spec.Name,
-                    Vendor = spec.Vendor,
-                    TotalVramGb = spec.TotalVramGb,
-                    IsIntegratedOrSharedVram = spec.IsIntegratedOrSharedVram,
-                    TotalVramDisplay = spec.TotalVramDisplay
-                });
+                gpusList.Add(new GpuDetailedSnapshot(
+                    spec.Id,
+                    spec.Name,
+                    spec.Vendor,
+                    spec.TotalVramGb,
+                    spec.IsIntegratedOrSharedVram,
+                    spec.TotalVramDisplay,
+                    null, null, null, null, null, null, null, null, null));
             }
         }
+
+        metrics.Gpus = gpusList;
     }
 
     private void ReadRamMetricsFromCache(HardwareMetrics metrics)
@@ -1158,23 +1211,19 @@ public partial class HardwareMonitorService : IDisposable
 
     private void ReadStorageMetricsFromCache(HardwareMetrics metrics)
     {
-        var physicalDisks = new List<PhysicalStorageMetrics>(_cachedStorages.Count);
+        var physicalDisks = new List<PhysicalStorageSnapshot>(_cachedStorages.Count);
 
         for (int i = 0; i < _cachedStorages.Count; i++)
         {
             CachedStorageSensors cs = _cachedStorages[i];
             float? temp = IsValidSensorValue(cs.TempSensor, out float tVal) ? tVal : null;
-
-            physicalDisks.Add(new PhysicalStorageMetrics
-            {
-                ModelName = cs.ModelName,
-                TemperatureC = temp
-            });
+            physicalDisks.Add(new PhysicalStorageSnapshot(cs.ModelName, temp));
         }
 
         metrics.PhysicalDisks = physicalDisks;
 
         DriveInfo[] drives = DriveInfo.GetDrives();
+        var storageDrives = new List<StorageDriveSnapshot>(drives.Length);
         int driveIndex = 0;
 
         for (int i = 0; i < drives.Length; i++)
@@ -1215,18 +1264,16 @@ public partial class HardwareMonitorService : IDisposable
 
                 var (physicalModel, tempC) = ResolvePhysicalDiskForDrive(driveKey, driveIndex, physicalDisks);
 
-                metrics.StorageDrives.Add(new StorageDriveMetrics
-                {
-                    DriveName = driveKey,
-                    VolumeLabel = volumeLabel,
-                    FileSystem = fileSystem,
-                    PhysicalDiskModel = physicalModel,
-                    TotalSizeGb = totalGb,
-                    UsedSizeGb = usedGb,
-                    FreeSizeGb = freeGb,
-                    UsagePercent = usagePct,
-                    TemperatureC = tempC
-                });
+                storageDrives.Add(new StorageDriveSnapshot(
+                    driveKey,
+                    volumeLabel,
+                    fileSystem,
+                    physicalModel,
+                    totalGb,
+                    usedGb,
+                    freeGb,
+                    usagePct,
+                    tempC));
 
                 driveIndex++;
             }
@@ -1235,19 +1282,21 @@ public partial class HardwareMonitorService : IDisposable
                 // Isola falha em partição individual
             }
         }
+
+        metrics.StorageDrives = storageDrives;
     }
 
     private (string ModelName, float? TemperatureC) ResolvePhysicalDiskForDrive(
         string driveKey,
         int driveIndex,
-        List<PhysicalStorageMetrics> physicalDisks)
+        List<PhysicalStorageSnapshot> physicalDisks)
     {
         if (_staticSpecs.LogicalDriveToPhysicalModel.TryGetValue(driveKey, out string? mappedModel) &&
             !string.IsNullOrWhiteSpace(mappedModel))
         {
             for (int i = 0; i < physicalDisks.Count; i++)
             {
-                PhysicalStorageMetrics p = physicalDisks[i];
+                PhysicalStorageSnapshot p = physicalDisks[i];
                 if (p.ModelName.Contains(mappedModel, StringComparison.OrdinalIgnoreCase) ||
                     mappedModel.Contains(p.ModelName, StringComparison.OrdinalIgnoreCase))
                 {

@@ -207,6 +207,21 @@
                                            VerticalAlignment="Center" />
                             </Grid>
                         </RadioButton>
+
+                        <!-- 5. Histórico de Jogos (Opcional - visível apenas quando habilitado) -->
+                        <RadioButton Style="{StaticResource SideNavRadioButtonStyle}"
+                                     GroupName="MainNavigation"
+                                     Visibility="{Binding EnableGameHistory, Converter={StaticResource BoolToVis}}"
+                                     IsChecked="{Binding IsHistoryTabSelected, Mode=TwoWay}">
+                            <StackPanel Orientation="Horizontal">
+                                <ui:SymbolIcon Symbol="History24"
+                                               FontSize="16"
+                                               VerticalAlignment="Center" />
+                                <TextBlock Text="Histórico"
+                                           Margin="10,0,0,0"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+                        </RadioButton>
                     </StackPanel>
 
                     <!-- Rodapé da Barra Lateral: Configurações + Status do Overlay -->
@@ -1510,6 +1525,34 @@
                                 </Grid>
                             </Border>
 
+                            <TextBlock Text="HISTÓRICO DE DESEMPENHO"
+                                       Style="{StaticResource MicroLabelStyle}"
+                                       Margin="2,14,0,8" />
+
+                            <!-- Histórico Opcional de Performance de Jogos -->
+                            <Border Style="{StaticResource SettingsRowBorderStyle}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                                        <TextBlock Text="Histórico de Performance de Jogos"
+                                                   FontWeight="Medium"
+                                                   FontSize="13.5"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}" />
+                                        <TextBlock Text="Registra FPS Médio, 1% Low e horas jogadas para sessões em tela cheia acima de 5 minutos (desligado = zero overhead)"
+                                                   FontSize="12"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                                   TextWrapping="Wrap"
+                                                   Margin="0,2,0,0" />
+                                    </StackPanel>
+                                    <ui:ToggleSwitch Grid.Column="1"
+                                                     VerticalAlignment="Center"
+                                                     IsChecked="{Binding EnableGameHistory, Mode=TwoWay}" />
+                                </Grid>
+                            </Border>
+
                             <TextBlock Text="AÇÕES DO APLICATIVO"
                                        Style="{StaticResource MicroLabelStyle}"
                                        Margin="2,14,0,8" />
@@ -2082,6 +2125,329 @@
                                 </Grid>
                             </Border>
                         </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- ======================================================================= -->
+                <!-- 6. ABA "HISTÓRICO" (OPCIONAL / SOB DEMANDA, MONOCROMÁTICA, SEM GRÁFICOS) -->
+                <!-- ======================================================================= -->
+                <ScrollViewer Visibility="{Binding IsHistoryTabSelected, Converter={StaticResource BoolToVis}}"
+                              HorizontalScrollBarVisibility="Disabled"
+                              VerticalScrollBarVisibility="Auto"
+                              Padding="24,20,24,24">
+                    <StackPanel DataContext="{Binding GameHistory}">
+                        <!-- Cabeçalho -->
+                        <Grid Margin="0,0,0,18">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                                <TextBlock Text="Histórico de Jogos"
+                                           FontSize="20"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}" />
+                                <TextBlock Text="Resumo consolidado e sessões acima de 5 minutos em Tela Cheia Real (FPS Médio, 1% Low e horas jogadas)"
+                                           FontSize="12.5"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,3,0,0" />
+                            </StackPanel>
+                            <Button Grid.Column="1"
+                                    Style="{StaticResource MonoActionButtonStyle}"
+                                    Content="Limpar Histórico"
+                                    VerticalAlignment="Center"
+                                    Visibility="{Binding HasGames, Converter={StaticResource BoolToVis}}"
+                                    Command="{Binding ClearAllHistoryCommand}" />
+                        </Grid>
+
+                        <!-- KPI Summary Cards -->
+                        <UniformGrid Columns="3" Margin="0,0,0,12">
+                            <Border Style="{StaticResource TelemetryCardBorderStyle}" Margin="0,0,6,0">
+                                <StackPanel>
+                                    <TextBlock Text="JOGOS REGISTRADOS" Style="{StaticResource MicroLabelStyle}" />
+                                    <TextBlock Text="{Binding TotalGamesText}"
+                                               Style="{StaticResource TabularValueStyle}"
+                                               FontSize="22"
+                                               Margin="0,6,0,2" />
+                                    <TextBlock Text="{Binding TotalSessionsSummaryText}"
+                                               FontSize="11.5"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                               TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource TelemetryCardBorderStyle}" Margin="3,0,3,0">
+                                <StackPanel>
+                                    <TextBlock Text="HORAS CONTABILIZADAS" Style="{StaticResource MicroLabelStyle}" />
+                                    <TextBlock Text="{Binding TotalPlaytimeText}"
+                                               Style="{StaticResource TabularValueStyle}"
+                                               FontSize="22"
+                                               Margin="0,6,0,2" />
+                                    <TextBlock Text="Tempo efetivo em jogo"
+                                               FontSize="11.5"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                               TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource TelemetryCardBorderStyle}" Margin="6,0,0,0">
+                                <StackPanel>
+                                    <TextBlock Text="FPS MÉDIO GERAL" Style="{StaticResource MicroLabelStyle}" />
+                                    <TextBlock Text="{Binding OverallAverageFpsText}"
+                                               Style="{StaticResource TabularValueStyle}"
+                                               FontSize="22"
+                                               Margin="0,6,0,2" />
+                                    <TextBlock Text="{Binding OverallOnePercentLowText}"
+                                               FontFamily="Consolas"
+                                               FontSize="11.5"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                               TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                            </Border>
+                        </UniformGrid>
+
+                        <!-- Banner sutil de sessão em andamento -->
+                        <Border Style="{StaticResource SubCardBorderStyle}"
+                                Padding="12,8"
+                                Margin="0,0,0,12"
+                                Visibility="{Binding HasActiveSession, Converter={StaticResource BoolToVis}}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Grid.Column="0"
+                                               Symbol="Pulse20"
+                                               FontSize="15"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,8,0" />
+                                <TextBlock Grid.Column="1"
+                                           Text="{Binding ActiveSessionStatusText}"
+                                           FontSize="12"
+                                           FontWeight="Medium"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                           VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
+
+                        <!-- Estado vazio -->
+                        <Border Style="{StaticResource TelemetryCardBorderStyle}"
+                                Padding="24,28"
+                                Visibility="{Binding IsEmptyStateVisible, Converter={StaticResource BoolToVis}}">
+                            <StackPanel HorizontalAlignment="Center">
+                                <Border Style="{StaticResource SubCardBorderStyle}"
+                                        Width="42"
+                                        Height="42"
+                                        HorizontalAlignment="Center"
+                                        Margin="0,0,0,12">
+                                    <ui:SymbolIcon Symbol="Games24"
+                                                   FontSize="20"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock Text="Nenhuma sessão registrada ainda"
+                                           FontSize="14.5"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                           HorizontalAlignment="Center" />
+                                <TextBlock Text="Sessões de jogos em Tela Cheia Real com mais de 5 minutos efetivos serão registradas automaticamente aqui, mesmo com o Overlay oculto."
+                                           FontSize="12"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                           TextAlignment="Center"
+                                           TextWrapping="Wrap"
+                                           MaxWidth="460"
+                                           Margin="0,6,0,0" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Lista agrupada por jogo -->
+                        <ItemsControl ItemsSource="{Binding Games}"
+                                      Visibility="{Binding HasGames, Converter={StaticResource BoolToVis}}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Style="{StaticResource TelemetryCardBorderStyle}">
+                                        <StackPanel>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+
+                                                <Border Grid.Column="0"
+                                                        Style="{StaticResource SubCardBorderStyle}"
+                                                        Width="38"
+                                                        Height="38"
+                                                        VerticalAlignment="Center"
+                                                        Margin="0,0,12,0">
+                                                    <ui:SymbolIcon Symbol="Games24"
+                                                                   FontSize="18"
+                                                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                                                   HorizontalAlignment="Center"
+                                                                   VerticalAlignment="Center" />
+                                                </Border>
+
+                                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,12,0">
+                                                    <TextBlock Text="{Binding DisplayName}"
+                                                               FontSize="15"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                    <WrapPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                                        <TextBlock Text="{Binding ProcessName}"
+                                                                   FontFamily="Consolas"
+                                                                   FontSize="11.5"
+                                                                   Foreground="{DynamicResource TextMutedBrush}" />
+                                                        <TextBlock Text="  •  "
+                                                                   FontSize="11.5"
+                                                                   Foreground="{DynamicResource TextMutedBrush}" />
+                                                        <TextBlock Text="{Binding SessionCountText}"
+                                                                   FontSize="11.5"
+                                                                   Foreground="{DynamicResource TextSecondaryBrush}" />
+                                                        <TextBlock Text="  •  "
+                                                                   FontSize="11.5"
+                                                                   Foreground="{DynamicResource TextMutedBrush}" />
+                                                        <TextBlock Text="{Binding LastPlayedText}"
+                                                                   FontSize="11.5"
+                                                                   Foreground="{DynamicResource TextMutedBrush}" />
+                                                    </WrapPanel>
+                                                </StackPanel>
+
+                                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <Border Style="{StaticResource SubCardBorderStyle}"
+                                                            Padding="10,6"
+                                                            Margin="0,0,6,0"
+                                                            MinWidth="82">
+                                                        <StackPanel>
+                                                            <TextBlock Text="FPS MÉDIO" Style="{StaticResource MicroLabelStyle}" FontSize="9" />
+                                                            <TextBlock Text="{Binding AverageFpsText}"
+                                                                       Style="{StaticResource TabularValueStyle}"
+                                                                       FontSize="13"
+                                                                       Margin="0,2,0,0" />
+                                                        </StackPanel>
+                                                    </Border>
+
+                                                    <Border Style="{StaticResource SubCardBorderStyle}"
+                                                            Padding="10,6"
+                                                            Margin="0,0,6,0"
+                                                            MinWidth="82">
+                                                        <StackPanel>
+                                                            <TextBlock Text="1% LOW" Style="{StaticResource MicroLabelStyle}" FontSize="9" />
+                                                            <TextBlock Text="{Binding OnePercentLowText}"
+                                                                       Style="{StaticResource TabularValueStyle}"
+                                                                       FontSize="13"
+                                                                       Margin="0,2,0,0" />
+                                                        </StackPanel>
+                                                    </Border>
+
+                                                    <Border Style="{StaticResource SubCardBorderStyle}"
+                                                            Padding="10,6"
+                                                            Margin="0,0,8,0"
+                                                            MinWidth="82">
+                                                        <StackPanel>
+                                                            <TextBlock Text="TEMPO TOTAL" Style="{StaticResource MicroLabelStyle}" FontSize="9" />
+                                                            <TextBlock Text="{Binding TotalPlaytimeText}"
+                                                                       Style="{StaticResource TabularValueStyle}"
+                                                                       FontSize="13"
+                                                                       Margin="0,2,0,0" />
+                                                        </StackPanel>
+                                                    </Border>
+
+                                                    <Button Style="{StaticResource MonoActionButtonStyle}"
+                                                            Content="{Binding ExpandButtonText}"
+                                                            Padding="10,6"
+                                                            Margin="0,0,6,0"
+                                                            VerticalAlignment="Center"
+                                                            Command="{Binding ToggleExpandedCommand}" />
+
+                                                    <Button Style="{StaticResource MonoActionButtonStyle}"
+                                                            Padding="8,6"
+                                                            VerticalAlignment="Center"
+                                                            ToolTip="Excluir jogo e todas as suas sessões"
+                                                            Command="{Binding Parent.DeleteGameCommand}"
+                                                            CommandParameter="{Binding}">
+                                                        <ui:SymbolIcon Symbol="Delete16" FontSize="14" />
+                                                    </Button>
+                                                </StackPanel>
+                                            </Grid>
+
+                                            <!-- Lista expansível de sessões individuais do jogo -->
+                                            <StackPanel Visibility="{Binding IsExpanded, Converter={StaticResource BoolToVis}}">
+                                                <Border Height="1"
+                                                        Background="{DynamicResource BorderSubtleBrush}"
+                                                        Margin="0,14,0,10" />
+
+                                                <Grid Margin="8,0,8,6">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="96" />
+                                                        <ColumnDefinition Width="96" />
+                                                        <ColumnDefinition Width="96" />
+                                                        <ColumnDefinition Width="38" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Grid.Column="0" Text="DATA / HORÁRIO" Style="{StaticResource MicroLabelStyle}" FontSize="9.5" />
+                                                    <TextBlock Grid.Column="1" Text="DURAÇÃO" Style="{StaticResource MicroLabelStyle}" FontSize="9.5" />
+                                                    <TextBlock Grid.Column="2" Text="FPS MÉDIO" Style="{StaticResource MicroLabelStyle}" FontSize="9.5" />
+                                                    <TextBlock Grid.Column="3" Text="1% LOW" Style="{StaticResource MicroLabelStyle}" FontSize="9.5" />
+                                                </Grid>
+
+                                                <ItemsControl ItemsSource="{Binding Sessions}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Border Style="{StaticResource SubCardBorderStyle}"
+                                                                    Padding="10,7"
+                                                                    Margin="0,0,0,6">
+                                                                <Grid>
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="*" />
+                                                                        <ColumnDefinition Width="96" />
+                                                                        <ColumnDefinition Width="96" />
+                                                                        <ColumnDefinition Width="96" />
+                                                                        <ColumnDefinition Width="Auto" />
+                                                                    </Grid.ColumnDefinitions>
+
+                                                                    <TextBlock Grid.Column="0"
+                                                                               Text="{Binding DateRangeText}"
+                                                                               FontSize="12"
+                                                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                                                               VerticalAlignment="Center" />
+                                                                    <TextBlock Grid.Column="1"
+                                                                               Text="{Binding DurationText}"
+                                                                               Style="{StaticResource TabularValueStyle}"
+                                                                               FontSize="12"
+                                                                               VerticalAlignment="Center" />
+                                                                    <TextBlock Grid.Column="2"
+                                                                               Text="{Binding AverageFpsText}"
+                                                                               Style="{StaticResource TabularValueStyle}"
+                                                                               FontSize="12"
+                                                                               VerticalAlignment="Center" />
+                                                                    <TextBlock Grid.Column="3"
+                                                                               Text="{Binding OnePercentLowText}"
+                                                                               Style="{StaticResource TabularValueStyle}"
+                                                                               FontSize="12"
+                                                                               VerticalAlignment="Center" />
+                                                                    <Button Grid.Column="4"
+                                                                            Style="{StaticResource MonoActionButtonStyle}"
+                                                                            Padding="7,4"
+                                                                            ToolTip="Remover sessão"
+                                                                            Command="{Binding ParentGame.Parent.DeleteSessionCommand}"
+                                                                            CommandParameter="{Binding}">
+                                                                        <ui:SymbolIcon Symbol="Delete16" FontSize="13" />
+                                                                    </Button>
+                                                                </Grid>
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
                     </StackPanel>
                 </ScrollViewer>
 

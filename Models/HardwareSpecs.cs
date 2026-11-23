@@ -774,6 +774,41 @@ public class GpuSpecInfo
 }
 
 /// <summary>
+/// Snapshots imutáveis value-type para transporte entre a thread de sensores e a UI sem alocar ObservableObjects.
+/// </summary>
+public readonly record struct CpuCoreSnapshot(string CoreName, float? LoadPercent, float? ClockMhz);
+
+public readonly record struct GpuDetailedSnapshot(
+    string Id,
+    string Name,
+    string Vendor,
+    float? TotalVramGb,
+    bool IsIntegratedOrSharedVram,
+    string TotalVramDisplay,
+    float? CoreLoadPercent,
+    float? CoreTemperatureC,
+    float? HotSpotTemperatureC,
+    float? CoreClockMhz,
+    float? MemoryClockMhz,
+    float? VramUsedGb,
+    float? PowerWatts,
+    float? FanRpm,
+    float? FanPercent);
+
+public readonly record struct StorageDriveSnapshot(
+    string DriveName,
+    string VolumeLabel,
+    string FileSystem,
+    string PhysicalDiskModel,
+    double TotalSizeGb,
+    double UsedSizeGb,
+    double FreeSizeGb,
+    double UsagePercent,
+    float? TemperatureC);
+
+public readonly record struct PhysicalStorageSnapshot(string ModelName, float? TemperatureC);
+
+/// <summary>
 /// Telemetria individual por núcleo/thread da CPU (Per-Core Telemetry).
 /// </summary>
 public class CpuCoreMetric : ObservableObject
@@ -792,18 +827,38 @@ public class CpuCoreMetric : ObservableObject
         ? $"{ClockMhz.Value:0} MHz"
         : "N/D";
 
-    public void UpdateFrom(CpuCoreMetric other)
+    public static CpuCoreMetric FromSnapshot(in CpuCoreSnapshot snapshot) => new()
+    {
+        CoreName = snapshot.CoreName,
+        LoadPercent = snapshot.LoadPercent is not null ? MathF.Round(snapshot.LoadPercent.Value, 0) : null,
+        ClockMhz = snapshot.ClockMhz is not null ? MathF.Round(snapshot.ClockMhz.Value, 0) : null
+    };
+
+    public void UpdateFrom(in CpuCoreSnapshot other)
     {
         float? newLoad = other.LoadPercent is not null ? MathF.Round(other.LoadPercent.Value, 0) : null;
         float? newClock = other.ClockMhz is not null ? MathF.Round(other.ClockMhz.Value, 0) : null;
 
-        if (LoadPercent == newLoad && ClockMhz == newClock && CoreName == other.CoreName)
-            return;
+        if (!string.Equals(CoreName, other.CoreName, StringComparison.Ordinal))
+        {
+            CoreName = other.CoreName;
+            OnPropertyChanged(nameof(CoreName));
+        }
 
-        CoreName = other.CoreName;
-        LoadPercent = newLoad;
-        ClockMhz = newClock;
-        OnPropertyChanged(string.Empty);
+        if (LoadPercent != newLoad)
+        {
+            LoadPercent = newLoad;
+            OnPropertyChanged(nameof(LoadPercent));
+            OnPropertyChanged(nameof(LoadText));
+            OnPropertyChanged(nameof(LoadBarValue));
+        }
+
+        if (ClockMhz != newClock)
+        {
+            ClockMhz = newClock;
+            OnPropertyChanged(nameof(ClockMhz));
+            OnPropertyChanged(nameof(ClockText));
+        }
     }
 }
 
@@ -903,7 +958,26 @@ public class GpuDetailedMetrics : ObservableObject
         }
     }
 
-    public void UpdateFrom(GpuDetailedMetrics other)
+    public static GpuDetailedMetrics FromSnapshot(in GpuDetailedSnapshot snapshot) => new()
+    {
+        Id = snapshot.Id,
+        Name = snapshot.Name,
+        Vendor = snapshot.Vendor,
+        TotalVramGb = snapshot.TotalVramGb,
+        IsIntegratedOrSharedVram = snapshot.IsIntegratedOrSharedVram,
+        TotalVramDisplay = snapshot.TotalVramDisplay,
+        CoreLoadPercent = snapshot.CoreLoadPercent is not null ? MathF.Round(snapshot.CoreLoadPercent.Value, 0) : null,
+        CoreTemperatureC = snapshot.CoreTemperatureC is not null ? MathF.Round(snapshot.CoreTemperatureC.Value, 0) : null,
+        HotSpotTemperatureC = snapshot.HotSpotTemperatureC is not null ? MathF.Round(snapshot.HotSpotTemperatureC.Value, 0) : null,
+        CoreClockMhz = snapshot.CoreClockMhz is not null ? MathF.Round(snapshot.CoreClockMhz.Value, 0) : null,
+        MemoryClockMhz = snapshot.MemoryClockMhz is not null ? MathF.Round(snapshot.MemoryClockMhz.Value, 0) : null,
+        VramUsedGb = snapshot.VramUsedGb is not null ? MathF.Round(snapshot.VramUsedGb.Value, 2) : null,
+        PowerWatts = snapshot.PowerWatts is not null ? MathF.Round(snapshot.PowerWatts.Value, 1) : null,
+        FanRpm = snapshot.FanRpm is not null ? MathF.Round(snapshot.FanRpm.Value, 0) : null,
+        FanPercent = snapshot.FanPercent is not null ? MathF.Round(snapshot.FanPercent.Value, 0) : null
+    };
+
+    public void UpdateFrom(in GpuDetailedSnapshot other)
     {
         float? newLoad = other.CoreLoadPercent is not null ? MathF.Round(other.CoreLoadPercent.Value, 0) : null;
         float? newTemp = other.CoreTemperatureC is not null ? MathF.Round(other.CoreTemperatureC.Value, 0) : null;
@@ -915,35 +989,115 @@ public class GpuDetailedMetrics : ObservableObject
         float? newFanRpm = other.FanRpm is not null ? MathF.Round(other.FanRpm.Value, 0) : null;
         float? newFanPct = other.FanPercent is not null ? MathF.Round(other.FanPercent.Value, 0) : null;
 
-        if (CoreLoadPercent == newLoad &&
-            CoreTemperatureC == newTemp &&
-            HotSpotTemperatureC == newHotSpot &&
-            CoreClockMhz == newClock &&
-            MemoryClockMhz == newMemClock &&
-            VramUsedGb == newVramUsed &&
-            PowerWatts == newPower &&
-            FanRpm == newFanRpm &&
-            FanPercent == newFanPct &&
-            TotalVramDisplay == other.TotalVramDisplay)
+        bool nameChanged = !string.Equals(Name, other.Name, StringComparison.Ordinal);
+        if (nameChanged)
         {
-            return;
+            Name = other.Name;
+            OnPropertyChanged(nameof(Name));
         }
 
-        Name = other.Name;
-        Vendor = other.Vendor;
-        TotalVramGb = other.TotalVramGb;
-        IsIntegratedOrSharedVram = other.IsIntegratedOrSharedVram;
-        TotalVramDisplay = other.TotalVramDisplay;
-        CoreLoadPercent = newLoad;
-        CoreTemperatureC = newTemp;
-        HotSpotTemperatureC = newHotSpot;
-        CoreClockMhz = newClock;
-        MemoryClockMhz = newMemClock;
-        VramUsedGb = newVramUsed;
-        PowerWatts = newPower;
-        FanRpm = newFanRpm;
-        FanPercent = newFanPct;
-        OnPropertyChanged(string.Empty);
+        if (!string.Equals(Vendor, other.Vendor, StringComparison.Ordinal))
+        {
+            Vendor = other.Vendor;
+            OnPropertyChanged(nameof(Vendor));
+        }
+
+        bool totalVramChanged = TotalVramGb != other.TotalVramGb || IsIntegratedOrSharedVram != other.IsIntegratedOrSharedVram;
+        bool totalDisplayChanged = !string.Equals(TotalVramDisplay, other.TotalVramDisplay, StringComparison.Ordinal);
+
+        if (totalVramChanged)
+        {
+            TotalVramGb = other.TotalVramGb;
+            IsIntegratedOrSharedVram = other.IsIntegratedOrSharedVram;
+            OnPropertyChanged(nameof(TotalVramGb));
+            OnPropertyChanged(nameof(IsIntegratedOrSharedVram));
+        }
+
+        if (totalDisplayChanged)
+        {
+            TotalVramDisplay = other.TotalVramDisplay;
+            OnPropertyChanged(nameof(TotalVramDisplay));
+        }
+
+        if (nameChanged || totalDisplayChanged)
+        {
+            OnPropertyChanged(nameof(DisplaySelectorTitle));
+        }
+
+        bool vramUsedChanged = VramUsedGb != newVramUsed;
+        if (vramUsedChanged)
+        {
+            VramUsedGb = newVramUsed;
+            OnPropertyChanged(nameof(VramUsedGb));
+        }
+
+        if (vramUsedChanged || totalVramChanged || totalDisplayChanged)
+        {
+            OnPropertyChanged(nameof(VramUsageText));
+            OnPropertyChanged(nameof(VramUsagePercent));
+        }
+
+        if (CoreLoadPercent != newLoad)
+        {
+            CoreLoadPercent = newLoad;
+            OnPropertyChanged(nameof(CoreLoadPercent));
+            OnPropertyChanged(nameof(CoreLoadText));
+            OnPropertyChanged(nameof(CoreLoadBarValue));
+        }
+
+        if (CoreTemperatureC != newTemp)
+        {
+            CoreTemperatureC = newTemp;
+            OnPropertyChanged(nameof(CoreTemperatureC));
+            OnPropertyChanged(nameof(CoreTemperatureText));
+        }
+
+        if (HotSpotTemperatureC != newHotSpot)
+        {
+            HotSpotTemperatureC = newHotSpot;
+            OnPropertyChanged(nameof(HotSpotTemperatureC));
+            OnPropertyChanged(nameof(HotSpotTemperatureText));
+        }
+
+        if (CoreClockMhz != newClock)
+        {
+            CoreClockMhz = newClock;
+            OnPropertyChanged(nameof(CoreClockMhz));
+            OnPropertyChanged(nameof(CoreClockText));
+        }
+
+        if (MemoryClockMhz != newMemClock)
+        {
+            MemoryClockMhz = newMemClock;
+            OnPropertyChanged(nameof(MemoryClockMhz));
+            OnPropertyChanged(nameof(MemoryClockText));
+        }
+
+        if (PowerWatts != newPower)
+        {
+            PowerWatts = newPower;
+            OnPropertyChanged(nameof(PowerWatts));
+            OnPropertyChanged(nameof(PowerText));
+        }
+
+        bool fanRpmChanged = FanRpm != newFanRpm;
+        bool fanPctChanged = FanPercent != newFanPct;
+        if (fanRpmChanged)
+        {
+            FanRpm = newFanRpm;
+            OnPropertyChanged(nameof(FanRpm));
+        }
+
+        if (fanPctChanged)
+        {
+            FanPercent = newFanPct;
+            OnPropertyChanged(nameof(FanPercent));
+        }
+
+        if (fanRpmChanged || fanPctChanged)
+        {
+            OnPropertyChanged(nameof(FanText));
+        }
     }
 }
 
@@ -982,7 +1136,20 @@ public class StorageDriveMetrics : ObservableObject
         ? $"{TemperatureC.Value:0} °C"
         : "Sem sensor";
 
-    public void UpdateFrom(StorageDriveMetrics other)
+    public static StorageDriveMetrics FromSnapshot(in StorageDriveSnapshot snapshot) => new()
+    {
+        DriveName = snapshot.DriveName,
+        VolumeLabel = snapshot.VolumeLabel,
+        FileSystem = snapshot.FileSystem,
+        PhysicalDiskModel = snapshot.PhysicalDiskModel,
+        TotalSizeGb = Math.Round(snapshot.TotalSizeGb, 1),
+        UsedSizeGb = Math.Round(snapshot.UsedSizeGb, 1),
+        FreeSizeGb = Math.Round(snapshot.FreeSizeGb, 1),
+        UsagePercent = Math.Round(snapshot.UsagePercent, 0),
+        TemperatureC = snapshot.TemperatureC is not null ? MathF.Round(snapshot.TemperatureC.Value, 0) : null
+    };
+
+    public void UpdateFrom(in StorageDriveSnapshot other)
     {
         double newTotal = Math.Round(other.TotalSizeGb, 1);
         double newUsed = Math.Round(other.UsedSizeGb, 1);
@@ -990,25 +1157,88 @@ public class StorageDriveMetrics : ObservableObject
         double newPct = Math.Round(other.UsagePercent, 0);
         float? newTemp = other.TemperatureC is not null ? MathF.Round(other.TemperatureC.Value, 0) : null;
 
-        if (TotalSizeGb == newTotal &&
-            UsedSizeGb == newUsed &&
-            FreeSizeGb == newFree &&
-            UsagePercent == newPct &&
-            TemperatureC == newTemp &&
-            PhysicalDiskModel == other.PhysicalDiskModel)
+        bool driveNameChanged = !string.Equals(DriveName, other.DriveName, StringComparison.Ordinal);
+        bool volumeChanged = !string.Equals(VolumeLabel, other.VolumeLabel, StringComparison.Ordinal);
+
+        if (driveNameChanged)
         {
-            return;
+            DriveName = other.DriveName;
+            OnPropertyChanged(nameof(DriveName));
         }
 
-        VolumeLabel = other.VolumeLabel;
-        FileSystem = other.FileSystem;
-        PhysicalDiskModel = other.PhysicalDiskModel;
-        TotalSizeGb = newTotal;
-        UsedSizeGb = newUsed;
-        FreeSizeGb = newFree;
-        UsagePercent = newPct;
-        TemperatureC = newTemp;
-        OnPropertyChanged(string.Empty);
+        if (volumeChanged)
+        {
+            VolumeLabel = other.VolumeLabel;
+            OnPropertyChanged(nameof(VolumeLabel));
+        }
+
+        if (driveNameChanged || volumeChanged)
+        {
+            OnPropertyChanged(nameof(DisplayTitle));
+        }
+
+        if (!string.Equals(FileSystem, other.FileSystem, StringComparison.Ordinal))
+        {
+            FileSystem = other.FileSystem;
+            OnPropertyChanged(nameof(FileSystem));
+        }
+
+        if (!string.Equals(PhysicalDiskModel, other.PhysicalDiskModel, StringComparison.Ordinal))
+        {
+            PhysicalDiskModel = other.PhysicalDiskModel;
+            OnPropertyChanged(nameof(PhysicalDiskModel));
+        }
+
+        bool totalChanged = TotalSizeGb != newTotal;
+        bool usedChanged = UsedSizeGb != newUsed;
+        bool freeChanged = FreeSizeGb != newFree;
+        bool pctChanged = UsagePercent != newPct;
+
+        if (totalChanged)
+        {
+            TotalSizeGb = newTotal;
+            OnPropertyChanged(nameof(TotalSizeGb));
+        }
+
+        if (usedChanged)
+        {
+            UsedSizeGb = newUsed;
+            OnPropertyChanged(nameof(UsedSizeGb));
+        }
+
+        if (freeChanged)
+        {
+            FreeSizeGb = newFree;
+            OnPropertyChanged(nameof(FreeSizeGb));
+        }
+
+        if (pctChanged)
+        {
+            UsagePercent = newPct;
+            OnPropertyChanged(nameof(UsagePercent));
+        }
+
+        if (totalChanged || usedChanged)
+        {
+            OnPropertyChanged(nameof(CapacitySummaryText));
+        }
+
+        if (freeChanged || pctChanged)
+        {
+            OnPropertyChanged(nameof(FreeSpaceSummaryText));
+        }
+
+        if (totalChanged || usedChanged || freeChanged || pctChanged)
+        {
+            OnPropertyChanged(nameof(OverviewLineText));
+        }
+
+        if (TemperatureC != newTemp)
+        {
+            TemperatureC = newTemp;
+            OnPropertyChanged(nameof(TemperatureC));
+            OnPropertyChanged(nameof(TemperatureText));
+        }
     }
 }
 
@@ -1024,15 +1254,27 @@ public class PhysicalStorageMetrics : ObservableObject
         ? $"{TemperatureC.Value:0} °C"
         : "Sem sensor";
 
-    public void UpdateFrom(PhysicalStorageMetrics other)
+    public static PhysicalStorageMetrics FromSnapshot(in PhysicalStorageSnapshot snapshot) => new()
+    {
+        ModelName = snapshot.ModelName,
+        TemperatureC = snapshot.TemperatureC is not null ? MathF.Round(snapshot.TemperatureC.Value, 0) : null
+    };
+
+    public void UpdateFrom(in PhysicalStorageSnapshot other)
     {
         float? newTemp = other.TemperatureC is not null ? MathF.Round(other.TemperatureC.Value, 0) : null;
 
-        if (TemperatureC == newTemp && ModelName == other.ModelName)
-            return;
+        if (!string.Equals(ModelName, other.ModelName, StringComparison.Ordinal))
+        {
+            ModelName = other.ModelName;
+            OnPropertyChanged(nameof(ModelName));
+        }
 
-        ModelName = other.ModelName;
-        TemperatureC = newTemp;
-        OnPropertyChanged(string.Empty);
+        if (TemperatureC != newTemp)
+        {
+            TemperatureC = newTemp;
+            OnPropertyChanged(nameof(TemperatureC));
+            OnPropertyChanged(nameof(TemperatureText));
+        }
     }
 }

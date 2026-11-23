@@ -54,4 +54,7 @@ public class AppSettings
 
     // RAM
     public bool ShowRam { get; set; } = true;
+
+    // Histórico opcional de performance de jogos (desligado por padrão para zero overhead)
+    public bool EnableGameHistory { get; set; } = false;
 }

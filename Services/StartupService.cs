@@ -7,7 +7,46 @@ public class StartupService
     private const string TaskName = "CleanPanelAutoStart";
     private const string LegacyTaskName = "HardwareOverlayMonitorApp";
 
+    private readonly object _syncLock = new();
+    private bool? _pendingEnable;
+    private bool _workerRunning;
+
     public void SetStartup(bool enable)
+    {
+        lock (_syncLock)
+        {
+            _pendingEnable = enable;
+            if (_workerRunning)
+                return;
+
+            _workerRunning = true;
+        }
+
+        _ = Task.Run(ProcessPendingUpdates);
+    }
+
+    private void ProcessPendingUpdates()
+    {
+        while (true)
+        {
+            bool targetEnable;
+            lock (_syncLock)
+            {
+                if (!_pendingEnable.HasValue)
+                {
+                    _workerRunning = false;
+                    return;
+                }
+
+                targetEnable = _pendingEnable.Value;
+                _pendingEnable = null;
+            }
+
+            ApplyStartupTask(targetEnable);
+        }
+    }
+
+    private static void ApplyStartupTask(bool enable)
     {
         try
         {
